@@ -122,6 +122,12 @@ Claude Code 2.1.325 was exercised in a temporary project with only `.claude/sett
 
 An initial Auto-mode run executed a marker command after `PreToolUse` without emitting `PermissionRequest`. JICHO therefore did not show an approval or block the command. The README and verifier now describe this boundary, and the verifier launches manual mode for an approval test. HTTP timeout, connection failure, app crash, and delivery through the desktop card have not been tested against Claude.
 
+## Linux Wayland GUI smoke follow-up (2026-11-16)
+
+The Electron app launched in the current GNOME Wayland session with isolated temporary app-data/cache directories. DevTools confirmed the companion page loaded, the companion's `openCommandCentre` IPC returned true, and a second window rendered the live empty-state dashboard. The temporary data and screenshots were deleted afterward. The run used `--no-sandbox` because the bundled `chrome-sandbox` was not root-owned/setuid and the host disallows unprivileged user namespaces; it is UI evidence only and does not verify Chromium OS sandboxing. Electron also logged a Wayland/Vulkan compatibility warning.
+
+Electron's [BrowserWindow platform notes](https://www.electronjs.org/docs/latest/api/browser-window) say Wayland generally does not permit programmatic placement, resizing, move, or focus changes. **Inference:** Jicho's current companion calls `setBounds()` in `placeWindow()`, so its native Wayland positioning and resizing cannot be inferred from the successful renderer smoke. Those behaviors, tray integration, and an X11 pass remain outstanding.
+
 ## Command-centre increment
 
 The next increment adds a second bounded Electron window at `src/command-centre.html`, with overview, session, activity, and approval views. Its snapshot comes from `Store.listSessions()`, `Store.listRecentActivity()`, and the existing in-memory `Core.list()` queue. Hook events are labeled as Claude observations; decision and restart audit entries are labeled as Jicho local actions. Approval buttons call the same core handler and held HTTP response used by the floating companion.

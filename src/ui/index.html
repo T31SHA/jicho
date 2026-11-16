@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jicho</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="app" class="shell">
+    <section id="idle" class="idle" aria-label="Jicho is watching">
+      <div class="eye" aria-hidden="true">
+        <div class="white"><div id="pupil" class="pupil"></div></div>
+      </div>
+      <span id="error" class="error" role="status"></span>
+    </section>
+    <section id="card" class="card" hidden aria-live="polite">
+      <header class="card-header">
+        <div class="avatar"><div class="mini-eye"><i></i></div></div>
+        <div class="heading"><strong>Jicho needs you</strong><span id="folder"></span></div>
+        <span id="queue" class="queue" hidden></span>
+      </header>
+      <div class="tool-row"><span id="tool"></span><span class="request-label">wants permission</span></div>
+      <pre id="command" class="command"></pre>
+      <div class="buttons">
+        <button class="deny" data-decision="deny">Deny</button>
+        <button class="allow" data-decision="allow">Allow</button>
+        <button class="always" data-decision="allow">Always</button>
+      </div>
+      <div id="card-error" class="card-error" role="status"></div>
+    </section>
+  </main>
+  <script src="./renderer.js"></script>
+</body>
+</html>

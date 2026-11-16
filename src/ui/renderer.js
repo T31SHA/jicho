@@ -25,11 +25,14 @@ function draw() {
     document.getElementById('phone-topic').textContent = phone.topic || '';
     document.getElementById('phone-enabled').checked = Boolean(phone.enabled);
     document.getElementById('content-free').checked = Boolean(phone.contentFree);
-    document.getElementById('phone-status').textContent = phone.status && phone.status.message || '';
+    document.getElementById('phone-status').textContent = state.error || phone.status && phone.status.message || '';
     const qr = document.getElementById('phone-qr');
     if (phone.qrDataUrl && qr.src !== phone.qrDataUrl) qr.src = phone.qrDataUrl;
   }
   document.getElementById('allowlist-enabled').checked = Boolean(state.allowlistEnabled);
+  document.getElementById('autostart-enabled').checked = Boolean(state.autostartEnabled);
+  document.getElementById('error').textContent = state.error || '';
+  document.getElementById('card-error').textContent = state.error || '';
   if (!current) return;
   document.getElementById('folder').textContent = current.cwd || 'Unknown folder';
   document.getElementById('folder').title = current.cwd || '';
@@ -84,9 +87,7 @@ window.jicho.onCursor((point) => {
   const y = Math.max(-7, Math.min(7, point.y / 12));
   pupil.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
 });
-window.jicho.onError((message) => {
-  document.getElementById('error').textContent = message;
-});
+window.jicho.onError((message) => { document.getElementById('error').textContent = message; });
 
 document.querySelectorAll('button[data-decision]').forEach((button) => {
   button.addEventListener('click', async () => {
@@ -112,5 +113,6 @@ document.getElementById('phone-done').addEventListener('click', () => window.jic
 document.getElementById('phone-enabled').addEventListener('change', (event) => window.jicho.setPhoneEnabled(event.target.checked));
 document.getElementById('content-free').addEventListener('change', (event) => window.jicho.setPhoneContentFree(event.target.checked));
 document.getElementById('allowlist-enabled').addEventListener('change', (event) => window.jicho.setAllowlistEnabled(event.target.checked));
+document.getElementById('autostart-enabled').addEventListener('change', (event) => window.jicho.setAutostartEnabled(event.target.checked));
 
 draw();

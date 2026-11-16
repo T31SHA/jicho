@@ -1,9 +1,11 @@
-const { app, BrowserWindow, ipcMain, screen, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, nativeTheme, Tray, Menu, nativeImage } = require('electron');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { Core } = require('./core');
 const { createServer } = require('./server');
 const { PhoneBridge } = require('./phone');
+const { createTrayIcon } = require('./tray-icon');
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
 const WIDTH = 390;
@@ -19,9 +21,16 @@ let pending = [];
 let cursorTimer;
 let phoneBridge;
 let showPhone = false;
-let preferences = { allowlistEnabled: false };
+let preferences = { allowlistEnabled: false, autostartEnabled: false };
 let preferencesFile;
 const phoneNotifications = new Set();
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+let tray;
+let serverError = '';
+let autostartError = '';
+
+if (!hasSingleInstanceLock) app.quit();
+else app.on('second-instance', () => showSettings());
 
 function savePreferences() {
   if (!preferencesFile) return;
@@ -31,15 +40,112 @@ function savePreferences() {
   } catch (error) { console.error('Could not save Jicho settings:', error.message); }
 }
 
+function desktopExecArg(value) {
+  return '"' + String(value).replace(/%/g, '%%').replace(/([\\"])/g, '\\$1') + '"';
+}
+
+function linuxAutostartPath() {
+  return path.join(os.homedir(), '.config', 'autostart', 'jicho.desktop');
+}
+
+function applyAutostart(enabled) {
+  try {
+    if (process.platform === 'linux') {
+      const file = linuxAutostartPath();
+      if (!enabled) {
+        if (fs.existsSync(file)) fs.unlinkSync(file);
+        return true;
+      }
+      const args = [process.env.APPIMAGE || process.execPath];
+      if (!app.isPackaged && !process.env.APPIMAGE) args.push(app.getAppPath());
+      fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+      const entry = [
+        '[Desktop Entry]',
+        'Type=Application',
+        'Name=Jicho',
+        'Comment=Local coding-agent approval companion',
+        'Exec=' + args.map(desktopExecArg).join(' '),
+        'Terminal=false',
+        'X-GNOME-Autostart-enabled=true',
+        ''
+      ].join('\n');
+      fs.writeFileSync(file, entry, { mode: 0o644 });
+      autostartError = '';
+      return true;
+    }
+    if (process.platform === 'darwin' || process.platform === 'win32') {
+      app.setLoginItemSettings({ openAtLogin: Boolean(enabled) });
+      autostartError = '';
+      return true;
+    }
+    return false;
+  } catch (error) {
+    autostartError = 'Could not update start-at-login: ' + error.message;
+    return false;
+  }
+}
+
+function showSettings() {
+  showPhone = true;
+  if (!windowRef) createWindow();
+  if (windowRef && !windowRef.isDestroyed()) {
+    windowRef.showInactive();
+    publishState();
+  }
+}
+
+function setAllowlistEnabled(enabled) {
+  if (!core) return false;
+  preferences.allowlistEnabled = Boolean(enabled);
+  core.setPolicyEnabled(preferences.allowlistEnabled);
+  savePreferences();
+  refreshTray();
+  publishState();
+  return true;
+}
+
+function setAutostartEnabled(enabled) {
+  const value = Boolean(enabled);
+  if (!applyAutostart(value)) { publishState(); return false; }
+  autostartError = '';
+  preferences.autostartEnabled = value;
+  savePreferences();
+  refreshTray();
+  publishState();
+  return true;
+}
+
+function refreshTray() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Phone and safety settings', click: showSettings },
+    { type: 'separator' },
+    { label: 'Auto-allow exact safe patterns', type: 'checkbox', checked: Boolean(preferences.allowlistEnabled), click: (item) => setAllowlistEnabled(item.checked) },
+    { label: 'Start Jicho when I sign in', type: 'checkbox', checked: Boolean(preferences.autostartEnabled), click: (item) => setAutostartEnabled(item.checked) },
+    { type: 'separator' },
+    { label: 'Quit Jicho', click: () => app.quit() }
+  ]));
+}
+
+function createTray() {
+  tray = new Tray(createTrayIcon(nativeImage));
+  tray.setToolTip('Jicho — local approval companion');
+  refreshTray();
+  tray.on('click', showSettings);
+  tray.on('double-click', showSettings);
+}
+
 function loadPreferences(dataDirectory) {
   preferencesFile = path.join(dataDirectory, 'preferences.json');
   try {
     preferences = JSON.parse(fs.readFileSync(preferencesFile, 'utf8'));
     if (typeof preferences.allowlistEnabled !== 'boolean') preferences.allowlistEnabled = false;
+    if (typeof preferences.autostartEnabled !== 'boolean') preferences.autostartEnabled = false;
   } catch (_) {
-    preferences = { allowlistEnabled: false };
+    preferences = { allowlistEnabled: false, autostartEnabled: false };
     savePreferences();
   }
+  if (preferences.autostartEnabled) applyAutostart(true);
 }
 
 function placeWindow(layout) {
@@ -62,6 +168,8 @@ function publishState() {
     sessions,
     working: sessions.some((session) => session.state === 'working'),
     allowlistEnabled: Boolean(preferences.allowlistEnabled),
+    autostartEnabled: Boolean(preferences.autostartEnabled),
+    error: serverError || autostartError,
     phone: phoneBridge ? phoneBridge.viewState() : null
   });
 }
@@ -142,21 +250,23 @@ function startServer() {
   server = createServer(core);
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
-      if (windowRef && !windowRef.isDestroyed()) {
-        windowRef.webContents.send('jicho:error', 'Port ' + PORT + ' is already in use.');
-      }
+      serverError = 'Port ' + PORT + ' is already in use. Close the other app using it, then restart Jicho.';
     } else {
+      serverError = 'The local hook server failed (' + (error.code || 'error') + ').';
       console.error('Jicho server error:', error.message);
     }
+    publishState();
   });
+  server.on('listening', () => { serverError = ''; publishState(); });
   server.listen(PORT, '127.0.0.1');
 }
 
-app.whenReady().then(() => {
+if (hasSingleInstanceLock) app.whenReady().then(() => {
   app.setAppUserModelId('org.jicho.desktop');
   nativeTheme.themeSource = 'dark';
   createWindow();
   startServer();
+  createTray();
   app.on('activate', () => {
     if (!windowRef) createWindow();
   });
@@ -195,18 +305,18 @@ ipcMain.handle('jicho:phone-content-free', (_event, contentFree) => {
 });
 
 ipcMain.handle('jicho:allowlist-enabled', (_event, enabled) => {
-  if (!core) return false;
-  preferences.allowlistEnabled = Boolean(enabled);
-  core.setPolicyEnabled(preferences.allowlistEnabled);
-  savePreferences();
-  publishState();
-  return true;
+  return setAllowlistEnabled(enabled);
+});
+
+ipcMain.handle('jicho:autostart-enabled', (_event, enabled) => {
+  return setAutostartEnabled(enabled);
 });
 
 app.on('before-quit', () => {
   if (cursorTimer) clearInterval(cursorTimer);
   if (phoneBridge) phoneBridge.close();
-  if (server) server.close();
+  if (server && server.listening) server.close();
+  if (tray) tray.destroy();
 });
 
-app.on('window-all-closed', (event) => { event.preventDefault(); });
+app.on('window-all-closed', () => {});

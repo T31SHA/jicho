@@ -20,7 +20,11 @@ function makeHook() {
     type: 'http',
     url: URL,
     timeout: 120,
-    headers: { [MARKER_HEADER]: MARKER_VALUE }
+    headers: {
+      [MARKER_HEADER]: MARKER_VALUE,
+      Authorization: 'Bearer $JICHO_TOKEN'
+    },
+    allowedEnvVars: ['JICHO_TOKEN']
   };
 }
 
@@ -36,10 +40,18 @@ function mergeHooks(settings) {
   for (const event of EVENTS) {
     if (next.hooks[event] === undefined) next.hooks[event] = [];
     if (!Array.isArray(next.hooks[event])) throw new Error('The hooks.' + event + ' setting must be an array.');
-    const present = next.hooks[event].some((group) => group && Array.isArray(group.hooks) && group.hooks.some(isJichoHook));
-    if (!present) {
+    const existing = next.hooks[event].flatMap((group) => group && Array.isArray(group.hooks) ? group.hooks : []).filter(isJichoHook);
+    if (!existing.length) {
       next.hooks[event].push({ hooks: [makeHook()] });
       added += 1;
+    } else {
+      for (const hook of existing) {
+        if (!hook.headers.Authorization) { hook.headers.Authorization = 'Bearer $JICHO_TOKEN'; added += 1; }
+        if (!Array.isArray(hook.allowedEnvVars) || !hook.allowedEnvVars.includes('JICHO_TOKEN')) {
+          hook.allowedEnvVars = [...new Set([...(Array.isArray(hook.allowedEnvVars) ? hook.allowedEnvVars : []), 'JICHO_TOKEN'])];
+          added += 1;
+        }
+      }
     }
   }
   return { settings: next, added };

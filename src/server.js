@@ -29,6 +29,18 @@ function hasValidBearer(header, token) {
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 
+function isTrustedHookRequest(req) {
+  const expectedHost = '127.0.0.1:' + req.socket.localPort;
+  if (typeof req.headers.host !== 'string' || req.headers.host.toLowerCase() !== expectedHost) return false;
+  // Claude's HTTP hook client does not send browser navigation metadata. Refuse
+  // browser initiated requests so hostile pages cannot use Jicho as a loopback
+  // target, including when the optional bearer token is not configured.
+  if (req.headers.origin !== undefined || req.headers.referer !== undefined) return false;
+  const fetchSite = req.headers['sec-fetch-site'];
+  if (typeof fetchSite === 'string' && fetchSite.toLowerCase() !== 'none') return false;
+  return true;
+}
+
 function createServer(core, options = {}) {
   const token = options.token === undefined ? TOKEN : String(options.token || '');
   const maxBodyBytes = Number.isInteger(options.maxBodyBytes) && options.maxBodyBytes > 0
@@ -36,6 +48,11 @@ function createServer(core, options = {}) {
     : MAX_BODY_BYTES;
   const server = http.createServer((req, res) => {
     if (req.method !== 'POST' || req.url !== '/') { res.writeHead(404); return res.end(); }
+    if (!isTrustedHookRequest(req)) {
+      report(core, 'untrusted-request-context', 'Hook request did not use the expected loopback host or included browser-origin metadata.');
+      req.resume();
+      return sendJson(res, 403, { error: 'request_not_allowed' });
+    }
     if (!hasValidBearer(req.headers.authorization, token)) {
       req.resume();
       return sendJson(res, 401, { error: 'unauthorized' });

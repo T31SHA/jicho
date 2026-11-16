@@ -53,7 +53,7 @@ Open the pairing panel from the eye or tray. Scan the QR code with ntfy on Andro
 
 ## Security model
 
-- The hook server listens only on `127.0.0.1:47821`; it is not exposed on your network. `JICHO_TOKEN` is optional. If set, give the same token to the environment that launches Jicho and Claude Code.
+- The hook server listens only on `127.0.0.1:47821`; it is not exposed on your network. It accepts only the exact loopback Host header and rejects browser Origin/Referer and cross-site Fetch Metadata, which blocks browser pages and DNS-rebinding hosts from using it. `JICHO_TOKEN` is optional; without it, another native process running as your OS user can still forge hook events. If set, give the same token to the environment that launches Jicho and Claude Code.
 - Hook requests over 1 MiB, malformed JSON, and requests without a valid session ID are rejected or returned without a decision. Safe auto-allow applies only after Jicho has observed a user prompt in that session during the current process lifetime.
 - Each PermissionRequest holds one HTTP response. Allow or Deny settles that exact response. A stale or unrelated answer cannot approve another request. If a request times out, Jicho sends no decision and Claude can show its own dialog.
 - The desktop card displays the raw command without summarizing or redacting it. Keep the screen private if commands may contain secrets.

@@ -128,6 +128,10 @@ The Electron app launched in the current GNOME Wayland session with isolated tem
 
 Electron's [BrowserWindow platform notes](https://www.electronjs.org/docs/latest/api/browser-window) say Wayland generally does not permit programmatic placement, resizing, move, or focus changes. **Inference:** Jicho's current companion calls `setBounds()` in `placeWindow()`, so its native Wayland positioning and resizing cannot be inferred from the successful renderer smoke. Those behaviors, tray integration, and an X11 pass remain outstanding.
 
+## Loopback ingress browser-isolation follow-up (2026-11-16)
+
+The local hook server now requires the exact `127.0.0.1:<local-port>` Host header and rejects Origin, Referer, or cross-site Fetch Metadata before parsing or storing request bodies. Three HTTP regression cases confirm browser-origin, cross-site, and hostile-Host requests receive HTTP 403 and do not create sessions. The ordinary local hook harness still covers 20 concurrent approvals. This is defense against browser-mediated requests and DNS rebinding; because bearer authentication remains optional, it does not authenticate native processes running as the same user.
+
 ## Command-centre increment
 
 The next increment adds a second bounded Electron window at `src/command-centre.html`, with overview, session, activity, and approval views. Its snapshot comes from `Store.listSessions()`, `Store.listRecentActivity()`, and the existing in-memory `Core.list()` queue. Hook events are labeled as Claude observations; decision and restart audit entries are labeled as Jicho local actions. Approval buttons call the same core handler and held HTTP response used by the floating companion.

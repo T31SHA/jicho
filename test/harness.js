@@ -325,5 +325,22 @@ const waitForPendingCount = async (core, count) => {
   assert.strictEqual(isTrustedMainFrame({ sender: { mainFrame }, senderFrame: { url: 'https://example.com' } }, [dashboardPath]), false);
   console.log('PASS 20: dashboard IPC accepts only its own trusted main frame');
 
+  const webOriginAttack = await postRaw(port, JSON.stringify({
+    hook_event_name: 'UserPromptSubmit', session_id: 'spoofed-by-web-origin', cwd: '/tmp'
+  }), { origin: 'https://attacker.example', 'content-type': 'application/json' });
+  assert.strictEqual(webOriginAttack.statusCode, 403);
+  const reboundHostAttack = await postRaw(port, JSON.stringify({
+    hook_event_name: 'UserPromptSubmit', session_id: 'spoofed-by-rebound-host', cwd: '/tmp'
+  }), { host: 'attacker.example', 'content-type': 'application/json' });
+  assert.strictEqual(reboundHostAttack.statusCode, 403);
+  const fetchMetadataAttack = await postRaw(port, JSON.stringify({
+    hook_event_name: 'UserPromptSubmit', session_id: 'spoofed-by-fetch-metadata', cwd: '/tmp'
+  }), { 'sec-fetch-site': 'cross-site', 'content-type': 'application/json' });
+  assert.strictEqual(fetchMetadataAttack.statusCode, 403);
+  assert.strictEqual(core.sessions.has('spoofed-by-web-origin'), false);
+  assert.strictEqual(core.sessions.has('spoofed-by-rebound-host'), false);
+  assert.strictEqual(core.sessions.has('spoofed-by-fetch-metadata'), false);
+  console.log('PASS 21: browser-origin, cross-site, and rebound-host hook requests are rejected before event handling');
+
   await new Promise((resolve) => srv.close(resolve)); console.log('ALL PASS');
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

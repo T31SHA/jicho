@@ -44,6 +44,12 @@
 - The host's bundled Electron `chrome-sandbox` is not root-owned/setuid and unprivileged user namespaces are unavailable, so the GUI smoke required Electron's testing-only `--no-sandbox` flag. The app's BrowserWindows still declare renderer `sandbox: true` and context isolation, but this run does not validate Chromium OS sandboxing.
 - Electron emitted a Wayland/Vulkan incompatibility warning but rendered both windows. The app process, temporary data, and screenshots were removed afterward; no user-level Claude settings were changed.
 
+## Local hook ingress hardening (2026-11-16)
+
+- The loopback server now requires the exact `127.0.0.1:<listening-port>` Host header and rejects requests with browser Origin/Referer metadata or cross-site Fetch Metadata before parsing or storing the body.
+- Added live HTTP regression checks for a hostile Origin, a DNS-rebinding Host, and cross-site Fetch Metadata. All are rejected before creating a session or recording an event.
+- This blocks browser-mediated loopback access but does not authenticate native same-user processes. `JICHO_TOKEN` remains optional to preserve the current default install flow.
+
 ## Verification
 
 Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, better-sqlite3 `13.2.0`, Claude Code `2.1.325` after its built-in update.
@@ -51,7 +57,7 @@ Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, bet
 | Check | Result | Limits |
 | --- | --- | --- |
 | Original repository baseline | PASS, 9 checks | Baseline predates the ingress hardening and SQLite work. |
-| Current `npm test` | PASS, 20 checks | Local loopback and SQLite harness; not an external integration test. Covers 20-way routing, durable concurrent decisions, expiry, one decision, restart recovery, unavailable-store failure, and trusted IPC sender checks. |
+| Current `npm test` | PASS, 21 checks | Local loopback and SQLite harness; not an external integration test. Covers 20-way routing, durable concurrent decisions, expiry, one decision, restart recovery, unavailable-store failure, trusted IPC sender checks, and browser-origin/Host rejection. |
 | Claude settings-scope install/uninstall | PASS | Automated isolated temporary-project check verifies local-scope write, backup, preservation, and removal. It does not edit the user's Claude configuration or prove Claude loaded the file. |
 | Claude Code live hook | PASS, Claude Code 2.1.325 | Real CLI with temporary project-local hooks: PermissionRequest Allow created the test file, Deny prevented creation, and SessionEnd arrived before verifier shutdown. Auto mode was separately observed to execute the command without PermissionRequest; the verifier now forces manual mode. No timeout, crash, or real desktop-card test was performed. |
 | Linux Wayland GUI smoke | PASS, partial | Real Electron app launched; companion page rendered; command-centre IPC opened a second window; live empty-state dashboard rendered. Run used `--no-sandbox` because the host sandbox prerequisites are unavailable. Window geometry/dragging, native approval cards, tray, shortcut, and X11 remain unverified. |

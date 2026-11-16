@@ -2,6 +2,9 @@
   "name": "jicho",
   "version": "0.0.1",
   "description": "The eye on your coding agents. Approve Claude Code permissions from your desktop or phone.",
+  "author": "Jicho contributors <T31SHA@users.noreply.github.com>",
+  "homepage": "https://github.com/T31SHA/jicho",
+  "desktopName": "jicho",
   "license": "MIT",
   "main": "src/main.js",
   "scripts": {
@@ -10,10 +13,49 @@
     "jicho": "node bin/jicho.js",
     "verify": "node src/verify.js",
     "demo": "node src/demo.js",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:linux": "electron-builder --linux AppImage deb",
     "test": "node test/harness.js"
   },
+  "build": {
+    "appId": "org.jicho.desktop",
+    "productName": "Jicho",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "bin/**/*",
+      "LICENSE",
+      "README.md"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "identity": null,
+      "hardenedRuntime": false,
+      "notarize": false
+    },
+    "win": {
+      "target": ["nsis"],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility",
+      "maintainer": "Jicho contributors <T31SHA@users.noreply.github.com>",
+      "syncDesktopName": true
+    }
+  },
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^26.18.0"
   },
   "dependencies": {
     "qrcode": "^1.5.4"

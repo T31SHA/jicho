@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>JICHO Command Centre</title>
+  <link rel="stylesheet" href="./command-centre.css">
+</head>
+<body>
+  <div class="app-frame">
+    <aside class="rail">
+      <div class="brand" aria-label="Jicho"><span class="brand-eye"><i></i></span><span>JICHO</span></div>
+      <div class="rail-label">SUPERVISION</div>
+      <nav aria-label="Command centre sections">
+        <button class="nav-item selected" data-view="overview"><span class="nav-icon">◈</span>Overview</button>
+        <button class="nav-item" data-view="sessions"><span class="nav-icon">▤</span>Sessions<span id="session-nav-count" class="nav-count">0</span></button>
+        <button class="nav-item" data-view="activity"><span class="nav-icon">◷</span>Activity</button>
+        <button class="nav-item" data-view="approvals"><span class="nav-icon">◎</span>Approvals<span id="approval-nav-count" class="nav-count amber">0</span></button>
+      </nav>
+      <div class="rail-spacer"></div>
+      <div class="rail-footer">
+        <span class="footer-orb"></span>
+        <span><strong>Local control</strong><small>This computer resolves decisions</small></span>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div><div class="eyebrow">JICHO / DESKTOP</div><h1 id="page-title">Overview</h1></div>
+        <div class="topbar-status"><span id="connection-dot" class="status-dot"></span><span id="connection-label">Connecting to local core…</span><button id="refresh" class="refresh-button" title="Refresh data" aria-label="Refresh data">↻</button></div>
+      </header>
+
+      <section id="view-overview" class="view active" aria-labelledby="page-title">
+        <div class="intro-row"><div><h2>Agent operations</h2><p>Observed activity and permission requests from your connected coding sessions.</p></div><div id="generated-at" class="updated-label"></div></div>
+        <div class="metric-grid">
+          <article class="metric-card"><span class="metric-label">ACTIVE SESSIONS</span><strong id="metric-active">0</strong><small>recently observed</small><span class="metric-mark teal">◉</span></article>
+          <article class="metric-card"><span class="metric-label">PENDING APPROVALS</span><strong id="metric-pending">0</strong><small>waiting for your decision</small><span class="metric-mark amber">◎</span></article>
+          <article class="metric-card"><span class="metric-label">OBSERVED EVENTS</span><strong id="metric-events">0</strong><small>in recent local history</small><span class="metric-mark blue">⌁</span></article>
+          <article class="metric-card"><span class="metric-label">TOOL FAILURES</span><strong id="metric-failures">0</strong><small>reported by Claude hooks</small><span class="metric-mark red">!</span></article>
+        </div>
+        <div class="overview-grid">
+          <section class="panel approvals-panel"><header class="panel-heading"><div><span class="eyebrow">ACTION REQUIRED</span><h2>Pending approvals</h2></div><button class="text-button" data-go="approvals">View all <span>→</span></button></header><div id="overview-approvals" class="approval-list"></div></section>
+          <section class="panel activity-panel"><header class="panel-heading"><div><span class="eyebrow">SOURCE EVENTS</span><h2>Recent activity</h2></div><button class="text-button" data-go="activity">Timeline <span>→</span></button></header><div id="overview-activity" class="timeline compact"></div></section>
+        </div>
+        <section class="panel overview-sessions"><header class="panel-heading"><div><span class="eyebrow">CONNECTED WORK</span><h2>Agent sessions</h2></div><button class="text-button" data-go="sessions">All sessions <span>→</span></button></header><div id="overview-sessions-list" class="session-grid"></div></section>
+      </section>
+
+      <section id="view-sessions" class="view" hidden>
+        <div class="intro-row"><div><h2>Agent sessions</h2><p>Session identity and status come from observed Claude Code hook events.</p></div><div id="session-total" class="count-chip">0 sessions</div></div>
+        <div class="session-layout"><div id="session-list" class="session-list panel"></div><section id="session-detail" class="session-detail panel"><div class="empty-state"><span class="empty-icon">▤</span><strong>Select a session</strong><p>Choose a session to inspect its observed event history.</p></div></section></div>
+      </section>
+
+      <section id="view-activity" class="view" hidden>
+        <div class="intro-row"><div><h2>Activity timeline</h2><p>Each entry is labeled with its source. Claude hook events are observations; JICHO decisions are local control actions.</p></div><div class="count-chip">Latest 100 records</div></div>
+        <section class="panel timeline-panel"><div id="activity-list" class="timeline"></div></section>
+      </section>
+
+      <section id="view-approvals" class="view" hidden>
+        <div class="intro-row"><div><h2>Permission approvals</h2><p>Review the original operation and decide on the request tied to that Claude response.</p></div><div id="approval-total" class="count-chip amber-chip">0 pending</div></div>
+        <div id="approval-list" class="approval-list full-approval-list"></div>
+      </section>
+      <div id="centre-error" class="centre-error" role="status"></div>
+    </main>
+  </div>
+  <script src="./command-centre.js"></script>
+</body>
+</html>

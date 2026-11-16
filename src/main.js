@@ -1,23 +1,28 @@
-const { app, BrowserWindow, ipcMain, screen, nativeTheme, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, nativeTheme, Tray, Menu, nativeImage, globalShortcut } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const { Core } = require('./core');
 const { createServer } = require('./server');
 const { PhoneBridge } = require('./phone');
 const { createTrayIcon } = require('./tray-icon');
 const { Store } = require('./store');
+const { isTrustedMainFrame } = require('./ipc-security');
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
 const WIDTH = 390;
 const IDLE_HEIGHT = 76;
 const CARD_HEIGHT = 330;
 const PHONE_HEIGHT = 455;
+const COMPANION_PAGE = path.join(__dirname, 'ui', 'index.html');
+const COMMAND_CENTRE_PAGE = path.join(__dirname, 'command-centre.html');
 
 let core;
 let store;
 let server;
 let windowRef;
+let commandCentreWindow;
 let sessions = [];
 let pending = [];
 let cursorTimer;
@@ -32,7 +37,7 @@ let serverError = '';
 let autostartError = '';
 
 if (!hasSingleInstanceLock) app.quit();
-else app.on('second-instance', () => showSettings());
+else app.on('second-instance', () => showCommandCentre());
 
 function savePreferences() {
   if (!preferencesFile) return;
@@ -96,6 +101,16 @@ function showSettings() {
   }
 }
 
+function showCommandCentre() {
+  if (!commandCentreWindow || commandCentreWindow.isDestroyed()) createCommandCentre();
+  if (commandCentreWindow && !commandCentreWindow.isDestroyed()) {
+    if (commandCentreWindow.isMinimized()) commandCentreWindow.restore();
+    commandCentreWindow.show();
+    commandCentreWindow.focus();
+    publishDashboard();
+  }
+}
+
 function setAllowlistEnabled(enabled) {
   if (!core) return false;
   preferences.allowlistEnabled = Boolean(enabled);
@@ -120,6 +135,8 @@ function setAutostartEnabled(enabled) {
 function refreshTray() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open command centre', accelerator: 'CommandOrControl+Shift+J', click: showCommandCentre },
+    { type: 'separator' },
     { label: 'Phone and safety settings', click: showSettings },
     { type: 'separator' },
     { label: 'Auto-allow exact safe patterns', type: 'checkbox', checked: Boolean(preferences.allowlistEnabled), click: (item) => setAllowlistEnabled(item.checked) },
@@ -176,6 +193,38 @@ function publishState() {
   });
 }
 
+function dashboardSnapshot() {
+  const storeAvailable = Boolean(store);
+  const serverListening = Boolean(server && server.listening);
+  let sessions = [];
+  let activity = [];
+  let error = serverError || '';
+  try {
+    sessions = storeAvailable ? store.listSessions() : core ? [...core.sessions.values()] : [];
+    activity = storeAvailable ? store.listRecentActivity(100) : [];
+  } catch (failure) {
+    error = 'Jicho could not read local history: ' + failure.message;
+  }
+  const message = !storeAvailable ? 'Local history unavailable' : serverListening ? 'Local hook server online' : 'Waiting for the local hook server';
+  return {
+    generatedAt: Date.now(), sessions, activity, pending: core ? core.list() : [],
+    connection: { storeAvailable, serverListening, message, error }
+  };
+}
+
+function publishDashboard() {
+  if (!commandCentreWindow || commandCentreWindow.isDestroyed() || commandCentreWindow.webContents.isLoading()) return;
+  commandCentreWindow.webContents.send('jicho:dashboard:update', dashboardSnapshot());
+}
+
+function guardLocalNavigation(win, expectedPage) {
+  const expectedUrl = pathToFileURL(expectedPage).href;
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url !== expectedUrl) event.preventDefault();
+  });
+}
+
 function createWindow() {
   windowRef = new BrowserWindow({
     width: WIDTH,
@@ -201,7 +250,8 @@ function createWindow() {
   });
   windowRef.setAlwaysOnTop(true, 'floating');
   windowRef.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
-  windowRef.loadFile(path.join(__dirname, 'ui', 'index.html'));
+  guardLocalNavigation(windowRef, COMPANION_PAGE);
+  windowRef.loadFile(COMPANION_PAGE);
   windowRef.once('ready-to-show', () => {
     placeWindow('idle');
     windowRef.showInactive();
@@ -222,6 +272,33 @@ function createWindow() {
     }, 80);
     publishState();
   });
+}
+
+function createCommandCentre() {
+  commandCentreWindow = new BrowserWindow({
+    width: 1220,
+    height: 820,
+    minWidth: 850,
+    minHeight: 640,
+    show: false,
+    autoHideMenuBar: true,
+    backgroundColor: '#0b1116',
+    title: 'JICHO Command Centre',
+    webPreferences: {
+      preload: path.join(__dirname, 'command-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webviewTag: false
+    }
+  });
+  guardLocalNavigation(commandCentreWindow, COMMAND_CENTRE_PAGE);
+  commandCentreWindow.loadFile(COMMAND_CENTRE_PAGE);
+  commandCentreWindow.once('ready-to-show', () => {
+    if (commandCentreWindow && !commandCentreWindow.isDestroyed()) commandCentreWindow.show();
+    publishDashboard();
+  });
+  commandCentreWindow.on('closed', () => { commandCentreWindow = null; });
 }
 
 function startServer() {
@@ -264,13 +341,15 @@ function startServer() {
       phoneBridge.publishRequest(item).catch((error) => console.error('Could not publish approval notification:', error.message));
     }
     publishState();
+    publishDashboard();
   });
   core.on('audit-error', (error) => console.error('Jicho could not write its audit record:', error.message));
   core.on('store-error', (error) => console.error('Jicho could not persist local state:', error.message));
   core.on('ingress-error', ({ kind, message }) => console.warn('Jicho hook ingress:', kind, message));
   core.on('request-rejected', ({ reason, event }) => console.warn('Jicho rejected request:', event, reason));
-  core.on('settled', ({ id }) => { phoneNotifications.delete(id); });
-  core.on('sessions', (items) => { sessions = items; publishState(); });
+  core.on('settled', ({ id }) => { phoneNotifications.delete(id); publishDashboard(); });
+  core.on('sessions', (items) => { sessions = items; publishState(); publishDashboard(); });
+  core.on('activity', publishDashboard);
   server = createServer(core);
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
@@ -280,8 +359,9 @@ function startServer() {
       console.error('Jicho server error:', error.message);
     }
     publishState();
+    publishDashboard();
   });
-  server.on('listening', () => { serverError = ''; publishState(); });
+  server.on('listening', () => { serverError = ''; publishState(); publishDashboard(); });
   server.listen(PORT, '127.0.0.1');
 }
 
@@ -291,12 +371,24 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   createWindow();
   startServer();
   createTray();
+  if (!globalShortcut.register('CommandOrControl+Shift+J', showCommandCentre)) {
+    console.warn('Jicho could not register CommandOrControl+Shift+J; use the companion button or tray menu.');
+  }
   app.on('activate', () => {
     if (!windowRef) createWindow();
   });
 });
 
-ipcMain.handle('jicho:answer', (_event, id, decision) => {
+function trustedCompanion(event) {
+  return isTrustedMainFrame(event, [COMPANION_PAGE]);
+}
+
+function trustedDesktopWindow(event) {
+  return isTrustedMainFrame(event, [COMPANION_PAGE, COMMAND_CENTRE_PAGE]);
+}
+
+ipcMain.handle('jicho:answer', (event, id, decision) => {
+  if (!trustedDesktopWindow(event)) return false;
   if (!core) return false;
   if (decision === 'always') {
     const answered = core.allowAlways(id);
@@ -307,33 +399,49 @@ ipcMain.handle('jicho:answer', (_event, id, decision) => {
   return core.settle(id, decision, 'desktop');
 });
 
-ipcMain.handle('jicho:toggle-phone', (_event, visible) => {
+ipcMain.handle('jicho:toggle-phone', (event, visible) => {
+  if (!trustedCompanion(event)) return false;
   showPhone = Boolean(visible);
   if (!showPhone && phoneBridge) phoneBridge.dismissPairing();
   publishState();
   return true;
 });
 
-ipcMain.handle('jicho:phone-enabled', (_event, enabled) => {
+ipcMain.handle('jicho:phone-enabled', (event, enabled) => {
+  if (!trustedCompanion(event)) return false;
   if (!phoneBridge) return false;
   phoneBridge.setEnabled(Boolean(enabled));
   publishState();
   return true;
 });
 
-ipcMain.handle('jicho:phone-content-free', (_event, contentFree) => {
+ipcMain.handle('jicho:phone-content-free', (event, contentFree) => {
+  if (!trustedCompanion(event)) return false;
   if (!phoneBridge) return false;
   phoneBridge.setContentFree(Boolean(contentFree));
   publishState();
   return true;
 });
 
-ipcMain.handle('jicho:allowlist-enabled', (_event, enabled) => {
+ipcMain.handle('jicho:allowlist-enabled', (event, enabled) => {
+  if (!trustedCompanion(event)) return false;
   return setAllowlistEnabled(enabled);
 });
 
-ipcMain.handle('jicho:autostart-enabled', (_event, enabled) => {
+ipcMain.handle('jicho:autostart-enabled', (event, enabled) => {
+  if (!trustedCompanion(event)) return false;
   return setAutostartEnabled(enabled);
+});
+
+ipcMain.handle('jicho:command-centre:open', (event) => {
+  if (!trustedCompanion(event)) return false;
+  showCommandCentre();
+  return true;
+});
+
+ipcMain.handle('jicho:dashboard:get', (event) => {
+  if (!isTrustedMainFrame(event, [COMMAND_CENTRE_PAGE])) throw new Error('Untrusted Jicho window.');
+  return dashboardSnapshot();
 });
 
 app.on('before-quit', () => {
@@ -349,5 +457,7 @@ app.on('before-quit', () => {
   }
   if (tray) tray.destroy();
 });
+
+app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.on('window-all-closed', () => {});

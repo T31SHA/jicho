@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Jicho</title>
   <link rel="stylesheet" href="./style.css">
 </head>
@@ -12,6 +13,7 @@
       <button id="phone-toggle" class="eye-button" aria-label="Phone pairing" title="Open phone pairing">
         <div class="eye" aria-hidden="true"><div class="white"><div id="pupil" class="pupil"></div></div></div>
       </button>
+      <button id="command-centre-open" class="dashboard-button" aria-label="Open command centre" title="Open command centre">▦</button>
       <span class="pair-hint">tap the eye to pair a phone</span>
       <span id="error" class="error" role="status"></span>
     </section>

@@ -5,6 +5,8 @@ body { color: #edf4f5; }
 .shell { width: 100%; height: 100%; overflow: hidden; background: #101820; border: 1px solid #273640; border-radius: 18px; box-shadow: 0 12px 38px #0009; }
 .idle { height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
 .eye-button { width: 60px; height: 60px; padding: 3px; flex: 0 0 auto; border-radius: 50%; background: transparent; }
+.dashboard-button { position: absolute; top: 9px; right: 10px; width: 27px; height: 27px; padding: 0; border: 1px solid #33444d; border-radius: 7px; background: #17242c; color: #a8bdc4; font-size: 14px; }
+.dashboard-button:hover { border-color: #50d5c1; color: #d9fffa; }
 .eye { width: 54px; height: 54px; border-radius: 50%; background: #27c6b4; display: grid; place-items: center; box-shadow: 0 0 24px #27c6b455; }
 .white { width: 33px; height: 33px; display: grid; place-items: center; border-radius: 50%; background: #f5ffff; overflow: hidden; animation: blink 5.4s infinite; }
 .pupil { width: 12px; height: 12px; border-radius: 50%; background: #102532; transform: translate(0, 0); transition: transform 90ms linear; }

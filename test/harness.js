@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { pathToFileURL } = require('url');
 process.env.JICHO_HOLD_MS = '600';
 const { Core } = require('../src/core');
 const { Store, compactAction, safeEventDetails } = require('../src/store');
@@ -12,6 +13,7 @@ const { createServer } = require('../src/server');
 const { evaluate } = require('../src/policy');
 const { macFor, verifyMac, PhoneBridge } = require('../src/phone');
 const { EVENTS, isJichoHook, mergeHooks, removeHooks } = require('../bin/jicho');
+const { isTrustedMainFrame } = require('../src/ipc-security');
 
 const post = (port, body) => new Promise((resolve, reject) => {
   const r = http.request({ port, host: '127.0.0.1', method: 'POST' }, (res) => {
@@ -206,6 +208,7 @@ const waitForPendingCount = async (core, count) => {
   for (const item of durableBulk) assert.strictEqual(behavior(await item.response), Number(item.sid.slice('durable-bulk-'.length)) % 2 === 0 ? 'allow' : 'deny');
   durableCore.observeEvent({ hook_event_name: 'PreToolUse', session_id: 'durable-session', cwd: '/p/durable', tool_name: 'Bash', tool_use_id: 'tu-1', tool_input: { command: 'npm test' } });
   assert.strictEqual(store.listEvents('claude-code', 'durable-session')[0].type, 'PreToolUse');
+  assert(store.listRecentActivity(100).some((event) => event.type === 'approval-resolved' && event.source === 'desktop'));
   durableCore.observeEvent({ hook_event_name: 'SessionEnd', session_id: 'durable-session', cwd: '/p/durable' });
   assert.strictEqual(store.db.prepare("SELECT state FROM sessions WHERE session_id = 'durable-session'").get().state, 'ended');
   assert.deepStrictEqual(compactAction({ file_path: '/p/file', content: 'secret body', old_string: 'old', new_string: 'new' }), {
@@ -258,6 +261,14 @@ const waitForPendingCount = async (core, count) => {
   assert.strictEqual(failClosedCore.pending.size, 0);
   assert.strictEqual(persistenceErrors.length, 1);
   console.log('PASS 19: persistence failure is visible and cannot deliver an approval');
+
+  const dashboardPath = path.resolve(__dirname, '../src/command-centre.html');
+  const mainFrame = { url: pathToFileURL(dashboardPath).href };
+  const trustedEvent = { sender: { mainFrame }, senderFrame: mainFrame };
+  assert.strictEqual(isTrustedMainFrame(trustedEvent, [dashboardPath]), true);
+  assert.strictEqual(isTrustedMainFrame({ sender: { mainFrame }, senderFrame: { url: mainFrame.url } }, [dashboardPath]), false);
+  assert.strictEqual(isTrustedMainFrame({ sender: { mainFrame }, senderFrame: { url: 'https://example.com' } }, [dashboardPath]), false);
+  console.log('PASS 20: dashboard IPC accepts only its own trusted main frame');
 
   await new Promise((resolve) => srv.close(resolve)); console.log('ALL PASS');
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

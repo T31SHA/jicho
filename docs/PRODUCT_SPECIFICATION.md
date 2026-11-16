@@ -8,7 +8,7 @@ JICHO is an independent supervision and control surface for AI coding agents. It
 
 ## Current product baseline
 
-The current usable slice is an Electron companion for Claude Code in terminal or IDE terminal sessions. Claude's HTTP hooks send events to a loopback Node server. The desktop shows one request card at a time, with a queue, raw tool input, working directory, deterministic risk flags, and allow/deny controls. Every card maps to one open hook response. Sessions, supported hook observations, request states, decisions, and audit records now persist in a versioned local SQLite database. A process restart marks in-flight requests failed because the original hook response cannot be restored; the native agent permission flow remains the safe fallback. The UI does not yet expose the stored event timeline. An optional ntfy bridge can publish an alert and receive a signed action; it is not a native JICHO mobile application.
+The current usable slice is an Electron companion for Claude Code in terminal or IDE terminal sessions, with a separate command centre. Claude's HTTP hooks send events to a loopback Node server. The floating companion shows one request at a time, with a queue, raw tool input, working directory, deterministic risk flags, and allow/deny controls. Every card maps to one open hook response. The command centre shows current approval requests, persisted sessions, and a source-labeled timeline of actual hook events and local JICHO decisions. Sessions, supported hook observations, request states, decisions, and audit records persist in a versioned local SQLite database. A process restart marks in-flight requests failed because the original hook response cannot be restored; the native agent permission flow remains the safe fallback. The command centre renderer and IPC button flow passed a headless smoke check using a simulated snapshot; native window interactions and real Claude events remain unverified. An optional ntfy bridge can publish an alert and receive a signed action; it is not a native JICHO mobile application.
 
 ## Product principles
 
@@ -92,8 +92,8 @@ Automatic policy remains opt-in and limited to explicit deterministic rules. Cri
 1. Audit and close the current hook-ingress identity/size-validation gaps.
 2. Stabilize the local Claude permission slice and its verified installer semantics.
 3. Add a typed domain/event contract and durable, versioned persistence without moving decision ownership away from the current core. **Local SQLite v1 and durable approval transitions are implemented; typed adapter contracts remain outstanding.**
-4. Expand Claude's documented event timeline and approval detail. **Documented events are now installed and persisted; real installed-CLI verification and timeline UI remain outstanding.**
-5. Build the command centre and complete desktop lifecycle/position behavior.
+4. Expand Claude's documented event timeline and approval detail. **Documented events are installed and persisted; real installed-CLI verification remains outstanding.**
+5. Build the command centre and complete desktop lifecycle/position behavior. **The initial command centre is implemented; interaction and window behavior still need OS-specific verification.**
 6. Add Codex and Cursor only after protocol review and real verification.
 7. Design a relay and device identity system before building the native mobile approval flow.
 8. Harden, test, package, and publish platform capability reports.

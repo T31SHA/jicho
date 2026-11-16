@@ -108,6 +108,7 @@ document.querySelectorAll('button[data-decision]').forEach((button) => {
 });
 
 document.getElementById('phone-toggle').addEventListener('click', () => window.jicho.togglePhone(true));
+document.getElementById('command-centre-open').addEventListener('click', () => window.jicho.openCommandCentre());
 document.getElementById('phone-close').addEventListener('click', () => window.jicho.togglePhone(false));
 document.getElementById('phone-done').addEventListener('click', () => window.jicho.togglePhone(false));
 document.getElementById('phone-enabled').addEventListener('change', (event) => window.jicho.setPhoneEnabled(event.target.checked));

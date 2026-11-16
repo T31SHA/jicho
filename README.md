@@ -26,6 +26,7 @@ To remove the hooks later, run `npm run jicho -- uninstall`. To check installati
 
 - Claude Code running in a terminal or IDE terminal, through its HTTP hooks.
 - A local desktop approval card, exact-response routing, a request queue, and timeout fall-through to Claude’s own dialog.
+- A separate command centre with persisted session history, observed Claude hook events, risk-labeled approval cards, and a source-labeled activity timeline.
 - Optional phone approvals through ntfy. The QR code pairs with the topic; Android can open it directly, while iPhone users can add the topic in ntfy.
 - Optional start-at-login, a tray menu, and a deterministic safe-command allowlist that is off by default.
 
@@ -52,6 +53,7 @@ Open the pairing panel from the eye or tray. Scan the QR code with ntfy on Andro
 - Hook requests over 1 MiB, malformed JSON, and requests without a valid session ID are rejected or returned without a decision. Safe auto-allow applies only after Jicho has observed a user prompt in that session during the current process lifetime.
 - Each PermissionRequest holds one HTTP response. Allow or Deny settles that exact response. A stale or unrelated answer cannot approve another request. If a request times out, Jicho sends no decision and Claude can show its own dialog.
 - The desktop card displays the raw command without summarizing or redacting it. Keep the screen private if commands may contain secrets.
+- The command centre shows bounded command/path evidence in local history. It identifies Claude hook observations separately from Jicho decision records and does not create synthetic progress events.
 - Phone alerts redact common token and key patterns, redact environment-style assignments, and truncate command text to 120 characters. This is heuristic; use Content-free alerts when command text should not leave the computer.
 - Session, event, approval, decision, and audit history is stored in a versioned SQLite database in Jicho’s local application-data directory. Commands and relevant paths from tool and permission events can be persisted there; prompt text and tool output are omitted. The database is not encrypted, so protect the OS account and local data directory. POSIX database files are restricted to owner access; Windows uses the application-data directory’s OS ACLs.
 - The separate JSONL audit log stores decision metadata and risk flags, not raw command text.

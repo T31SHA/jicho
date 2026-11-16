@@ -125,6 +125,7 @@ class Store {
             FOREIGN KEY (agent_id, session_id) REFERENCES sessions(agent_id, session_id) ON DELETE CASCADE
           );
           CREATE INDEX events_session_time_idx ON events(agent_id, session_id, observed_at DESC);
+          CREATE INDEX events_recent_time_idx ON events(observed_at DESC);
           CREATE TABLE approval_requests (
             id TEXT PRIMARY KEY,
             agent_id TEXT NOT NULL,
@@ -167,6 +168,7 @@ class Store {
             details_json TEXT NOT NULL
           );
           CREATE INDEX audit_records_request_time_idx ON audit_records(request_id, created_at DESC);
+          CREATE INDEX audit_records_recent_time_idx ON audit_records(created_at DESC);
         `);
         this.db.pragma('user_version = 1');
       });
@@ -299,9 +301,22 @@ class Store {
   }
 
   listEvents(agentId = 'claude-code', sessionId, limit = 500) {
+    const safeLimit = Math.max(1, Math.min(500, Math.floor(Number(limit) || 500)));
     return this.db.prepare(`SELECT id, agent_id AS agentId, session_id AS sessionId, source,
       event_type AS type, observed_at AS at, details_json AS detailsJson FROM events
-      WHERE agent_id = ? AND session_id = ? ORDER BY observed_at DESC LIMIT ?`).all(agentId, sessionId, limit)
+      WHERE agent_id = ? AND session_id = ? ORDER BY observed_at DESC LIMIT ?`).all(agentId, sessionId, safeLimit)
+      .map((row) => ({ ...row, details: JSON.parse(row.detailsJson) }));
+  }
+
+  listRecentActivity(limit = 100) {
+    const safeLimit = Math.max(1, Math.min(500, Math.floor(Number(limit) || 100)));
+    return this.db.prepare(`SELECT id, agent_id AS agentId, session_id AS sessionId, source,
+      event_type AS type, observed_at AS at, details_json AS detailsJson FROM events
+      UNION ALL
+      SELECT id, agent_id AS agentId, session_id AS sessionId, source,
+      record_type AS type, created_at AS at, details_json AS detailsJson FROM audit_records
+      WHERE record_type IN ('approval-resolved', 'approval-interrupted')
+      ORDER BY at DESC LIMIT ?`).all(safeLimit)
       .map((row) => ({ ...row, details: JSON.parse(row.detailsJson) }));
   }
 

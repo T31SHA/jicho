@@ -23,6 +23,8 @@ body { color: #edf4f5; }
 .phone-instructions code { display: block; max-height: 55px; overflow-wrap: anywhere; color: #a9c1ca; font: 9px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .phone-option { display: flex; align-items: center; gap: 8px; margin-top: 11px; color: #dce7ea; font-size: 11px; }
 .phone-option input { accent-color: #27c6b4; }
+.settings-divider { height: 1px; margin-top: 12px; background: #2b3b45; }
+.settings-note { margin: 6px 0 0 24px; color: #8ea3ac; font-size: 9px; line-height: 1.35; }
 .phone-status { min-height: 15px; margin-top: 9px; color: #91a4ad; font-size: 10px; }
 .phone-done { width: 100%; height: 31px; margin-top: 4px; background: #354954; }
 .card { padding: 16px 17px 12px; }
@@ -37,6 +39,8 @@ body { color: #edf4f5; }
 .tool-row { display: flex; gap: 6px; align-items: baseline; margin: 15px 0 8px; }
 .tool-row #tool { font-size: 12px; font-weight: 650; color: #65d7c7; }
 .request-label { color: #91a4ad; font-size: 11px; }
+.risk-flags { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 7px; }
+.risk-flag { padding: 3px 6px; border-radius: 6px; background: #5b3f27; color: #ffd69b; font-size: 9px; }
 .command { height: 154px; overflow: auto; margin: 0; padding: 11px 12px; border: 1px solid #2b3b45; border-radius: 9px; background: #0b1218; color: #e1eaed; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .buttons { display: flex; gap: 8px; margin-top: 11px; }
 button { flex: 1; height: 33px; border: 0; border-radius: 8px; color: #f5f9fa; font: inherit; font-size: 11px; font-weight: 650; cursor: pointer; }

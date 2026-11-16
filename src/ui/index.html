@@ -27,6 +27,9 @@
       </div>
       <label class="phone-option"><input id="phone-enabled" type="checkbox"> Enable phone approvals</label>
       <label class="phone-option"><input id="content-free" type="checkbox"> Content-free alerts (only “Approval needed”)</label>
+      <div class="settings-divider"></div>
+      <label class="phone-option"><input id="allowlist-enabled" type="checkbox"> Auto-allow exact safe reads and Git status/diff/log</label>
+      <p class="settings-note">Off by default. Chaining, redirections, and flagged commands always need your review.</p>
       <div id="phone-status" class="phone-status" role="status"></div>
       <button id="phone-done" class="phone-done">Done</button>
     </section>
@@ -37,11 +40,12 @@
         <span id="queue" class="queue" hidden></span>
       </header>
       <div class="tool-row"><span id="tool"></span><span class="request-label">wants permission</span></div>
+      <div id="risk-flags" class="risk-flags" hidden></div>
       <pre id="command" class="command"></pre>
       <div class="buttons">
         <button class="deny" data-decision="deny">Deny</button>
         <button class="allow" data-decision="allow">Allow</button>
-        <button class="always" data-decision="allow">Always</button>
+        <button class="always" data-decision="always">Always</button>
       </div>
       <div id="card-error" class="card-error" role="status"></div>
     </section>

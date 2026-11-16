@@ -13,9 +13,20 @@ function createServer(core) {
       let body = {}; try { body = JSON.parse(data || '{}'); } catch {}
       const ev = body.hook_event_name;
       if (ev === 'PermissionRequest') {
-        let closed = false; res.on('close', () => { closed = true; });
-        const out = await core.request(body);
-        if (closed) return;
+        let closed = false;
+        let requestId = null;
+        const closePending = () => {
+          if (closed) return;
+          closed = true;
+          if (requestId) core.settle(requestId, null, 'connection-close');
+        };
+        res.once('close', () => { if (!res.writableFinished) closePending(); });
+        req.once('aborted', closePending);
+        const out = await core.request(body, (id) => {
+          requestId = id;
+          if (closed) core.settle(id, null, 'connection-close');
+        });
+        if (closed || res.destroyed || res.writableEnded) return;
         res.writeHead(200, { 'content-type': 'application/json' });
         return res.end(JSON.stringify(out));
       }

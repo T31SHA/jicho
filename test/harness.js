@@ -40,5 +40,14 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   core.settle(g.id, 'deny'); await Promise.all([F, G]);
   console.log('PASS 4: stale answers ignored, no cross-session muting');
 
+  const dropped = http.request({ port, host: '127.0.0.1', method: 'POST' });
+  dropped.on('error', () => {});
+  dropped.end(JSON.stringify(req('H', 'connection-close-check')));
+  await wait(80);
+  const H = core.list().find((item) => item.sid === 'H');
+  assert(H); dropped.destroy(); await wait(80);
+  assert.strictEqual(core.list().some((item) => item.sid === 'H'), false);
+  console.log('PASS 5: client disconnect clears its pending approval');
+
   srv.close(); console.log('ALL PASS');
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, screen, nativeTheme } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { Core } = require('./core');
 const { createServer } = require('./server');
@@ -18,7 +19,28 @@ let pending = [];
 let cursorTimer;
 let phoneBridge;
 let showPhone = false;
+let preferences = { allowlistEnabled: false };
+let preferencesFile;
 const phoneNotifications = new Set();
+
+function savePreferences() {
+  if (!preferencesFile) return;
+  try {
+    fs.mkdirSync(path.dirname(preferencesFile), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(preferencesFile, JSON.stringify(preferences, null, 2) + '\n', { mode: 0o600 });
+  } catch (error) { console.error('Could not save Jicho settings:', error.message); }
+}
+
+function loadPreferences(dataDirectory) {
+  preferencesFile = path.join(dataDirectory, 'preferences.json');
+  try {
+    preferences = JSON.parse(fs.readFileSync(preferencesFile, 'utf8'));
+    if (typeof preferences.allowlistEnabled !== 'boolean') preferences.allowlistEnabled = false;
+  } catch (_) {
+    preferences = { allowlistEnabled: false };
+    savePreferences();
+  }
+}
 
 function placeWindow(layout) {
   if (!windowRef || windowRef.isDestroyed()) return;
@@ -39,6 +61,7 @@ function publishState() {
     pending,
     sessions,
     working: sessions.some((session) => session.state === 'working'),
+    allowlistEnabled: Boolean(preferences.allowlistEnabled),
     phone: phoneBridge ? phoneBridge.viewState() : null
   });
 }
@@ -92,7 +115,12 @@ function createWindow() {
 }
 
 function startServer() {
-  core = new Core();
+  const dataDirectory = app.getPath('userData');
+  loadPreferences(dataDirectory);
+  core = new Core({
+    policyEnabled: preferences.allowlistEnabled,
+    auditFile: path.join(dataDirectory, 'audit.jsonl')
+  });
   phoneBridge = new PhoneBridge(core, app.getPath('userData'));
   showPhone = phoneBridge.isFirstRun && !phoneBridge.config.pairingDismissed;
   phoneBridge.on('status', publishState);
@@ -135,7 +163,13 @@ app.whenReady().then(() => {
 });
 
 ipcMain.handle('jicho:answer', (_event, id, decision) => {
-  if (!core || !['allow', 'deny'].includes(decision)) return false;
+  if (!core) return false;
+  if (decision === 'always') {
+    const answered = core.allowAlways(id);
+    if (answered) { preferences.allowlistEnabled = true; savePreferences(); publishState(); }
+    return answered;
+  }
+  if (!['allow', 'deny'].includes(decision)) return false;
   return core.settle(id, decision, 'desktop');
 });
 
@@ -156,6 +190,15 @@ ipcMain.handle('jicho:phone-enabled', (_event, enabled) => {
 ipcMain.handle('jicho:phone-content-free', (_event, contentFree) => {
   if (!phoneBridge) return false;
   phoneBridge.setContentFree(Boolean(contentFree));
+  publishState();
+  return true;
+});
+
+ipcMain.handle('jicho:allowlist-enabled', (_event, enabled) => {
+  if (!core) return false;
+  preferences.allowlistEnabled = Boolean(enabled);
+  core.setPolicyEnabled(preferences.allowlistEnabled);
+  savePreferences();
   publishState();
   return true;
 });

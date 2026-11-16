@@ -12,13 +12,6 @@ function valueText(value) {
   return JSON.stringify(value, null, 2);
 }
 
-function folderName(cwd) {
-  if (!cwd) return 'Unknown folder';
-  const cleaned = cwd.replace(/[\\/]+$/, '');
-  const bits = cleaned.split(/[\\/]/);
-  return bits[bits.length - 1] || cwd;
-}
-
 function draw() {
   const items = state.pending || [];
   current = items[0] || null;
@@ -36,14 +29,26 @@ function draw() {
     const qr = document.getElementById('phone-qr');
     if (phone.qrDataUrl && qr.src !== phone.qrDataUrl) qr.src = phone.qrDataUrl;
   }
+  document.getElementById('allowlist-enabled').checked = Boolean(state.allowlistEnabled);
   if (!current) return;
-  document.getElementById('folder').textContent = folderName(current.cwd);
+  document.getElementById('folder').textContent = current.cwd || 'Unknown folder';
+  document.getElementById('folder').title = current.cwd || '';
   document.getElementById('tool').textContent = current.tool || 'Tool';
   document.getElementById('command').textContent = valueText(
     current.input && Object.prototype.hasOwnProperty.call(current.input, 'command')
       ? current.input.command
       : current.input
   );
+  const flags = current.riskFlags || [];
+  const riskBox = document.getElementById('risk-flags');
+  riskBox.replaceChildren();
+  riskBox.hidden = flags.length === 0;
+  for (const flag of flags) {
+    const badge = document.createElement('span');
+    badge.className = 'risk-flag';
+    badge.textContent = flag.label;
+    riskBox.appendChild(badge);
+  }
   const waiting = items.length - 1;
   const queue = document.getElementById('queue');
   queue.hidden = waiting < 1;
@@ -90,7 +95,11 @@ document.querySelectorAll('button[data-decision]').forEach((button) => {
     document.getElementById('card-error').textContent = '';
     try {
       const answered = await window.jicho.answer(current.id, button.dataset.decision);
-      if (!answered) document.getElementById('card-error').textContent = 'This request has already closed.';
+      if (!answered) {
+        document.getElementById('card-error').textContent = button.dataset.decision === 'always'
+          ? 'Always applies only to exact safe reads and Git status/diff/log.'
+          : 'This request has already closed.';
+      }
     } catch (_) {
       document.getElementById('card-error').textContent = 'Jicho could not send that answer.';
     } finally { button.disabled = false; }
@@ -102,5 +111,6 @@ document.getElementById('phone-close').addEventListener('click', () => window.ji
 document.getElementById('phone-done').addEventListener('click', () => window.jicho.togglePhone(false));
 document.getElementById('phone-enabled').addEventListener('change', (event) => window.jicho.setPhoneEnabled(event.target.checked));
 document.getElementById('content-free').addEventListener('change', (event) => window.jicho.setPhoneContentFree(event.target.checked));
+document.getElementById('allowlist-enabled').addEventListener('change', (event) => window.jicho.setAllowlistEnabled(event.target.checked));
 
 draw();

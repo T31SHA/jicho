@@ -8,7 +8,7 @@ JICHO is an independent supervision and control surface for AI coding agents. It
 
 ## Current product baseline
 
-The current usable slice is an Electron companion for Claude Code in terminal or IDE terminal sessions. Claude's HTTP hooks send events to a loopback Node server. The desktop shows one request card at a time, with a queue, raw tool input, working directory, deterministic risk flags, and allow/deny controls. Every card maps to one open hook response. Timeout or connection loss returns control to Claude's normal permission behavior. An optional ntfy bridge can publish an alert and receive a signed action; it is not a native JICHO mobile application.
+The current usable slice is an Electron companion for Claude Code in terminal or IDE terminal sessions. Claude's HTTP hooks send events to a loopback Node server. The desktop shows one request card at a time, with a queue, raw tool input, working directory, deterministic risk flags, and allow/deny controls. Every card maps to one open hook response. Sessions, supported hook observations, request states, decisions, and audit records now persist in a versioned local SQLite database. A process restart marks in-flight requests failed because the original hook response cannot be restored; the native agent permission flow remains the safe fallback. The UI does not yet expose the stored event timeline. An optional ntfy bridge can publish an alert and receive a signed action; it is not a native JICHO mobile application.
 
 ## Product principles
 
@@ -65,7 +65,7 @@ Initial integration status:
 
 | Agent | Supported mode today | Future acceptance condition |
 | --- | --- | --- |
-| Claude Code | Real HTTP hooks for a subset of events and `PermissionRequest` decisions | Verify current schemas, configuration management, install-version compatibility, allow/deny behavior, timeout, and restart behavior against an installed CLI. |
+| Claude Code | Real HTTP hooks for documented lifecycle/tool events and `PermissionRequest` decisions | Verify the installed-version event payloads, configuration behavior, allow/deny behavior, timeout, and restart behavior against the installed CLI. |
 | OpenAI Codex | None | Review official App Server protocol and compatibility per Codex surface; verify JSON-RPC lifecycle and true approval-response handling. |
 | Cursor | None | Review official Hooks reference; implement only event/response forms that can actually block, allow, or deny. |
 | Other agents | None | Per-adapter protocol and capability review; no implied support. |
@@ -91,8 +91,8 @@ Automatic policy remains opt-in and limited to explicit deterministic rules. Cri
 
 1. Audit and close the current hook-ingress identity/size-validation gaps.
 2. Stabilize the local Claude permission slice and its verified installer semantics.
-3. Add a typed domain/event contract and durable, versioned persistence without moving decision ownership away from the current core.
-4. Expand Claude's documented event timeline and approval detail.
+3. Add a typed domain/event contract and durable, versioned persistence without moving decision ownership away from the current core. **Local SQLite v1 and durable approval transitions are implemented; typed adapter contracts remain outstanding.**
+4. Expand Claude's documented event timeline and approval detail. **Documented events are now installed and persisted; real installed-CLI verification and timeline UI remain outstanding.**
 5. Build the command centre and complete desktop lifecycle/position behavior.
 6. Add Codex and Cursor only after protocol review and real verification.
 7. Design a relay and device identity system before building the native mobile approval flow.

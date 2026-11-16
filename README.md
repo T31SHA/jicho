@@ -29,7 +29,7 @@ To remove the hooks later, run `npm run jicho -- uninstall`. To check installati
 - Optional phone approvals through ntfy. The QR code pairs with the topic; Android can open it directly, while iPhone users can add the topic in ntfy.
 - Optional start-at-login, a tray menu, and a deterministic safe-command allowlist that is off by default.
 
-The installer configures HTTP hooks for PermissionRequest, PostToolUse, Stop, UserPromptSubmit, and SessionEnd. The current [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) supports only command and MCP hooks for SessionStart, so Jicho does not register an HTTP hook for that event. A session first appears when Jicho receives a supported event. The permission card uses PermissionRequest.
+The installer configures HTTP hooks for PermissionRequest, UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure, Stop, Notification, SubagentStart, SubagentStop, and SessionEnd. The current [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) supports only command and MCP hooks for SessionStart, so Jicho does not register an HTTP hook for that event. A session first appears when Jicho receives a supported event. Only PermissionRequest carries a Jicho approval card; the other configured hooks are recorded as observations.
 
 ## What does not work
 
@@ -49,11 +49,12 @@ Open the pairing panel from the eye or tray. Scan the QR code with ntfy on Andro
 ## Security model
 
 - The hook server listens only on `127.0.0.1:47821`; it is not exposed on your network. `JICHO_TOKEN` is optional. If set, give the same token to the environment that launches Jicho and Claude Code.
-- Hook requests over 1 MiB, malformed JSON, and requests without a valid session ID are rejected or returned without a decision. Safe auto-allow applies only after Jicho has observed that session.
+- Hook requests over 1 MiB, malformed JSON, and requests without a valid session ID are rejected or returned without a decision. Safe auto-allow applies only after Jicho has observed a user prompt in that session during the current process lifetime.
 - Each PermissionRequest holds one HTTP response. Allow or Deny settles that exact response. A stale or unrelated answer cannot approve another request. If a request times out, Jicho sends no decision and Claude can show its own dialog.
 - The desktop card displays the raw command without summarizing or redacting it. Keep the screen private if commands may contain secrets.
 - Phone alerts redact common token and key patterns, redact environment-style assignments, and truncate command text to 120 characters. This is heuristic; use Content-free alerts when command text should not leave the computer.
-- Phone credentials and preferences are stored in Jicho’s local application-data directory. The JSONL audit log stores decision metadata and risk flags, not raw command text.
+- Session, event, approval, decision, and audit history is stored in a versioned SQLite database in Jicho’s local application-data directory. Commands and relevant paths from tool and permission events can be persisted there; prompt text and tool output are omitted. The database is not encrypted, so protect the OS account and local data directory. POSIX database files are restricted to owner access; Windows uses the application-data directory’s OS ACLs.
+- The separate JSONL audit log stores decision metadata and risk flags, not raw command text.
 - The auto-allow policy is off by default. When enabled, it allows exact read-only `Read`, `Glob`, and `Grep` requests within the session folder, plus a small set of exact `git status`, `git diff`, and `git log` commands. Chaining, redirection, and flagged commands require review. “Always” enables only this built-in safe policy; it does not remember an arbitrary command.
 - Jicho uses deterministic rules only. It does not judge commands with a model, phone home, or collect telemetry.
 

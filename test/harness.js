@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 process.env.JICHO_HOLD_MS = '600';
 const { Core } = require('../src/core');
+const { Store, compactAction, safeEventDetails } = require('../src/store');
 const { createServer } = require('../src/server');
 const { evaluate } = require('../src/policy');
 const { macFor, verifyMac, PhoneBridge } = require('../src/phone');
@@ -177,6 +178,86 @@ const waitForPendingCount = async (core, count) => {
   assert.strictEqual(authCore.sessions.has('auth-session'), true);
   await new Promise((resolve) => authServer.close(resolve));
   console.log('PASS 15: configured loopback bearer tokens are enforced');
+
+  const databaseDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-store-test-'));
+  const databasePath = path.join(databaseDirectory, 'jicho.sqlite3');
+  let store = new Store(databasePath);
+  const durableCore = new Core({ store });
+  durableCore.touch('durable-session', { state: 'working', cwd: '/p/durable' });
+  const durableResponse = durableCore.request(req('durable-session', 'git status'));
+  await waitForPendingCount(durableCore, 1);
+  const durableRequest = durableCore.list()[0];
+  assert.strictEqual(store.db.prepare('SELECT state FROM approval_requests WHERE id = ?').get(durableRequest.id).state, 'PENDING');
+  assert.deepStrictEqual(JSON.parse(store.db.prepare('SELECT decision_options_json FROM approval_requests WHERE id = ?').get(durableRequest.id).decision_options_json), ['allow', 'deny']);
+  assert.strictEqual(durableCore.settle(durableRequest.id, 'allow', 'desktop'), true);
+  assert.strictEqual(behavior(await durableResponse), 'allow');
+  assert.strictEqual(durableCore.settle(durableRequest.id, 'deny', 'duplicate'), false);
+  assert.strictEqual(store.db.prepare('SELECT COUNT(*) AS count FROM approval_decisions WHERE request_id = ?').get(durableRequest.id).count, 1);
+  const durableBulk = Array.from({ length: 10 }, (_, index) => {
+    const sid = 'durable-bulk-' + index;
+    durableCore.touch(sid, { state: 'working', cwd: '/p/' + sid });
+    return { sid, response: durableCore.request(req(sid, 'printf ' + index)) };
+  });
+  await waitForPendingCount(durableCore, durableBulk.length);
+  for (const item of [...durableCore.list()].reverse()) {
+    const index = Number(item.sid.slice('durable-bulk-'.length));
+    durableCore.settle(item.id, index % 2 === 0 ? 'allow' : 'deny', 'durable-concurrency-test');
+  }
+  for (const item of durableBulk) assert.strictEqual(behavior(await item.response), Number(item.sid.slice('durable-bulk-'.length)) % 2 === 0 ? 'allow' : 'deny');
+  durableCore.observeEvent({ hook_event_name: 'PreToolUse', session_id: 'durable-session', cwd: '/p/durable', tool_name: 'Bash', tool_use_id: 'tu-1', tool_input: { command: 'npm test' } });
+  assert.strictEqual(store.listEvents('claude-code', 'durable-session')[0].type, 'PreToolUse');
+  durableCore.observeEvent({ hook_event_name: 'SessionEnd', session_id: 'durable-session', cwd: '/p/durable' });
+  assert.strictEqual(store.db.prepare("SELECT state FROM sessions WHERE session_id = 'durable-session'").get().state, 'ended');
+  assert.deepStrictEqual(compactAction({ file_path: '/p/file', content: 'secret body', old_string: 'old', new_string: 'new' }), {
+    file_path: '/p/file', contentLength: 11, old_stringLength: 3, new_stringLength: 3
+  });
+  const failureDetails = safeEventDetails({ error: 'Exit code 7\ncredential=secret' });
+  assert.deepStrictEqual(failureDetails, { errorPresent: true, exitCode: 7 });
+  store.close();
+  assert.strictEqual(fs.statSync(databasePath).mode & 0o077, 0);
+  console.log('PASS 16: SQLite migration, session/event history, bounded sensitive data, atomic decisions, durable concurrency, and local file permissions');
+
+  store = new Store(databasePath);
+  const expiringCore = new Core({ store });
+  const expiringResponse = expiringCore.request(req('durable-session', 'npm test'));
+  await waitForPendingCount(expiringCore, 1);
+  const expiringId = expiringCore.list()[0].id;
+  await wait(650);
+  assert.deepStrictEqual(await expiringResponse, {});
+  assert.strictEqual(expiringCore.settle(expiringId, 'allow', 'late-desktop'), false);
+  assert.strictEqual(store.db.prepare('SELECT state FROM approval_requests WHERE id = ?').get(expiringId).state, 'EXPIRED');
+  console.log('PASS 17: expired requests cannot be approved after their timeout');
+
+  const interruptedResponse = expiringCore.request(req('durable-session', 'npm run deploy'));
+  await waitForPendingCount(expiringCore, 1);
+  const interruptedId = expiringCore.list()[0].id;
+  clearTimeout(expiringCore.pending.get(interruptedId).timer); // emulate process death without resolving the original hook
+  store.close();
+  store = new Store(databasePath);
+  const recoveredCore = new Core({ store });
+  assert.strictEqual(recoveredCore.pending.size, 0);
+  assert.strictEqual(store.db.prepare('SELECT state FROM approval_requests WHERE id = ?').get(interruptedId).state, 'FAILED');
+  assert.strictEqual(store.db.prepare("SELECT COUNT(*) AS count FROM audit_records WHERE request_id = ? AND record_type = 'approval-interrupted'").get(interruptedId).count, 1);
+  recoveredCore.setPolicyEnabled(true);
+  const afterRestart = recoveredCore.request(req('durable-session', 'git status'));
+  await waitForPendingCount(recoveredCore, 1);
+  const afterRestartId = recoveredCore.list()[0].id;
+  assert.strictEqual(recoveredCore.settle(afterRestartId, 'deny', 'test'), true);
+  assert.strictEqual(behavior(await afterRestart), 'deny');
+  store.close();
+  fs.rmSync(databaseDirectory, { recursive: true, force: true });
+  assert(interruptedResponse instanceof Promise);
+  console.log('PASS 18: restart marks in-flight requests failed and requires fresh session observation');
+
+  const closedStore = new Store(':memory:');
+  const failClosedCore = new Core({ store: closedStore });
+  const persistenceErrors = [];
+  failClosedCore.on('store-error', (error) => persistenceErrors.push(error));
+  closedStore.close();
+  assert.deepStrictEqual(await failClosedCore.request(req('unavailable-store', 'git status')), {});
+  assert.strictEqual(failClosedCore.pending.size, 0);
+  assert.strictEqual(persistenceErrors.length, 1);
+  console.log('PASS 19: persistence failure is visible and cannot deliver an approval');
 
   await new Promise((resolve) => srv.close(resolve)); console.log('ALL PASS');
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

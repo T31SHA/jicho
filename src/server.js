@@ -112,11 +112,11 @@ function createServer(core, options = {}) {
         report(core, 'invalid-session-id', 'Hook event did not contain a valid session_id.');
         return sendJson(res, 200, {});
       }
-      if (ev === 'PostToolUse' || ev === 'Stop' || ev === 'SessionEnd') {
-        core.dropBySession(body.session_id);
-        core.touch(body.session_id, { state: ev === 'PostToolUse' ? 'working' : 'idle' });
-      } else if (ev === 'UserPromptSubmit' || ev === 'PreToolUse' || ev === 'SessionStart') {
-        core.touch(body.session_id, { state: 'working', cwd: body.cwd || '' });
+      if (ev) {
+        try { core.observeEvent(body); }
+        catch (error) {
+          report(core, 'event-processing-failed', error.message);
+        }
       }
       return sendJson(res, 200, {});
     });

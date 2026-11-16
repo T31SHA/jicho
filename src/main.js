@@ -6,6 +6,7 @@ const { Core } = require('./core');
 const { createServer } = require('./server');
 const { PhoneBridge } = require('./phone');
 const { createTrayIcon } = require('./tray-icon');
+const { Store } = require('./store');
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
 const WIDTH = 390;
@@ -14,6 +15,7 @@ const CARD_HEIGHT = 330;
 const PHONE_HEIGHT = 455;
 
 let core;
+let store;
 let server;
 let windowRef;
 let sessions = [];
@@ -225,10 +227,26 @@ function createWindow() {
 function startServer() {
   const dataDirectory = app.getPath('userData');
   loadPreferences(dataDirectory);
-  core = new Core({
-    policyEnabled: preferences.allowlistEnabled,
-    auditFile: path.join(dataDirectory, 'audit.jsonl')
-  });
+  try {
+    store = new Store(path.join(dataDirectory, 'jicho.sqlite3'));
+    core = new Core({
+      policyEnabled: preferences.allowlistEnabled,
+      auditFile: path.join(dataDirectory, 'audit.jsonl'),
+      store
+    });
+  } catch (error) {
+    serverError = 'Jicho could not open its local history database. Approval routing is disabled until this is fixed.';
+    console.error('Jicho database startup failed:', error.message);
+    if (store) {
+      try { store.close(); }
+      catch (closeError) { console.error('Jicho database cleanup failed:', closeError.message); }
+      store = null;
+    }
+    core = new Core({ policyEnabled: preferences.allowlistEnabled });
+    publishState();
+    return;
+  }
+  sessions = [...core.sessions.values()];
   phoneBridge = new PhoneBridge(core, app.getPath('userData'));
   showPhone = (phoneBridge.isFirstRun && !phoneBridge.config.pairingDismissed) || phoneBridge.storageBlocked;
   phoneBridge.on('status', publishState);
@@ -248,6 +266,7 @@ function startServer() {
     publishState();
   });
   core.on('audit-error', (error) => console.error('Jicho could not write its audit record:', error.message));
+  core.on('store-error', (error) => console.error('Jicho could not persist local state:', error.message));
   core.on('ingress-error', ({ kind, message }) => console.warn('Jicho hook ingress:', kind, message));
   core.on('request-rejected', ({ reason, event }) => console.warn('Jicho rejected request:', event, reason));
   core.on('settled', ({ id }) => { phoneNotifications.delete(id); });
@@ -324,6 +343,10 @@ app.on('before-quit', () => {
   }
   if (phoneBridge) phoneBridge.close();
   if (server && server.listening) server.close();
+  if (store) {
+    try { store.close(); }
+    catch (error) { console.error('Jicho database shutdown failed:', error.message); }
+  }
   if (tray) tray.destroy();
 });
 

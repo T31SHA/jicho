@@ -33,13 +33,17 @@
       "output": "dist"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "identity": null,
       "hardenedRuntime": false,
       "notarize": false
     },
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "signAndEditExecutable": false
     },
     "nsis": {
@@ -47,17 +51,21 @@
       "allowToChangeInstallationDirectory": true
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Utility",
       "maintainer": "Jicho contributors <T31SHA@users.noreply.github.com>",
       "syncDesktopName": true
     }
   },
   "devDependencies": {
-    "electron": "^33.0.0",
+    "electron": "^45.3.3",
     "electron-builder": "^26.18.0"
   },
   "dependencies": {
+    "better-sqlite3": "^13.2.0",
     "qrcode": "^1.5.4"
   }
 }

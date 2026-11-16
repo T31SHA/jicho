@@ -1,0 +1,13 @@
+{
+  "name": "jicho",
+  "version": "0.0.1",
+  "description": "The eye on your coding agents. Approve Claude Code permissions from your desktop or phone.",
+  "license": "MIT",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "core": "node src/server.js",
+    "test": "node test/harness.js"
+  },
+  "devDependencies": { "electron": "^33.0.0" }
+}

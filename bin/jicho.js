@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const readline = require('readline');
+const crypto = require('crypto');
 
 const URL = 'http://127.0.0.1:47821';
 const MARKER_HEADER = 'X-Jicho-Installer';
@@ -167,6 +168,44 @@ function backup(file) {
   return backupPath;
 }
 
+function atomicWrite(file, contents) {
+  let target = file;
+  let linkInfo;
+  try { linkInfo = fs.lstatSync(file); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (linkInfo && linkInfo.isSymbolicLink()) target = fs.realpathSync(file);
+
+  let mode = 0o600;
+  try { mode = fs.statSync(target).mode & 0o777; }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+
+  const directory = path.dirname(target);
+  const temporary = path.join(directory, '.' + path.basename(target) + '.jicho-' + process.pid + '-' + crypto.randomBytes(8).toString('hex'));
+  let descriptor = null;
+  let created = false;
+  try {
+    descriptor = fs.openSync(temporary, 'wx', mode);
+    created = true;
+    fs.writeFileSync(descriptor, contents, 'utf8');
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = null;
+    fs.renameSync(temporary, target);
+  } catch (error) {
+    if (descriptor !== null) {
+      try { fs.closeSync(descriptor); }
+      catch (closeError) { error.message += '; also failed to close temporary settings file: ' + closeError.message; }
+    }
+    if (created) {
+      try { fs.unlinkSync(temporary); }
+      catch (cleanupError) {
+        if (cleanupError.code !== 'ENOENT') error.message += '; also failed to remove temporary settings file: ' + cleanupError.message;
+      }
+    }
+    throw error;
+  }
+}
+
 async function changeSettings(action, file = settingsPath(), scope = 'user') {
   const { settings, original } = readSettings(file);
   const result = action === 'install' ? mergeHooks(settings) : removeHooks(settings);
@@ -191,7 +230,7 @@ async function changeSettings(action, file = settingsPath(), scope = 'user') {
   if (!(await askToProceed())) { console.log('Cancelled. No changes made.'); return false; }
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const backupPath = backup(file);
-  fs.writeFileSync(file, after + '\n', { mode: 0o600 });
+  atomicWrite(file, after + '\n');
   console.log('Updated ' + file + (backupPath ? '\nBackup: ' + backupPath : ''));
   return true;
 }
@@ -227,4 +266,4 @@ if (require.main === module) main(process.argv.slice(2)).catch((error) => {
   process.exitCode = 1;
 });
 
-module.exports = { EVENTS, URL, settingsPath, projectSettingsPath, selectSettingsTarget, makeHook, isJichoHook, mergeHooks, removeHooks, makeDiff };
+module.exports = { EVENTS, URL, settingsPath, projectSettingsPath, selectSettingsTarget, atomicWrite, makeHook, isJichoHook, mergeHooks, removeHooks, makeDiff };

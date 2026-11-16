@@ -25,8 +25,9 @@
 - The installer can target Claude user settings (`--user`, still the default), project-local settings (`--project-local`), or shared project settings (`--project-shared`). Project settings are written under `.claude/` in the current working directory; run the command from the project root.
 - User settings honor `CLAUDE_CONFIG_DIR`, including a leading `~/` path.
 - Install, status, and uninstall accept the same scope flag. Installs retain timestamped backups, preserve unrelated keys/hooks, and show a scope-specific notice before asking to apply the diff. Shared scope warns that the file may affect collaborators; local scope warns about Git ignore.
+- Accepted settings changes now write a same-directory temporary file, flush it, then atomically replace the target. Existing POSIX mode bits are preserved; symlink targets are updated without replacing the link. A failed replacement leaves the original file intact and removes the temporary file.
 - The real-hook verifier accepts the same flags and reports/checks only that settings file. It still requires a user-started interactive Claude session and confirmation of the actual allow/deny outcome.
-- Added tests that install and uninstall in a temporary project settings file, check backup creation, and verify unrelated model and hook settings survive.
+- Added tests that install and uninstall in a temporary project settings file, check backup creation and preservation of unrelated settings, and exercise failed atomic replacement, POSIX mode preservation, and symlink handling.
 
 ## Verification
 

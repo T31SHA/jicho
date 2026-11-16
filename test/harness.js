@@ -13,7 +13,7 @@ const { Store, compactAction, safeEventDetails } = require('../src/store');
 const { createServer } = require('../src/server');
 const { evaluate } = require('../src/policy');
 const { macFor, verifyMac, PhoneBridge } = require('../src/phone');
-const { EVENTS, settingsPath, projectSettingsPath, selectSettingsTarget, isJichoHook, mergeHooks, removeHooks } = require('../bin/jicho');
+const { EVENTS, settingsPath, projectSettingsPath, selectSettingsTarget, atomicWrite, isJichoHook, mergeHooks, removeHooks } = require('../bin/jicho');
 const { isTrustedMainFrame } = require('../src/ipc-security');
 
 const post = (port, body) => new Promise((resolve, reject) => {
@@ -166,6 +166,27 @@ const waitForPendingCount = async (core, count) => {
   assert.throws(() => selectSettingsTarget(['--user', '--project-local']), /only one/);
   assert.throws(() => selectSettingsTarget(['--something']), /Unknown option/);
   assert.throws(() => selectSettingsTarget(['extra']), /Unexpected argument/);
+  const atomicDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-atomic-config-'));
+  const atomicFile = path.join(atomicDirectory, 'settings.json');
+  fs.writeFileSync(atomicFile, 'before', { mode: 0o640 });
+  if (process.platform !== 'win32') fs.chmodSync(atomicFile, 0o640);
+  const originalRename = fs.renameSync;
+  fs.renameSync = () => { const failure = new Error('simulated atomic rename failure'); failure.code = 'EIO'; throw failure; };
+  try { assert.throws(() => atomicWrite(atomicFile, 'after'), /simulated atomic rename failure/); }
+  finally { fs.renameSync = originalRename; }
+  assert.strictEqual(fs.readFileSync(atomicFile, 'utf8'), 'before');
+  assert.deepStrictEqual(fs.readdirSync(atomicDirectory), ['settings.json']);
+  atomicWrite(atomicFile, 'after');
+  assert.strictEqual(fs.readFileSync(atomicFile, 'utf8'), 'after');
+  if (process.platform !== 'win32') assert.strictEqual(fs.statSync(atomicFile).mode & 0o777, 0o640);
+  if (process.platform !== 'win32') {
+    const linkedFile = path.join(atomicDirectory, 'settings-link.json');
+    fs.symlinkSync(atomicFile, linkedFile);
+    atomicWrite(linkedFile, 'through-link');
+    assert(fs.lstatSync(linkedFile).isSymbolicLink());
+    assert.strictEqual(fs.readFileSync(atomicFile, 'utf8'), 'through-link');
+  }
+  fs.rmSync(atomicDirectory, { recursive: true, force: true });
   const scopedProject = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-installer-scope-'));
   fs.mkdirSync(path.join(scopedProject, '.claude'));
   fs.writeFileSync(path.join(scopedProject, '.claude', 'settings.local.json'), JSON.stringify({

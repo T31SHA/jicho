@@ -114,6 +114,8 @@ The installer now supports user (`~/.claude/settings.json`), project-local (`.cl
 
 These locations and their sharing behavior were checked against the [official Claude Code settings reference](https://code.claude.com/docs/en/settings). Automated tests use a temporary project directory and establish config merging, backup, and removal only; they do not establish that Claude Code loaded a setting or made a real permission decision.
 
+The installer now writes accepted changes to a unique same-directory temporary file, flushes it, and renames it over the target. POSIX mode bits are preserved, and a settings-file symlink continues to point at its target. The test harness forces a rename failure and checks that the old file survives and the temporary file is removed. Windows ACL behavior has not been independently verified.
+
 ## Command-centre increment
 
 The next increment adds a second bounded Electron window at `src/command-centre.html`, with overview, session, activity, and approval views. Its snapshot comes from `Store.listSessions()`, `Store.listRecentActivity()`, and the existing in-memory `Core.list()` queue. Hook events are labeled as Claude observations; decision and restart audit entries are labeled as Jicho local actions. Approval buttons call the same core handler and held HTTP response used by the floating companion.

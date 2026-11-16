@@ -9,6 +9,7 @@
     "core": "node src/server.js",
     "jicho": "node bin/jicho.js",
     "verify": "node src/verify.js",
+    "demo": "node src/demo.js",
     "test": "node test/harness.js"
   },
   "devDependencies": {

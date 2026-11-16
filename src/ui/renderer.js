@@ -22,10 +22,20 @@ function folderName(cwd) {
 function draw() {
   const items = state.pending || [];
   current = items[0] || null;
-  const expanded = Boolean(current);
-  idle.hidden = expanded;
-  card.hidden = !expanded;
-  app.classList.toggle('working', !expanded && state.working);
+  const layout = current ? 'card' : (state.layout || 'idle');
+  idle.hidden = layout !== 'idle';
+  card.hidden = layout !== 'card';
+  document.getElementById('phone').hidden = layout !== 'phone';
+  app.classList.toggle('working', layout === 'idle' && state.working);
+  const phone = state.phone;
+  if (phone) {
+    document.getElementById('phone-topic').textContent = phone.topic || '';
+    document.getElementById('phone-enabled').checked = Boolean(phone.enabled);
+    document.getElementById('content-free').checked = Boolean(phone.contentFree);
+    document.getElementById('phone-status').textContent = phone.status && phone.status.message || '';
+    const qr = document.getElementById('phone-qr');
+    if (phone.qrDataUrl && qr.src !== phone.qrDataUrl) qr.src = phone.qrDataUrl;
+  }
   if (!current) return;
   document.getElementById('folder').textContent = folderName(current.cwd);
   document.getElementById('tool').textContent = current.tool || 'Tool';
@@ -86,5 +96,11 @@ document.querySelectorAll('button[data-decision]').forEach((button) => {
     } finally { button.disabled = false; }
   });
 });
+
+document.getElementById('phone-toggle').addEventListener('click', () => window.jicho.togglePhone(true));
+document.getElementById('phone-close').addEventListener('click', () => window.jicho.togglePhone(false));
+document.getElementById('phone-done').addEventListener('click', () => window.jicho.togglePhone(false));
+document.getElementById('phone-enabled').addEventListener('change', (event) => window.jicho.setPhoneEnabled(event.target.checked));
+document.getElementById('content-free').addEventListener('change', (event) => window.jicho.setPhoneContentFree(event.target.checked));
 
 draw();

@@ -9,10 +9,26 @@
 <body>
   <main id="app" class="shell">
     <section id="idle" class="idle" aria-label="Jicho is watching">
-      <div class="eye" aria-hidden="true">
-        <div class="white"><div id="pupil" class="pupil"></div></div>
-      </div>
+      <button id="phone-toggle" class="eye-button" aria-label="Phone pairing" title="Open phone pairing">
+        <div class="eye" aria-hidden="true"><div class="white"><div id="pupil" class="pupil"></div></div></div>
+      </button>
+      <span class="pair-hint">tap the eye to pair a phone</span>
       <span id="error" class="error" role="status"></span>
+    </section>
+    <section id="phone" class="phone-panel" hidden aria-live="polite">
+      <header class="phone-header"><strong>Pair your phone</strong><button id="phone-close" class="close-button" aria-label="Close phone pairing">×</button></header>
+      <div class="phone-body">
+        <img id="phone-qr" class="phone-qr" alt="QR code for the Jicho ntfy topic">
+        <div class="phone-instructions">
+          <p>Scan to open ntfy on Android. On iPhone, add a subscription and enter the topic below.</p>
+          <span class="topic-warning">This topic is your password. Keep it private.</span>
+          <code id="phone-topic"></code>
+        </div>
+      </div>
+      <label class="phone-option"><input id="phone-enabled" type="checkbox"> Enable phone approvals</label>
+      <label class="phone-option"><input id="content-free" type="checkbox"> Content-free alerts (only “Approval needed”)</label>
+      <div id="phone-status" class="phone-status" role="status"></div>
+      <button id="phone-done" class="phone-done">Done</button>
     </section>
     <section id="card" class="card" hidden aria-live="polite">
       <header class="card-header">

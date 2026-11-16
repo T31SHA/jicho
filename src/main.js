@@ -2,11 +2,13 @@ const { app, BrowserWindow, ipcMain, screen, nativeTheme } = require('electron')
 const path = require('path');
 const { Core } = require('./core');
 const { createServer } = require('./server');
+const { PhoneBridge } = require('./phone');
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
 const WIDTH = 390;
 const IDLE_HEIGHT = 76;
 const CARD_HEIGHT = 330;
+const PHONE_HEIGHT = 455;
 
 let core;
 let server;
@@ -14,25 +16,30 @@ let windowRef;
 let sessions = [];
 let pending = [];
 let cursorTimer;
+let phoneBridge;
+let showPhone = false;
+const phoneNotifications = new Set();
 
-function placeWindow(expanded) {
+function placeWindow(layout) {
   if (!windowRef || windowRef.isDestroyed()) return;
   const area = screen.getPrimaryDisplay().workArea;
-  const height = expanded ? CARD_HEIGHT : IDLE_HEIGHT;
+  const height = layout === 'phone' ? PHONE_HEIGHT : layout === 'card' ? CARD_HEIGHT : IDLE_HEIGHT;
   const x = Math.round(area.x + (area.width - WIDTH) / 2);
   const y = area.y + area.height - height - 18;
   windowRef.setBounds({ x, y, width: WIDTH, height });
-  windowRef.webContents.send('jicho:layout', { expanded });
+  windowRef.webContents.send('jicho:layout', { layout });
 }
 
 function publishState() {
   if (!windowRef || windowRef.isDestroyed()) return;
-  const expanded = pending.length > 0;
-  placeWindow(expanded);
+  const layout = pending.length ? 'card' : showPhone ? 'phone' : 'idle';
+  placeWindow(layout);
   windowRef.webContents.send('jicho:state', {
+    layout,
     pending,
     sessions,
-    working: sessions.some((session) => session.state === 'working')
+    working: sessions.some((session) => session.state === 'working'),
+    phone: phoneBridge ? phoneBridge.viewState() : null
   });
 }
 
@@ -63,7 +70,7 @@ function createWindow() {
   windowRef.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
   windowRef.loadFile(path.join(__dirname, 'ui', 'index.html'));
   windowRef.once('ready-to-show', () => {
-    placeWindow(false);
+    placeWindow('idle');
     windowRef.showInactive();
     publishState();
   });
@@ -86,7 +93,23 @@ function createWindow() {
 
 function startServer() {
   core = new Core();
-  core.on('pending', (items) => { pending = items; publishState(); });
+  phoneBridge = new PhoneBridge(core, app.getPath('userData'));
+  showPhone = phoneBridge.isFirstRun && !phoneBridge.config.pairingDismissed;
+  phoneBridge.on('status', publishState);
+  phoneBridge.qrPromise.then((uri) => { phoneBridge.qrDataUrl = uri; publishState(); }).catch(() => {
+    phoneBridge.qrDataUrl = null;
+    publishState();
+  });
+  core.on('pending', (items) => {
+    pending = items;
+    for (const item of items) {
+      if (phoneNotifications.has(item.id)) continue;
+      phoneNotifications.add(item.id);
+      phoneBridge.publishRequest(item).catch(() => {});
+    }
+    publishState();
+  });
+  core.on('settled', ({ id }) => { phoneNotifications.delete(id); });
   core.on('sessions', (items) => { sessions = items; publishState(); });
   server = createServer(core);
   server.on('error', (error) => {
@@ -116,8 +139,30 @@ ipcMain.handle('jicho:answer', (_event, id, decision) => {
   return core.settle(id, decision, 'desktop');
 });
 
+ipcMain.handle('jicho:toggle-phone', (_event, visible) => {
+  showPhone = Boolean(visible);
+  if (!showPhone && phoneBridge) phoneBridge.dismissPairing();
+  publishState();
+  return true;
+});
+
+ipcMain.handle('jicho:phone-enabled', (_event, enabled) => {
+  if (!phoneBridge) return false;
+  phoneBridge.setEnabled(Boolean(enabled));
+  publishState();
+  return true;
+});
+
+ipcMain.handle('jicho:phone-content-free', (_event, contentFree) => {
+  if (!phoneBridge) return false;
+  phoneBridge.setContentFree(Boolean(contentFree));
+  publishState();
+  return true;
+});
+
 app.on('before-quit', () => {
   if (cursorTimer) clearInterval(cursorTimer);
+  if (phoneBridge) phoneBridge.close();
   if (server) server.close();
 });
 

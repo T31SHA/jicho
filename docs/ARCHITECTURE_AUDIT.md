@@ -116,6 +116,12 @@ These locations and their sharing behavior were checked against the [official Cl
 
 The installer now writes accepted changes to a unique same-directory temporary file, flushes it, and renames it over the target. POSIX mode bits are preserved, and a settings-file symlink continues to point at its target. The test harness forces a rename failure and checks that the old file survives and the temporary file is removed. Windows ACL behavior has not been independently verified.
 
+## Real Claude hook verification follow-up (2026-11-16)
+
+Claude Code 2.1.325 was exercised in a temporary project with only `.claude/settings.local.json` loaded and `--permission-mode manual`. JICHO received a real `PermissionRequest`; the actual allow response created the requested marker, the deny response prevented a second marker, and the `SessionEnd` HTTP event reached the verifier before it shut down. The temporary project was removed and user-level JICHO hooks remain uninstalled. The CLI's built-in updater upgraded it from 2.1.319 to 2.1.325 during the first test session; Claude wrote its ordinary local transcript/debug records.
+
+An initial Auto-mode run executed a marker command after `PreToolUse` without emitting `PermissionRequest`. JICHO therefore did not show an approval or block the command. The README and verifier now describe this boundary, and the verifier launches manual mode for an approval test. HTTP timeout, connection failure, app crash, and delivery through the desktop card have not been tested against Claude.
+
 ## Command-centre increment
 
 The next increment adds a second bounded Electron window at `src/command-centre.html`, with overview, session, activity, and approval views. Its snapshot comes from `Store.listSessions()`, `Store.listRecentActivity()`, and the existing in-memory `Core.list()` queue. Hook events are labeled as Claude observations; decision and restart audit entries are labeled as Jicho local actions. Approval buttons call the same core handler and held HTTP response used by the floating companion.

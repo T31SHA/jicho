@@ -34,6 +34,8 @@ To remove the user-level hooks later, run `npm run jicho -- uninstall`. To check
 
 The installer configures HTTP hooks for PermissionRequest, UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure, Stop, Notification, SubagentStart, SubagentStop, and SessionEnd. The current [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) supports only command and MCP hooks for SessionStart, so Jicho does not register an HTTP hook for that event. A session first appears when Jicho receives a supported event. Only PermissionRequest carries a Jicho approval card; the other configured hooks are recorded as observations.
 
+Jicho can decide only requests Claude Code sends through `PermissionRequest`. Claude Auto mode or an existing allow rule can run a tool without that request; Jicho's `PreToolUse` hook observes the call but currently does not block it. Choose Claude's permission mode with that boundary in mind.
+
 ## What does not work
 
 - Claude Desktop’s Code tab.
@@ -78,7 +80,7 @@ To check a real Claude Code installation, stop the desktop app first, then run:
 npm run verify
 ```
 
-The guided verifier prints the installed Claude Code version and asks you to make real allow and deny requests in another terminal. It reports whether Claude honored each answer and removes its temporary test files. Jicho itself does not invoke an AI model; the real prompts are issued by the Claude Code CLI you start.
+The guided verifier prints the installed Claude Code version and tells you to start a manual-mode Claude session using only the selected settings scope. It asks you to make real allow and deny requests, confirms that Claude honored each answer, and waits for the session-end hook before shutting down. It removes its temporary test files. Jicho itself does not invoke an AI model; the real prompts are issued by the Claude Code CLI you start.
 
 For a project-local setup, run `npm run verify -- --project-local`. The verifier checks that project's `.claude/settings.local.json` and prints the matching install command if needed. Run it from the project directory where you start Claude Code.
 

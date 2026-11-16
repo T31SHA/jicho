@@ -1,7 +1,7 @@
 # JICHO Implementation Status
 
 **Updated:** 2026-11-16  
-**Implementation base:** Through the Claude settings-scope increment (2026-11-16)
+**Implementation base:** Through real Claude hook verification (2026-11-16)
 
 ## Delivered before this increment
 
@@ -29,20 +29,29 @@
 - The real-hook verifier accepts the same flags and reports/checks only that settings file. It still requires a user-started interactive Claude session and confirmation of the actual allow/deny outcome.
 - Added tests that install and uninstall in a temporary project settings file, check backup creation and preservation of unrelated settings, and exercise failed atomic replacement, POSIX mode preservation, and symlink handling.
 
+## Real Claude integration verification
+
+- The guided verifier now starts Claude in explicit `manual` permission mode and limits settings to the selected scope (`user`, `local`, or `project`). This avoids a false “permission request missing” result when Claude is in Auto mode.
+- After allow and deny are confirmed, the verifier waits for the verified session's `SessionEnd` event before closing its HTTP server. It reports and times out clearly if Claude is not exited.
+- Verified a real Claude Code 2.1.325 CLI session using a temporary `.claude/settings.local.json`, Bash only, and JICHO's loopback verifier: a genuine `PermissionRequest` arrived; Allow created the exact marker; Deny prevented the second marker; Claude emitted `SessionEnd` before the verifier exited successfully.
+- A first isolated run in Auto mode showed `PreToolUse` but no `PermissionRequest`; Claude ran the marker command without an approval. That marker was removed. This confirms JICHO only decides requests Claude surfaces and does not block Auto-mode actions.
+- The temporary project and hook config were removed; user-level JICHO status remains uninstalled. Claude Code's built-in updater moved the CLI from 2.1.319 to 2.1.325 during the first test session; the CLI also wrote its normal local transcript/debug records.
+
 ## Verification
 
-Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, better-sqlite3 `13.2.0`.
+Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, better-sqlite3 `13.2.0`, Claude Code `2.1.325` after its built-in update.
 
 | Check | Result | Limits |
 | --- | --- | --- |
 | Original repository baseline | PASS, 9 checks | Baseline predates the ingress hardening and SQLite work. |
 | Current `npm test` | PASS, 20 checks | Local loopback and SQLite harness; not an external integration test. Covers 20-way routing, durable concurrent decisions, expiry, one decision, restart recovery, unavailable-store failure, and trusted IPC sender checks. |
 | Claude settings-scope install/uninstall | PASS | Automated isolated temporary-project check verifies local-scope write, backup, preservation, and removal. It does not edit the user's Claude configuration or prove Claude loaded the file. |
+| Claude Code live hook | PASS, Claude Code 2.1.325 | Real CLI with temporary project-local hooks: PermissionRequest Allow created the test file, Deny prevented creation, and SessionEnd arrived before verifier shutdown. Auto mode was separately observed to execute the command without PermissionRequest; the verifier now forces manual mode. No timeout, crash, or real desktop-card test was performed. |
 | Command-centre Electron smoke | PASS | Headless Electron 45 loaded the local page and sandboxed preload; a simulated IPC snapshot rendered session/approval data and the Approve button reached the mocked IPC handler. This is UI-only evidence, not an agent integration test. |
 | `npm run dist:linux` | PASS | Built Linux x64 AppImage and Debian package with the command-centre assets, Electron 45, and rebuilt SQLite native module. Artifacts were not installed or launched. |
 | Full `npm audit` after Electron upgrade | 6 moderate, 0 high, 0 critical | Remaining findings are development/package-build dependencies (`electron-builder` / `minimatch`); no production dependency findings. |
 | `npm audit --omit=dev` | 0 findings | Runtime dependency tree only. |
-| Claude Code | Unverified | Host has Claude Code `2.1.319`; Jicho hooks are not installed. Real allow/deny, current hook invocation, and action behavior have not been checked. |
+| Claude Code | Verified for request decisions and SessionEnd | Claude Code `2.1.325` sent a real PermissionRequest in a temporary project; allow/deny outcomes and SessionEnd were confirmed. User-level hooks remain uninstalled. Timeout, crash, and desktop-card behavior remain unverified. |
 | Electron GUI / display behavior | Unverified | GUI launch, Wayland/X11 behavior, window positioning, and tray interactions were not tested. |
 | Windows / macOS / Android / iOS | Unverified or not implemented | No builds or device tests were performed. |
 
@@ -53,7 +62,7 @@ Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, bet
 | Approval routing | Implemented in the Node core; each decision remains bound to its original held hook response. |
 | Local persistence | Implemented for sessions, hook observations, approval states, decisions, and audit metadata; SQLite migrations currently stop at schema v1. |
 | Restart behavior | Pending requests are durably marked failed and never re-presented as approvable; a fresh hook event is needed before safe auto-allow is eligible. |
-| Claude Code | Real HTTP hook integration and additional documented event hooks; installer supports user, project-local, and shared project scopes. Current installed-version hook behavior remains unverified. |
+| Claude Code | Real HTTP hooks and scope-aware installer. Allow, deny, and SessionEnd verified against Claude Code 2.1.325 in a temporary project. Timeout, crash, other hook schemas, and desktop-card delivery remain unverified. |
 | Desktop | Electron companion and initial command centre are implemented. Headless renderer and IPC interaction passed with a simulated snapshot; native window, tray, shortcut, and platform behavior remain unverified. |
 | Linux packaging | x64 AppImage and Debian package build passed with Electron 45 / SQLite 13.2; artifacts were not installed or launched. |
 | Phone | Optional ntfy bridge only; no first-party paired device protocol. |
@@ -67,6 +76,7 @@ Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, bet
 - SQLite is not encrypted. Permission action details and bounded command/path observations can include sensitive information; database backup, retention, and secure deletion controls are not implemented. Failure events retain only an error-present flag and an exit code when parseable, not raw error output.
 - No first-party remote approval protocol exists. ntfy remains a third-party shared-topic path whose service can read notification content and signed action values.
 - `PermissionRequest` input has no `tool_use_id` in the current Claude reference. Some same-session terminal/tool completion events therefore cannot be correlated more finely than the session.
+- Claude Auto mode can run a tool without emitting `PermissionRequest`. The `PreToolUse` HTTP hook is currently observation-only, so JICHO does not block those Auto-mode actions; approval control applies only when Claude asks for a permission decision.
 - `PostToolUse`, `Stop`, and `SessionEnd` resolve outstanding same-session requests as superseded; adapters with concurrent requests within one session need richer source correlation before generalization.
 - The command centre currently has overview/session/activity/approval views; no task verification, independent diff/test verification, full settings center, or Codex/Cursor view is implemented. Stored source events are evidence records, not generated progress summaries.
 - Full `npm audit` still reports six moderate findings in Electron packaging dependencies; they are development-only and should be revisited before release.
@@ -75,7 +85,7 @@ Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, bet
 ## Next implementation units
 
 1. Verify the command-centre window, global shortcut, and approval delivery on X11 and Wayland.
-2. Run Claude Code 2.1.319 against the installed HTTP hooks and verify real allow, deny, timeout, event, and failure behavior.
+2. Verify Claude HTTP hook timeout, connection failure, duplicate/out-of-order events, and native permission fallback against a real CLI; test desktop-card delivery separately.
 3. Add retention and export/backup policy for local SQLite history and controls for keeping or removing sensitive history.
 4. Review Codex App Server and Cursor Hooks official protocols before implementing their adapter contracts.
 5. Design first-party device identity, pairing, relay, push, and replay-safe remote approvals before building mobile clients.

@@ -11,6 +11,7 @@ const { createServer } = require('./server');
 const { isJichoHook, selectSettingsTarget } = require('../bin/jicho');
 const settingsTarget = selectSettingsTarget(process.argv.slice(2));
 const scopeFlag = settingsTarget.scope === 'user' ? '--user' : '--' + settingsTarget.scope;
+const settingsSource = { user: 'user', 'project-local': 'local', 'project-shared': 'project' }[settingsTarget.scope];
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
 const core = new Core();
@@ -21,6 +22,9 @@ const queue = [];
 const results = { allow: null, deny: null };
 let busy = false;
 let done = false;
+let verifiedSessionId = null;
+let sessionEndObserved = false;
+let sessionEndTimer = null;
 
 function claudeVersion() {
   const inheritedPath = (process.env.PATH || '').split(path.delimiter);
@@ -80,10 +84,12 @@ async function askObserved(decision) {
 function finish() {
   if (done) return;
   done = true;
-  const passed = results.allow === true && results.deny === true;
+  if (sessionEndTimer) clearTimeout(sessionEndTimer);
+  const passed = results.allow === true && results.deny === true && sessionEndObserved;
   console.log('\nVerification summary:');
   console.log('  Allow honored: ' + (results.allow === true ? 'yes' : results.allow === false ? 'no' : 'not run'));
   console.log('  Deny honored:  ' + (results.deny === true ? 'yes' : results.deny === false ? 'no' : 'not run'));
+  console.log('  SessionEnd observed: ' + (sessionEndObserved ? 'yes' : 'no'));
   for (const file of Object.values(verifyFiles)) {
     const fullPath = path.join(process.cwd(), file);
     if (fs.existsSync(fullPath)) {
@@ -94,6 +100,15 @@ function finish() {
   core.list().forEach((item) => core.settle(item.id, null, 'verify-exit'));
   rl.close();
   server.close(() => { process.exitCode = passed ? 0 : 1; });
+}
+
+function waitForSessionEnd() {
+  if (sessionEndObserved) { finish(); return; }
+  console.log('\nBoth permission outcomes are confirmed. Exit the Claude session with `/exit` to verify its SessionEnd hook. Waiting up to 30 seconds.');
+  sessionEndTimer = setTimeout(() => {
+    console.log('SessionEnd was not observed before the verification timeout.');
+    finish();
+  }, 30_000);
 }
 
 async function promptNext() {
@@ -112,7 +127,10 @@ async function promptNext() {
   results[decision] = await askObserved(decision);
   console.log((results[decision] ? 'PASS' : 'FAIL') + ': Claude ' + (results[decision] ? 'honored' : 'did not honor') + ' the ' + decision + ' response, as confirmed in its terminal.');
   busy = false;
-  if (results.allow !== null && results.deny !== null) finish();
+  if (results.allow !== null && results.deny !== null) {
+    if (results.allow === true && results.deny === true) waitForSessionEnd();
+    else finish();
+  }
   else promptNext();
 }
 
@@ -120,6 +138,7 @@ core.on('pending', (items) => {
   for (const item of items) {
     if (seen.has(item.id)) continue;
     seen.add(item.id);
+    if (verifiedSessionId === null) verifiedSessionId = item.sid;
     queue.push(item);
     const raw = item.input && Object.prototype.hasOwnProperty.call(item.input, 'command')
       ? item.input.command
@@ -131,6 +150,13 @@ core.on('pending', (items) => {
     console.log('For the allow check, use ' + verifyFiles.allow + '. For the deny check, use ' + verifyFiles.deny + '.');
   }
   promptNext();
+});
+
+core.on('activity', (event) => {
+  if (event.type !== 'SessionEnd' || (verifiedSessionId && event.sessionId !== verifiedSessionId)) return;
+  sessionEndObserved = true;
+  console.log('PASS: real Claude SessionEnd hook received.');
+  if (results.allow === true && results.deny === true) setImmediate(finish);
 });
 
 function start() {
@@ -149,11 +175,11 @@ function start() {
     console.log('Local Jicho core listening on http://127.0.0.1:' + PORT);
     console.log('\nIn another terminal at this project root:');
     if (!installed) console.log('  1. Run `npm run jicho -- install ' + scopeFlag + '`, review the diff, accept it, then start a fresh Claude session.');
-    else console.log('  1. Start a fresh real interactive Claude Code session with `claude`.');
-    console.log('  2. Ask Claude to use Bash to run `touch ' + verifyFiles.allow + '` for the allow check.');
-    console.log('  3. When Jicho asks, choose allow. Confirm here whether the file was created.');
-    console.log('  4. Ask Claude to run `touch ' + verifyFiles.deny + '` for the deny check. Choose deny and confirm it stopped.');
-    console.log('The verifier removes any test files it created. It does not call an AI model.');
+    console.log('  Start a fresh interactive Claude session with `claude --permission-mode manual --setting-sources ' + settingsSource + '`. Manual mode ensures permission requests reach the hook during this check.');
+    console.log('  Ask Claude to use Bash to run `touch ' + verifyFiles.allow + '` for the allow check.');
+    console.log('  When Jicho asks, choose allow. Confirm here whether the file was created.');
+    console.log('  Then ask Claude to run `touch ' + verifyFiles.deny + '` for the deny check. Choose deny and confirm it stopped.');
+    console.log('After both outcomes, exit Claude with `/exit` so the verifier can observe SessionEnd. It removes its temporary test files. It does not call an AI model.');
     if (settingsTarget.scope === 'project-local') console.log('Ensure .claude/settings.local.json is Git-ignored; project-local settings created by hand may otherwise be committed.');
     console.log('\nWaiting for the real PermissionRequest hook...');
   });

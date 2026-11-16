@@ -29,7 +29,7 @@ To remove the hooks later, run `npm run jicho -- uninstall`. To check installati
 - Optional phone approvals through ntfy. The QR code pairs with the topic; Android can open it directly, while iPhone users can add the topic in ntfy.
 - Optional start-at-login, a tray menu, and a deterministic safe-command allowlist that is off by default.
 
-The installer configures HTTP hooks for PermissionRequest, PostToolUse, Stop, UserPromptSubmit, SessionStart, and SessionEnd. **SessionStart is a compatibility caveat:** the current [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) does not list HTTP as a supported hook type for that event. The installer retains the requested SessionStart entry, but its behavior depends on the installed Claude Code version. The permission card uses PermissionRequest.
+The installer configures HTTP hooks for PermissionRequest, PostToolUse, Stop, UserPromptSubmit, and SessionEnd. The current [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) supports only command and MCP hooks for SessionStart, so Jicho does not register an HTTP hook for that event. A session first appears when Jicho receives a supported event. The permission card uses PermissionRequest.
 
 ## What does not work
 
@@ -49,6 +49,7 @@ Open the pairing panel from the eye or tray. Scan the QR code with ntfy on Andro
 ## Security model
 
 - The hook server listens only on `127.0.0.1:47821`; it is not exposed on your network. `JICHO_TOKEN` is optional. If set, give the same token to the environment that launches Jicho and Claude Code.
+- Hook requests over 1 MiB, malformed JSON, and requests without a valid session ID are rejected or returned without a decision. Safe auto-allow applies only after Jicho has observed that session.
 - Each PermissionRequest holds one HTTP response. Allow or Deny settles that exact response. A stale or unrelated answer cannot approve another request. If a request times out, Jicho sends no decision and Claude can show its own dialog.
 - The desktop card displays the raw command without summarizing or redacting it. Keep the screen private if commands may contain secrets.
 - Phone alerts redact common token and key patterns, redact environment-style assignments, and truncate command text to 120 characters. This is heuristic; use Content-free alerts when command text should not leave the computer.

@@ -22,6 +22,13 @@ function newConfig() {
   };
 }
 
+function isValidConfig(config) {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return false;
+  if (!/^[a-f0-9]{32}$/i.test(config.topic || '') || !/^[a-f0-9]{64}$/i.test(config.secret || '')) return false;
+  if (config.replyTopic !== undefined && config.replyTopic !== config.topic + '-reply') return false;
+  return ['enabled', 'contentFree', 'pairingDismissed'].every((key) => config[key] === undefined || typeof config[key] === 'boolean');
+}
+
 function macFor(secret, id, decision) {
   return crypto.createHmac('sha256', Buffer.from(secret, 'hex')).update(id + ':' + decision).digest('hex');
 }
@@ -76,25 +83,35 @@ class PhoneBridge extends EventEmitter {
     this.configPath = path.join(userDataDir, CONFIG_NAME);
     fs.mkdirSync(userDataDir, { recursive: true, mode: 0o700 });
     this.isFirstRun = !fs.existsSync(this.configPath);
+    this.storageBlocked = false;
+    this.configError = '';
     if (this.isFirstRun) this.config = newConfig();
     else {
       try { this.config = JSON.parse(fs.readFileSync(this.configPath, 'utf8')); }
-      catch (_) { this.config = newConfig(); this.isFirstRun = true; }
-      if (!this.config || typeof this.config.topic !== 'string' || typeof this.config.secret !== 'string') {
-        this.config = newConfig(); this.isFirstRun = true;
+      catch (error) {
+        this.storageBlocked = true;
+        this.configError = 'Existing phone settings could not be read and were left unchanged: ' + error.message;
       }
-      if (!this.config.replyTopic) this.config.replyTopic = this.config.topic + '-reply';
-      if (this.config.enabled === undefined) this.config.enabled = false;
-      if (this.config.contentFree === undefined) this.config.contentFree = false;
-      if (this.config.pairingDismissed === undefined) this.config.pairingDismissed = false;
+      if (!this.storageBlocked && !isValidConfig(this.config)) {
+        this.storageBlocked = true;
+        this.configError = 'Existing phone settings are invalid and were left unchanged.';
+      }
+      if (this.storageBlocked) {
+        this.config = newConfig();
+        this.config.enabled = false;
+      }
+      if (!this.storageBlocked && !this.config.replyTopic) this.config.replyTopic = this.config.topic + '-reply';
+      if (!this.storageBlocked && this.config.enabled === undefined) this.config.enabled = false;
+      if (!this.storageBlocked && this.config.contentFree === undefined) this.config.contentFree = false;
+      if (!this.storageBlocked && this.config.pairingDismissed === undefined) this.config.pairingDismissed = false;
     }
     this.subscribeRequest = null;
     this.subscribeResponse = null;
     this.reconnectTimer = null;
     this.reconnectDelay = 1000;
     this.stopped = false;
-    this.status = { connected: false, message: this.config.enabled ? 'Connecting to ntfy…' : 'Phone alerts are off' };
-    this.save();
+    this.status = { connected: false, message: this.configError || (this.config.enabled ? 'Connecting to ntfy…' : 'Phone alerts are off') };
+    if (!this.storageBlocked) this.save();
     this.qrDataUrl = null;
     this.qrPromise = QRCode.toString('ntfy://ntfy.sh/' + this.config.topic, {
       type: 'svg', margin: 2, width: 190, errorCorrectionLevel: 'M',
@@ -103,18 +120,20 @@ class PhoneBridge extends EventEmitter {
       this.qrDataUrl = 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
       return this.qrDataUrl;
     });
-    if (this.config.enabled) this.connect();
+    if (this.config.enabled && !this.storageBlocked) this.connect();
   }
 
   save() {
+    if (this.storageBlocked) return false;
     fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2) + '\n', { mode: 0o600 });
+    return true;
   }
 
   async pairingInfo() {
     return {
-      topic: this.config.topic,
-      pairingUrl: 'ntfy://ntfy.sh/' + this.config.topic,
-      qrDataUrl: await this.qrPromise,
+      topic: this.storageBlocked ? '' : this.config.topic,
+      pairingUrl: this.storageBlocked ? '' : 'ntfy://ntfy.sh/' + this.config.topic,
+      qrDataUrl: this.storageBlocked ? null : await this.qrPromise,
       enabled: Boolean(this.config.enabled),
       contentFree: Boolean(this.config.contentFree),
       pairingDismissed: Boolean(this.config.pairingDismissed),
@@ -124,9 +143,9 @@ class PhoneBridge extends EventEmitter {
 
   viewState() {
     return {
-      topic: this.config.topic,
-      pairingUrl: 'ntfy://ntfy.sh/' + this.config.topic,
-      qrDataUrl: this.qrDataUrl,
+      topic: this.storageBlocked ? '' : this.config.topic,
+      pairingUrl: this.storageBlocked ? '' : 'ntfy://ntfy.sh/' + this.config.topic,
+      qrDataUrl: this.storageBlocked ? null : this.qrDataUrl,
       enabled: Boolean(this.config.enabled),
       contentFree: Boolean(this.config.contentFree),
       pairingDismissed: Boolean(this.config.pairingDismissed),
@@ -244,6 +263,7 @@ class PhoneBridge extends EventEmitter {
   }
 
   setEnabled(enabled) {
+    if (this.storageBlocked) return false;
     this.config.enabled = Boolean(enabled);
     this.save();
     if (this.config.enabled) {
@@ -254,16 +274,21 @@ class PhoneBridge extends EventEmitter {
       this.stopConnection();
       this.setStatus(false, 'Phone alerts are off');
     }
+    return true;
   }
 
   setContentFree(contentFree) {
+    if (this.storageBlocked) return false;
     this.config.contentFree = Boolean(contentFree);
     this.save();
+    return true;
   }
 
   dismissPairing() {
+    if (this.storageBlocked) return false;
     this.config.pairingDismissed = true;
     this.save();
+    return true;
   }
 
   stopConnection() {
@@ -281,4 +306,4 @@ class PhoneBridge extends EventEmitter {
   }
 }
 
-module.exports = { PhoneBridge, macFor, verifyMac, redact, truncate, phoneMessage, action };
+module.exports = { PhoneBridge, isValidConfig, macFor, verifyMac, redact, truncate, phoneMessage, action };

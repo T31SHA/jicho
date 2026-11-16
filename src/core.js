@@ -5,6 +5,10 @@ const path = require('path');
 const { EventEmitter } = require('events');
 const { evaluate } = require('./policy');
 
+function isValidSessionId(sid) {
+  return typeof sid === 'string' && sid.length > 0 && sid.length <= 256 && sid.trim() === sid && !/[\u0000-\u001f\u007f]/.test(sid);
+}
+
 class Core extends EventEmitter {
   constructor(options = {}) {
     super();
@@ -17,15 +21,23 @@ class Core extends EventEmitter {
   setPolicyEnabled(enabled) { this.policyEnabled = Boolean(enabled); }
 
   touch(sid, patch) {
-    const s = Object.assign({ id: sid, state: 'idle', cwd: '', last: Date.now() }, this.sessions.get(sid), patch, { last: Date.now() });
+    if (!isValidSessionId(sid)) {
+      this.emit('request-rejected', { reason: 'invalid-session-id', event: 'session-update' });
+      return null;
+    }
+    const s = Object.assign({ id: sid, state: 'idle', cwd: '', last: Date.now() }, this.sessions.get(sid), patch, { id: sid, last: Date.now() });
     this.sessions.set(sid, s); this.emit('sessions', [...this.sessions.values()]); return s;
   }
 
   request(body, onRegistered) {
     const holdMs = Number(process.env.JICHO_HOLD_MS || 110000); // keep below the hook timeout we install (120s)
-    const sid = body.session_id || 'unknown';
+    const sid = body && body.session_id;
+    if (!isValidSessionId(sid)) {
+      this.emit('request-rejected', { reason: 'invalid-session-id', event: 'PermissionRequest' });
+      return Promise.resolve({});
+    }
     const id = crypto.randomUUID();
-    const policy = evaluate(body, this.policyEnabled);
+    const policy = evaluate(body, this.policyEnabled && this.sessions.has(sid));
     const item = {
       id, sid, tool: body.tool_name, input: body.tool_input, cwd: body.cwd,
       at: Date.now(), riskFlags: policy.riskFlags
@@ -96,9 +108,11 @@ class Core extends EventEmitter {
   }
 
   dropBySession(sid) {
+    if (!isValidSessionId(sid)) return false;
     for (const it of [...this.pending.values()]) if (it.sid === sid) this.settle(it.id, null, 'resolved-elsewhere');
+    return true;
   }
 
   list() { return [...this.pending.values()].map(({ id, sid, tool, input, cwd, at, riskFlags }) => ({ id, sid, tool, input, cwd, at, riskFlags })); }
 }
-module.exports = { Core };
+module.exports = { Core, isValidSessionId };

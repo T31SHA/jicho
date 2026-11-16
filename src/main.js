@@ -230,10 +230,12 @@ function startServer() {
     auditFile: path.join(dataDirectory, 'audit.jsonl')
   });
   phoneBridge = new PhoneBridge(core, app.getPath('userData'));
-  showPhone = phoneBridge.isFirstRun && !phoneBridge.config.pairingDismissed;
+  showPhone = (phoneBridge.isFirstRun && !phoneBridge.config.pairingDismissed) || phoneBridge.storageBlocked;
   phoneBridge.on('status', publishState);
-  phoneBridge.qrPromise.then((uri) => { phoneBridge.qrDataUrl = uri; publishState(); }).catch(() => {
+  phoneBridge.qrPromise.then((uri) => { phoneBridge.qrDataUrl = uri; publishState(); }).catch((error) => {
+    console.error('Could not generate phone pairing QR code:', error.message);
     phoneBridge.qrDataUrl = null;
+    phoneBridge.setStatus(false, 'Could not generate the pairing QR code.');
     publishState();
   });
   core.on('pending', (items) => {
@@ -241,10 +243,13 @@ function startServer() {
     for (const item of items) {
       if (phoneNotifications.has(item.id)) continue;
       phoneNotifications.add(item.id);
-      phoneBridge.publishRequest(item).catch(() => {});
+      phoneBridge.publishRequest(item).catch((error) => console.error('Could not publish approval notification:', error.message));
     }
     publishState();
   });
+  core.on('audit-error', (error) => console.error('Jicho could not write its audit record:', error.message));
+  core.on('ingress-error', ({ kind, message }) => console.warn('Jicho hook ingress:', kind, message));
+  core.on('request-rejected', ({ reason, event }) => console.warn('Jicho rejected request:', event, reason));
   core.on('settled', ({ id }) => { phoneNotifications.delete(id); });
   core.on('sessions', (items) => { sessions = items; publishState(); });
   server = createServer(core);
@@ -314,6 +319,9 @@ ipcMain.handle('jicho:autostart-enabled', (_event, enabled) => {
 
 app.on('before-quit', () => {
   if (cursorTimer) clearInterval(cursorTimer);
+  if (core) {
+    for (const item of core.list()) core.settle(item.id, null, 'app-shutdown');
+  }
   if (phoneBridge) phoneBridge.close();
   if (server && server.listening) server.close();
   if (tray) tray.destroy();

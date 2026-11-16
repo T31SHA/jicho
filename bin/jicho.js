@@ -9,7 +9,8 @@ const readline = require('readline');
 const URL = 'http://127.0.0.1:47821';
 const MARKER_HEADER = 'X-Jicho-Installer';
 const MARKER_VALUE = 'jicho';
-const EVENTS = ['PermissionRequest', 'PostToolUse', 'Stop', 'UserPromptSubmit', 'SessionStart', 'SessionEnd'];
+// SessionStart currently supports command and MCP hooks, but not HTTP hooks.
+const EVENTS = ['PermissionRequest', 'PostToolUse', 'Stop', 'UserPromptSubmit', 'SessionEnd'];
 
 function settingsPath(home = os.homedir()) {
   return path.join(home, '.claude', 'settings.json');

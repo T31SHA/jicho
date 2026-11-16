@@ -15,8 +15,35 @@ const EVENTS = [
   'Stop', 'Notification', 'SubagentStart', 'SubagentStop', 'SessionEnd'
 ];
 
-function settingsPath(home = os.homedir()) {
-  return path.join(home, '.claude', 'settings.json');
+function settingsPath(home = os.homedir(), env = process.env) {
+  const configuredDirectory = env.CLAUDE_CONFIG_DIR;
+  if (!configuredDirectory) return path.join(home, '.claude', 'settings.json');
+  const expandedDirectory = configuredDirectory === '~'
+    ? home
+    : configuredDirectory.startsWith('~/') || configuredDirectory.startsWith('~\\')
+      ? path.join(home, configuredDirectory.slice(2))
+      : configuredDirectory;
+  return path.join(expandedDirectory, 'settings.json');
+}
+
+function projectSettingsPath(cwd = process.cwd(), scope = 'project-local') {
+  if (scope !== 'project-local' && scope !== 'project-shared') throw new Error('Unknown Claude project settings scope: ' + scope);
+  return path.join(cwd, '.claude', scope === 'project-shared' ? 'settings.json' : 'settings.local.json');
+}
+
+function selectSettingsTarget(args = [], options = {}) {
+  const flags = args.filter((arg) => ['--user', '--project-local', '--project-shared'].includes(arg));
+  const unknown = args.filter((arg) => arg.startsWith('--') && !flags.includes(arg));
+  if (unknown.length) throw new Error('Unknown option: ' + unknown[0]);
+  const unexpected = args.find((arg) => !arg.startsWith('--'));
+  if (unexpected) throw new Error('Unexpected argument: ' + unexpected);
+  if (flags.length > 1) throw new Error('Choose only one Claude settings scope.');
+  const flag = flags[0] || '--user';
+  const scope = flag === '--user' ? 'user' : flag.slice(2);
+  const file = scope === 'user'
+    ? settingsPath(options.home || os.homedir(), options.env || process.env)
+    : projectSettingsPath(options.cwd || process.cwd(), scope);
+  return { scope, file };
 }
 
 function makeHook() {
@@ -84,7 +111,7 @@ function removeHooks(settings) {
   return { settings: next, removed };
 }
 
-function makeDiff(before, after) {
+function makeDiff(before, after, fileLabel = 'settings.json') {
   const a = before.split('\n');
   const b = after.split('\n');
   let prefix = 0;
@@ -96,8 +123,8 @@ function makeDiff(before, after) {
   const contextBefore = a.slice(Math.max(0, prefix - 2), prefix).map((line) => ' ' + line);
   const contextAfter = a.slice(a.length - suffix, Math.min(a.length, a.length - suffix + 2)).map((line) => ' ' + line);
   return [
-    '--- settings.json',
-    '+++ settings.json (Jicho change)',
+    '--- ' + fileLabel,
+    '+++ ' + fileLabel + ' (Jicho change)',
     '@@ -' + (prefix + 1) + ',' + changedBefore.length + ' +' + (prefix + 1) + ',' + changedAfter.length + ' @@',
     ...contextBefore,
     ...changedBefore.map((line) => '-' + line),
@@ -109,7 +136,11 @@ function makeDiff(before, after) {
 function readSettings(file) {
   if (!fs.existsSync(file)) return { settings: {}, original: '' };
   const original = fs.readFileSync(file, 'utf8');
-  try { return { settings: JSON.parse(original), original }; }
+  try {
+    const settings = JSON.parse(original);
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('settings root must be a JSON object');
+    return { settings, original };
+  }
   catch (error) { throw new Error('Could not parse ' + file + ': ' + error.message); }
 }
 
@@ -136,7 +167,7 @@ function backup(file) {
   return backupPath;
 }
 
-async function changeSettings(action, file = settingsPath()) {
+async function changeSettings(action, file = settingsPath(), scope = 'user') {
   const { settings, original } = readSettings(file);
   const result = action === 'install' ? mergeHooks(settings) : removeHooks(settings);
   if (action === 'install' && result.added === 0) {
@@ -149,7 +180,14 @@ async function changeSettings(action, file = settingsPath()) {
   }
   const before = original ? JSON.stringify(JSON.parse(original), null, 2) : '{}';
   const after = JSON.stringify(result.settings, null, 2);
-  console.log(makeDiff(before, after));
+  if (scope === 'project-local') {
+    console.log('Scope: this project only. Because Jicho creates this file by hand, make sure .claude/settings.local.json is ignored by Git.');
+  } else if (scope === 'project-shared') {
+    console.log('Scope: this project for everyone who uses it. Committing .claude/settings.json shares these hooks with collaborators.');
+  } else {
+    console.log('Scope: your user account across projects.');
+  }
+  console.log(makeDiff(before, after, path.basename(file)));
   if (!(await askToProceed())) { console.log('Cancelled. No changes made.'); return false; }
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const backupPath = backup(file);
@@ -158,8 +196,8 @@ async function changeSettings(action, file = settingsPath()) {
   return true;
 }
 
-function status(file = settingsPath()) {
-  if (!fs.existsSync(file)) { console.log('Claude settings not found: ' + file); return; }
+function status(file = settingsPath(), scope = 'user') {
+  if (!fs.existsSync(file)) { console.log('Claude ' + scope + ' settings not found: ' + file); return; }
   let settings;
   try { settings = JSON.parse(fs.readFileSync(file, 'utf8')); }
   catch (error) { console.error('Could not parse ' + file + ': ' + error.message); process.exitCode = 1; return; }
@@ -173,10 +211,13 @@ function status(file = settingsPath()) {
 
 async function main(args) {
   const command = args[0];
-  if (command === 'install' || command === 'uninstall') await changeSettings(command);
-  else if (command === 'status') status();
+  if (command === 'install' || command === 'uninstall' || command === 'status') {
+    const target = selectSettingsTarget(args.slice(1));
+    if (command === 'status') status(target.file, target.scope);
+    else await changeSettings(command, target.file, target.scope);
+  }
   else {
-    console.log('Usage: jicho <install|uninstall|status>');
+    console.log('Usage: jicho <install|uninstall|status> [--user|--project-local|--project-shared]');
     if (command) process.exitCode = 2;
   }
 }
@@ -186,4 +227,4 @@ if (require.main === module) main(process.argv.slice(2)).catch((error) => {
   process.exitCode = 1;
 });
 
-module.exports = { EVENTS, URL, settingsPath, makeHook, isJichoHook, mergeHooks, removeHooks, makeDiff };
+module.exports = { EVENTS, URL, settingsPath, projectSettingsPath, selectSettingsTarget, makeHook, isJichoHook, mergeHooks, removeHooks, makeDiff };

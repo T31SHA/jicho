@@ -1,5 +1,6 @@
 // The demo-proof: concurrent sessions, each answer must land on the right one.
 const assert = require('assert');
+const { spawnSync } = require('child_process');
 const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -12,7 +13,7 @@ const { Store, compactAction, safeEventDetails } = require('../src/store');
 const { createServer } = require('../src/server');
 const { evaluate } = require('../src/policy');
 const { macFor, verifyMac, PhoneBridge } = require('../src/phone');
-const { EVENTS, isJichoHook, mergeHooks, removeHooks } = require('../bin/jicho');
+const { EVENTS, settingsPath, projectSettingsPath, selectSettingsTarget, isJichoHook, mergeHooks, removeHooks } = require('../bin/jicho');
 const { isTrustedMainFrame } = require('../src/ipc-security');
 
 const post = (port, body) => new Promise((resolve, reject) => {
@@ -153,7 +154,40 @@ const waitForPendingCount = async (core, count) => {
   assert.strictEqual(uninstalled.removed, EVENTS.length);
   assert.strictEqual(uninstalled.settings.hooks.PreToolUse[0].hooks[0].command, 'keep-me');
   assert.strictEqual(EVENTS.includes('SessionStart'), false);
-  console.log('PASS 13: installer is idempotent, preserves unrelated hooks, and skips unsupported HTTP SessionStart');
+  const configHome = path.join(os.tmpdir(), 'jicho-config-home');
+  assert.strictEqual(settingsPath('/home/tester', { CLAUDE_CONFIG_DIR: '~/.claude-custom' }), path.join('/home/tester', '.claude-custom', 'settings.json'));
+  assert.strictEqual(settingsPath('/home/tester', { CLAUDE_CONFIG_DIR: configHome }), path.join(configHome, 'settings.json'));
+  const projectRoot = path.join(os.tmpdir(), 'jicho-project-scope');
+  assert.strictEqual(projectSettingsPath(projectRoot, 'project-local'), path.join(projectRoot, '.claude', 'settings.local.json'));
+  assert.strictEqual(projectSettingsPath(projectRoot, 'project-shared'), path.join(projectRoot, '.claude', 'settings.json'));
+  assert.deepStrictEqual(selectSettingsTarget(['--project-local'], { cwd: projectRoot }), {
+    scope: 'project-local', file: path.join(projectRoot, '.claude', 'settings.local.json')
+  });
+  assert.throws(() => selectSettingsTarget(['--user', '--project-local']), /only one/);
+  assert.throws(() => selectSettingsTarget(['--something']), /Unknown option/);
+  assert.throws(() => selectSettingsTarget(['extra']), /Unexpected argument/);
+  const scopedProject = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-installer-scope-'));
+  fs.mkdirSync(path.join(scopedProject, '.claude'));
+  fs.writeFileSync(path.join(scopedProject, '.claude', 'settings.local.json'), JSON.stringify({
+    model: 'keep-model', hooks: { PreToolUse: [{ hooks: [{ type: 'command', command: 'keep-existing-hook' }] }] }
+  }, null, 2));
+  const installer = path.join(__dirname, '..', 'bin', 'jicho.js');
+  const scopedInstall = spawnSync(process.execPath, [installer, 'install', '--project-local'], { cwd: scopedProject, input: 'y\n', encoding: 'utf8' });
+  assert.strictEqual(scopedInstall.status, 0, scopedInstall.stderr);
+  const scopedSettingsPath = path.join(scopedProject, '.claude', 'settings.local.json');
+  let scopedSettings = JSON.parse(fs.readFileSync(scopedSettingsPath, 'utf8'));
+  assert.strictEqual(scopedSettings.model, 'keep-model');
+  assert(scopedSettings.hooks.PreToolUse.flatMap((group) => group.hooks || []).some((hook) => hook.command === 'keep-existing-hook'));
+  assert(scopedSettings.hooks.PermissionRequest.flatMap((group) => group.hooks || []).some(isJichoHook));
+  assert(fs.readdirSync(path.dirname(scopedSettingsPath)).some((name) => name.includes('.jicho-backup-')));
+  const scopedUninstall = spawnSync(process.execPath, [installer, 'uninstall', '--project-local'], { cwd: scopedProject, input: 'y\n', encoding: 'utf8' });
+  assert.strictEqual(scopedUninstall.status, 0, scopedUninstall.stderr);
+  scopedSettings = JSON.parse(fs.readFileSync(scopedSettingsPath, 'utf8'));
+  assert.strictEqual(scopedSettings.model, 'keep-model');
+  assert(scopedSettings.hooks.PreToolUse.flatMap((group) => group.hooks || []).some((hook) => hook.command === 'keep-existing-hook'));
+  assert(!Object.values(scopedSettings.hooks).flatMap((groups) => groups || []).flatMap((group) => group.hooks || []).some(isJichoHook));
+  fs.rmSync(scopedProject, { recursive: true, force: true });
+  console.log('PASS 13: installer is idempotent, preserves unrelated hooks, supports documented scopes/config directory, and skips unsupported HTTP SessionStart');
 
   const bulk = Array.from({ length: 20 }, (_, index) => post(port, req('bulk-' + index, 'printf demo-' + index)));
   await waitForPendingCount(core, 20);

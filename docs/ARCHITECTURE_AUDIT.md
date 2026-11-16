@@ -108,6 +108,12 @@ Electron was updated to 45.3.3 after the dependency audit reported high-severity
 
 The store omits prompt text and tool output, but retains bounded command/path details needed for approvals and observations. It is not encrypted and does not yet have retention or secure-deletion controls. Full `npm audit` reports six moderate findings in the development packaging dependency tree and no high or critical findings; `npm audit --omit=dev` reports none.
 
+## Claude settings-scope follow-up (2026-11-16)
+
+The installer now supports user (`~/.claude/settings.json`), project-local (`.claude/settings.local.json`), and shared project (`.claude/settings.json`) settings, while retaining user scope as its backward-compatible default. User settings follow `CLAUDE_CONFIG_DIR`. Each scope can be installed, inspected, and uninstalled independently. Project commands use the current working directory as the project root and print scope-specific notices; local scope reminds the user to Git-ignore the hand-created file, while shared scope warns it may affect collaborators. The guided real-hook verifier can inspect the selected scope.
+
+These locations and their sharing behavior were checked against the [official Claude Code settings reference](https://code.claude.com/docs/en/settings). Automated tests use a temporary project directory and establish config merging, backup, and removal only; they do not establish that Claude Code loaded a setting or made a real permission decision.
+
 ## Command-centre increment
 
 The next increment adds a second bounded Electron window at `src/command-centre.html`, with overview, session, activity, and approval views. Its snapshot comes from `Store.listSessions()`, `Store.listRecentActivity()`, and the existing in-memory `Core.list()` queue. Hook events are labeled as Claude observations; decision and restart audit entries are labeled as Jicho local actions. Approval buttons call the same core handler and held HTTP response used by the floating companion.

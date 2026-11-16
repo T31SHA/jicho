@@ -1,7 +1,7 @@
 # JICHO Implementation Status
 
 **Updated:** 2026-11-16  
-**Implementation base:** `df7541e`
+**Implementation base:** Through the Claude settings-scope increment (2026-11-16)
 
 ## Delivered before this increment
 
@@ -20,6 +20,14 @@
 - The dashboard supports approval once or deny through the existing per-request core; it does not create a second approval state machine.
 - Added IPC main-frame validation checks and recent-activity query coverage to the local harness.
 
+## Claude settings-scope increment
+
+- The installer can target Claude user settings (`--user`, still the default), project-local settings (`--project-local`), or shared project settings (`--project-shared`). Project settings are written under `.claude/` in the current working directory; run the command from the project root.
+- User settings honor `CLAUDE_CONFIG_DIR`, including a leading `~/` path.
+- Install, status, and uninstall accept the same scope flag. Installs retain timestamped backups, preserve unrelated keys/hooks, and show a scope-specific notice before asking to apply the diff. Shared scope warns that the file may affect collaborators; local scope warns about Git ignore.
+- The real-hook verifier accepts the same flags and reports/checks only that settings file. It still requires a user-started interactive Claude session and confirmation of the actual allow/deny outcome.
+- Added tests that install and uninstall in a temporary project settings file, check backup creation, and verify unrelated model and hook settings survive.
+
 ## Verification
 
 Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, better-sqlite3 `13.2.0`.
@@ -28,6 +36,7 @@ Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, bet
 | --- | --- | --- |
 | Original repository baseline | PASS, 9 checks | Baseline predates the ingress hardening and SQLite work. |
 | Current `npm test` | PASS, 20 checks | Local loopback and SQLite harness; not an external integration test. Covers 20-way routing, durable concurrent decisions, expiry, one decision, restart recovery, unavailable-store failure, and trusted IPC sender checks. |
+| Claude settings-scope install/uninstall | PASS | Automated isolated temporary-project check verifies local-scope write, backup, preservation, and removal. It does not edit the user's Claude configuration or prove Claude loaded the file. |
 | Command-centre Electron smoke | PASS | Headless Electron 45 loaded the local page and sandboxed preload; a simulated IPC snapshot rendered session/approval data and the Approve button reached the mocked IPC handler. This is UI-only evidence, not an agent integration test. |
 | `npm run dist:linux` | PASS | Built Linux x64 AppImage and Debian package with the command-centre assets, Electron 45, and rebuilt SQLite native module. Artifacts were not installed or launched. |
 | Full `npm audit` after Electron upgrade | 6 moderate, 0 high, 0 critical | Remaining findings are development/package-build dependencies (`electron-builder` / `minimatch`); no production dependency findings. |
@@ -43,7 +52,7 @@ Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, bet
 | Approval routing | Implemented in the Node core; each decision remains bound to its original held hook response. |
 | Local persistence | Implemented for sessions, hook observations, approval states, decisions, and audit metadata; SQLite migrations currently stop at schema v1. |
 | Restart behavior | Pending requests are durably marked failed and never re-presented as approvable; a fresh hook event is needed before safe auto-allow is eligible. |
-| Claude Code | Real HTTP hook integration and additional documented event hooks; current installed-version behavior remains unverified. |
+| Claude Code | Real HTTP hook integration and additional documented event hooks; installer supports user, project-local, and shared project scopes. Current installed-version hook behavior remains unverified. |
 | Desktop | Electron companion and initial command centre are implemented. Headless renderer and IPC interaction passed with a simulated snapshot; native window, tray, shortcut, and platform behavior remain unverified. |
 | Linux packaging | x64 AppImage and Debian package build passed with Electron 45 / SQLite 13.2; artifacts were not installed or launched. |
 | Phone | Optional ntfy bridge only; no first-party paired device protocol. |
@@ -78,5 +87,8 @@ Environment: Linux x64, Node.js `v22.23.2`, npm `10.9.8`, Electron `45.3.3`, bet
 - Local core: `npm run core`
 - Fake concurrent demo: `npm run demo`
 - Real Claude allow/deny verifier: `npm run verify`
-- Claude hook setup/status/removal: `npm run jicho -- install|status|uninstall`
+- Claude user settings: `npm run jicho -- install|status|uninstall --user` (default)
+- Claude project-local settings: `npm run jicho -- install|status|uninstall --project-local`
+- Claude shared project settings: `npm run jicho -- install|status|uninstall --project-shared`
+- Real verifier scope: `npm run verify -- --project-local` (also accepts `--user` or `--project-shared`)
 - Linux package build: `npm run dist:linux`

@@ -20,7 +20,9 @@ Review the installer diff and confirm it before it changes `~/.claude/settings.j
 
 In another terminal, start a **fresh** Claude Code session with `claude`, either directly or in your IDE’s integrated terminal. Ask Claude to do something that requires permission. Jicho shows the session folder, tool, and raw command with Allow, Deny, and Always buttons.
 
-To remove the hooks later, run `npm run jicho -- uninstall`. To check installation, run `npm run jicho -- status`.
+The default installer uses your user settings at `~/.claude/settings.json`. To scope the hooks to this project only, use `npm run jicho -- install --project-local`; it writes `.claude/settings.local.json` in the current directory. Because Jicho creates that file by hand, ensure Git ignores it. For an intentional shared project configuration, use `--project-shared`; review the displayed scope warning before accepting because the file can be committed for collaborators. `--user` selects the default explicitly. Use the same flag with `status` and `uninstall` to inspect or remove that scope. Claude Code honors `CLAUDE_CONFIG_DIR` for user settings.
+
+To remove the user-level hooks later, run `npm run jicho -- uninstall`. To check installation, run `npm run jicho -- status`.
 
 ## What works
 
@@ -77,6 +79,8 @@ npm run verify
 ```
 
 The guided verifier prints the installed Claude Code version and asks you to make real allow and deny requests in another terminal. It reports whether Claude honored each answer and removes its temporary test files. Jicho itself does not invoke an AI model; the real prompts are issued by the Claude Code CLI you start.
+
+For a project-local setup, run `npm run verify -- --project-local`. The verifier checks that project's `.claude/settings.local.json` and prints the matching install command if needed. Run it from the project directory where you start Claude Code.
 
 Run the automated harness with `npm test`.
 

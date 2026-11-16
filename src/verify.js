@@ -8,7 +8,9 @@ const readline = require('readline');
 const crypto = require('crypto');
 const { Core } = require('./core');
 const { createServer } = require('./server');
-const { isJichoHook, settingsPath } = require('../bin/jicho');
+const { isJichoHook, selectSettingsTarget } = require('../bin/jicho');
+const settingsTarget = selectSettingsTarget(process.argv.slice(2));
+const scopeFlag = settingsTarget.scope === 'user' ? '--user' : '--' + settingsTarget.scope;
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
 const core = new Core();
@@ -43,9 +45,9 @@ function makeVerifyFile(label) {
   return name;
 }
 
-function permissionHookInstalled() {
+function permissionHookInstalled(file = settingsTarget.file) {
   try {
-    const settings = JSON.parse(fs.readFileSync(settingsPath(), 'utf8'));
+    const settings = JSON.parse(fs.readFileSync(file, 'utf8'));
     const groups = settings.hooks && settings.hooks.PermissionRequest;
     return Array.isArray(groups) && groups.some((group) => group && Array.isArray(group.hooks) && group.hooks.some(isJichoHook));
   } catch (_) { return false; }
@@ -141,15 +143,18 @@ function start() {
     const version = claudeVersion();
     console.log('Jicho real-hook verification');
     console.log('Claude Code version: ' + version);
-    console.log('Jicho PermissionRequest hook: ' + (permissionHookInstalled() ? 'installed' : 'not installed'));
+    console.log('Claude settings scope: ' + settingsTarget.scope + ' (' + settingsTarget.file + ')');
+    const installed = permissionHookInstalled();
+    console.log('Jicho PermissionRequest hook: ' + (installed ? 'installed' : 'not installed'));
     console.log('Local Jicho core listening on http://127.0.0.1:' + PORT);
     console.log('\nIn another terminal at this project root:');
-    if (!permissionHookInstalled()) console.log('  1. Run `npm run jicho -- install`, review the diff, accept it, then start a fresh Claude session.');
+    if (!installed) console.log('  1. Run `npm run jicho -- install ' + scopeFlag + '`, review the diff, accept it, then start a fresh Claude session.');
     else console.log('  1. Start a fresh real interactive Claude Code session with `claude`.');
     console.log('  2. Ask Claude to use Bash to run `touch ' + verifyFiles.allow + '` for the allow check.');
     console.log('  3. When Jicho asks, choose allow. Confirm here whether the file was created.');
     console.log('  4. Ask Claude to run `touch ' + verifyFiles.deny + '` for the deny check. Choose deny and confirm it stopped.');
     console.log('The verifier removes any test files it created. It does not call an AI model.');
+    if (settingsTarget.scope === 'project-local') console.log('Ensure .claude/settings.local.json is Git-ignored; project-local settings created by hand may otherwise be committed.');
     console.log('\nWaiting for the real PermissionRequest hook...');
   });
 }

@@ -41,6 +41,7 @@ let autostartError = '';
 let doneUntil = 0;
 let doneTimer;
 let trayMood = 'idle';
+let sessionExpiryTimer;
 
 if (!hasSingleInstanceLock) app.quit();
 else app.on('second-instance', () => showCommandCentre());
@@ -168,6 +169,12 @@ function showDoneMood() {
   if (doneTimer) clearTimeout(doneTimer);
   doneTimer = setTimeout(() => { doneUntil = 0; publishState(); }, 4000);
   publishState();
+}
+
+function startSessionExpiry() {
+  if (sessionExpiryTimer) clearInterval(sessionExpiryTimer);
+  sessionExpiryTimer = setInterval(() => { if (core) core.expireIdleSessions(); }, 15_000);
+  if (typeof sessionExpiryTimer.unref === 'function') sessionExpiryTimer.unref();
 }
 
 function createTray() {
@@ -362,10 +369,12 @@ function startServer() {
       store = null;
     }
     core = new Core({ policyEnabled: preferences.allowlistEnabled });
+    startSessionExpiry();
     publishState();
     return;
   }
   sessions = [...core.sessions.values()];
+  startSessionExpiry();
   phoneBridge = new PhoneBridge(core, app.getPath('userData'));
   showPhone = (phoneBridge.isFirstRun && !phoneBridge.config.pairingDismissed) || phoneBridge.storageBlocked;
   phoneBridge.on('status', publishState);
@@ -505,6 +514,7 @@ ipcMain.handle('jicho:dashboard:get', (event) => {
 app.on('before-quit', () => {
   if (cursorTimer) clearInterval(cursorTimer);
   if (doneTimer) clearTimeout(doneTimer);
+  if (sessionExpiryTimer) clearInterval(sessionExpiryTimer);
   if (core) {
     for (const item of core.list()) core.settle(item.id, null, 'app-shutdown');
   }

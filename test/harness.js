@@ -148,7 +148,29 @@ const waitForPendingCount = async (core, count) => {
     assert.strictEqual(result.autoAllow, false, 'must refuse chained command: ' + command);
     assert(result.riskFlags.some((flag) => flag.code === 'shell-chain'));
   }
+  const secretRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-secret-paths-'));
+  for (const relative of ['id_rsa', '.npmrc', '.pypirc', '.netrc', '.aws/credentials', '.ssh/id_ed25519', 'tls/server.pem', 'keys/private.key', '.git/config']) {
+    const file = path.join(secretRoot, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, 'test');
+    const result = evaluate({ tool_name: 'Read', cwd: secretRoot, tool_input: { file_path: file } }, true);
+    assert(result.riskFlags.some((flag) => flag.code === 'secret-file'), 'secret path flagged: ' + relative);
+    assert.strictEqual(result.autoAllow, false, 'secret path never auto-allows: ' + relative);
+  }
+  fs.rmSync(secretRoot, { recursive: true, force: true });
   console.log('PASS 10: allowlist rejects shell chaining and redirection');
+  const alwaysCore = new Core();
+  const alwaysResponse = alwaysCore.request(req('always-safe', 'git status'));
+  await waitForPendingCount(alwaysCore, 1);
+  assert.strictEqual(alwaysCore.list()[0].canAlways, true);
+  alwaysCore.settle(alwaysCore.list()[0].id, 'deny', 'test');
+  await alwaysResponse;
+  const flaggedAlwaysResponse = alwaysCore.request(req('always-risk', 'rm -rf /tmp/jicho-demo'));
+  await waitForPendingCount(alwaysCore, 1);
+  assert.strictEqual(alwaysCore.list()[0].canAlways, false);
+  alwaysCore.settle(alwaysCore.list()[0].id, 'deny', 'test');
+  await flaggedAlwaysResponse;
+  console.log('PASS 10A: Always availability matches safe policy and secret-file risks block it');
 
   const secret = crypto.randomBytes(32).toString('hex');
   const mac = macFor(secret, 'request-1', 'allow');
@@ -518,6 +540,8 @@ const waitForPendingCount = async (core, count) => {
   assert(store.listRecentActivity(100).some((event) => event.type === 'approval-resolved' && event.source === 'desktop'));
   durableCore.observeEvent({ hook_event_name: 'SessionEnd', session_id: 'durable-session', cwd: '/p/durable' });
   assert.strictEqual(store.db.prepare("SELECT state FROM sessions WHERE session_id = 'durable-session'").get().state, 'ended');
+  store.upsertSession({ id: 'stale-store-session', state: 'idle', cwd: '/p/stale', last: Date.now() - 31 * 60 * 1000 });
+  assert.strictEqual(store.listSessions().some((session) => session.id === 'stale-store-session'), false);
   assert.deepStrictEqual(compactAction({ file_path: '/p/file', content: 'secret body', old_string: 'old', new_string: 'new' }), {
     file_path: '/p/file', contentLength: 11, old_stringLength: 3, new_stringLength: 3
   });
@@ -526,6 +550,18 @@ const waitForPendingCount = async (core, count) => {
   store.close();
   assert.strictEqual(fs.statSync(databasePath).mode & 0o077, 0);
   console.log('PASS 18: SQLite migration, session/event history, bounded sensitive data, atomic decisions, durable concurrency, and local file permissions');
+
+  const expiringSessionsCore = new Core();
+  expiringSessionsCore.sessions.set('old-session', { id: 'old-session', last: Date.now() - 31 * 60 * 1000 });
+  const activeSessionResponse = expiringSessionsCore.request(req('active-session', 'run something'));
+  await waitForPendingCount(expiringSessionsCore, 1);
+  expiringSessionsCore.sessions.get('active-session').last = Date.now() - 31 * 60 * 1000;
+  assert.strictEqual(expiringSessionsCore.expireIdleSessions(), 1);
+  assert.strictEqual(expiringSessionsCore.sessions.has('old-session'), false);
+  assert.strictEqual(expiringSessionsCore.sessions.has('active-session'), true);
+  expiringSessionsCore.settle(expiringSessionsCore.list()[0].id, 'deny', 'test');
+  await activeSessionResponse;
+  console.log('PASS 18A: sessions idle over 30 minutes expire while sessions with pending approvals remain');
 
   store = new Store(databasePath);
   const expiringCore = new Core({ store });

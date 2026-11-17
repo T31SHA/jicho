@@ -233,7 +233,8 @@ class Store {
 
   listSessions(agentId = 'claude-code') {
     return this.db.prepare(`SELECT session_id AS id, agent_id AS agentId, cwd, state, started_at AS startedAt,
-      last_activity_at AS last FROM sessions WHERE agent_id = ? ORDER BY last_activity_at DESC`).all(agentId);
+      last_activity_at AS last FROM sessions WHERE agent_id = ? AND last_activity_at >= ? ORDER BY last_activity_at DESC`)
+      .all(agentId, Date.now() - 30 * 60 * 1000);
   }
 
   appendEvent(event) {

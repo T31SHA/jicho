@@ -26,7 +26,9 @@ function hasChaining(command) {
 function getRiskFlags(body) {
   const input = body && body.tool_input || {};
   const command = typeof input.command === 'string' ? input.command : '';
-  const all = JSON.stringify({ tool: body && body.tool_name, input }).toLowerCase();
+  const all = JSON.stringify({ tool: body && body.tool_name, input }).toLowerCase()
+    .replace(/[\\/]/g, '/')
+    .replace(/[\s"'=,:{}\[\]]/g, '/');
   const flags = [];
   const add = (code, label) => { if (!flags.some((flag) => flag.code === code)) flags.push({ code, label }); };
   if (/\brm\s+-rf[a-z]*\b|\brm\s+-fr[a-z]*\b/i.test(command)) add('rm-rf', 'Destructive: rm -rf');
@@ -34,6 +36,9 @@ function getRiskFlags(body) {
   if (/\bsudo\b/i.test(command)) add('sudo', 'Uses sudo');
   if (/\bgit\s+push\b[\s\S]*--force(?:-with-lease)?\b/i.test(command)) add('force-push', 'Force-pushes Git history');
   if (/\.env(?:[a-z0-9._-]*)?/i.test(all)) add('env-file', 'References a .env file or value');
+  if (/(?:^|\/)(?:id_rsa|\.npmrc|\.pypirc|\.netrc|\.aws|\.ssh)(?=\/|$)/i.test(all) ||
+      /(?:^|\/)[^/]+\.(?:pem|key)(?=\/|$)/i.test(all) ||
+      /(?:^|\/)\.git\/config(?=\/|$)/i.test(all)) add('secret-file', 'References a secret file');
   if (hasChaining(command)) add('shell-chain', 'Shell chaining or redirection blocks auto-allow');
   return flags;
 }

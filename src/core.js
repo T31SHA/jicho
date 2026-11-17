@@ -206,7 +206,22 @@ class Core extends EventEmitter {
   }
 
   list() {
-    return [...this.pending.values()].map(({ id, sid, tool, input, cwd, at, expiresAt, riskFlags, riskLevel }) => ({ id, sid, tool, input, cwd, at, expiresAt, riskFlags, riskLevel }));
+    return [...this.pending.values()].map(({ id, sid, tool, input, cwd, at, expiresAt, riskFlags, riskLevel }) => ({
+      id, sid, tool, input, cwd, at, expiresAt, riskFlags, riskLevel,
+      canAlways: evaluate({ session_id: sid, tool_name: tool, tool_input: input, cwd }, true).autoAllow
+    }));
+  }
+
+  expireIdleSessions(now = Date.now(), idleMs = 30 * 60 * 1000) {
+    const activeSessions = new Set([...this.pending.values()].map((item) => item.sid));
+    let expired = 0;
+    for (const [id, session] of this.sessions) {
+      if (activeSessions.has(id) || now - Number(session.last || 0) <= idleMs) continue;
+      this.sessions.delete(id);
+      expired += 1;
+    }
+    if (expired) this.emit('sessions', [...this.sessions.values()]);
+    return expired;
   }
 }
 

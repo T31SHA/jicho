@@ -408,7 +408,20 @@ const waitForPendingCount = async (core, count) => {
   await new Promise((resolve) => rotationServer.close(resolve));
   assert.strictEqual(fs.statSync(path.join(lifecycleDirectory, 'hook-auth-state.json')).mode & 0o077, 0);
   fs.rmSync(lifecycleDirectory, { recursive: true, force: true });
-  console.log('PASS 17: installation credential survives restart, rotates in place, and revokes immediately');
+  const windowsCredentialDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-windows-credential-'));
+  const deniedWindowsStore = new CredentialManager({ directory: path.join(windowsCredentialDirectory, 'denied'), platform: 'win32', forceFileStore: true });
+  assert.throws(() => deniedWindowsStore.ensureCredential(), /doctor --allow-file-credential/);
+  const securedPaths = [];
+  const optedInWindowsStore = new CredentialManager({
+    directory: path.join(windowsCredentialDirectory, 'opted-in'), platform: 'win32', forceFileStore: true,
+    allowFileCredential: true, securePrivatePath: (target) => securedPaths.push(target)
+  });
+  assert.strictEqual(optedInWindowsStore.ensureCredential().storage, 'private-file');
+  assert(optedInWindowsStore.getCredential());
+  assert(securedPaths.includes(optedInWindowsStore.stateFile));
+  assert(securedPaths.some((target) => target.endsWith('.json') && target !== optedInWindowsStore.stateFile));
+  fs.rmSync(windowsCredentialDirectory, { recursive: true, force: true });
+  console.log('PASS 17: credential lifecycle stays secure by default and Windows file fallback requires explicit ACL opt-in');
 
   const databaseDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-store-test-'));
   const databasePath = path.join(databaseDirectory, 'jicho.sqlite3');

@@ -101,9 +101,35 @@ function isUuid(value) {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function privateDirectory(directory) {
+const WINDOWS_PRIVATE_ACL_SCRIPT = String.raw`
+$ErrorActionPreference = 'Stop'
+$path = $env:JICHO_PRIVATE_PATH
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$acl = Get-Acl -LiteralPath $path
+$acl.SetAccessRuleProtection($true, $false)
+foreach ($rule in @($acl.Access)) { [void]$acl.RemoveAccessRuleSpecific($rule) }
+$full = [System.Security.AccessControl.FileSystemRights]::FullControl
+$allow = [System.Security.AccessControl.AccessControlType]::Allow
+$rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sid, $full, $allow)
+$acl.AddAccessRule($rule)
+Set-Acl -LiteralPath $path -AclObject $acl
+$verify = Get-Acl -LiteralPath $path
+if (-not $verify.AreAccessRulesProtected -or $verify.Access.Count -ne 1 -or $verify.Access[0].IdentityReference -ne $sid -or $verify.Access[0].AccessControlType -ne $allow) { throw 'Private ACL verification failed' }
+`;
+
+function secureWindowsPrivatePath(target) {
+  const encodedCommand = Buffer.from(WINDOWS_PRIVATE_ACL_SCRIPT, 'utf16le').toString('base64');
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodedCommand], {
+    encoding: 'utf8', windowsHide: true, timeout: 5000,
+    env: { ...process.env, JICHO_PRIVATE_PATH: target }
+  });
+  if (result.error || result.status !== 0) throw new Error('Could not verify owner-only Windows permissions for Jicho credential storage.');
+}
+
+function privateDirectory(directory, platform = process.platform, securePath = secureWindowsPrivatePath) {
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-  if (process.platform !== 'win32') fs.chmodSync(directory, 0o700);
+  if (platform !== 'win32') fs.chmodSync(directory, 0o700);
+  else securePath(directory);
 }
 
 function readPrivateJson(file) {
@@ -118,8 +144,10 @@ function readPrivateJson(file) {
   catch (_) { throw new Error('Jicho credential state is invalid.'); }
 }
 
-function atomicPrivateWrite(file, contents) {
-  privateDirectory(path.dirname(file));
+function atomicPrivateWrite(file, contents, options = {}) {
+  const platform = options.platform || process.platform;
+  const securePath = options.securePath || secureWindowsPrivatePath;
+  privateDirectory(path.dirname(file), platform, securePath);
   const temporary = path.join(path.dirname(file), '.' + path.basename(file) + '-' + crypto.randomBytes(8).toString('hex'));
   let descriptor;
   try {
@@ -129,7 +157,8 @@ function atomicPrivateWrite(file, contents) {
     fs.closeSync(descriptor);
     descriptor = null;
     fs.renameSync(temporary, file);
-    if (process.platform !== 'win32') fs.chmodSync(file, 0o600);
+    if (platform !== 'win32') fs.chmodSync(file, 0o600);
+    else securePath(file);
   } catch (error) {
     if (descriptor !== undefined && descriptor !== null) { try { fs.closeSync(descriptor); } catch (_) {} }
     try { fs.unlinkSync(temporary); } catch (_) {}
@@ -145,6 +174,8 @@ class CredentialManager {
     this.cacheKey = null;
     this.cacheValue = null;
     this.forceFileStore = options.forceFileStore === true;
+    this.allowFileCredential = options.allowFileCredential === true;
+    this.securePrivatePath = options.securePrivatePath || secureWindowsPrivatePath;
   }
 
   state() {
@@ -208,7 +239,7 @@ class CredentialManager {
   writeRecord(storage, record) {
     const encoded = encodeCredential(record);
     if (storage === 'private-file') {
-      atomicPrivateWrite(this.fileFor(record.generation), JSON.stringify({ encoded }) + '\n');
+      atomicPrivateWrite(this.fileFor(record.generation), JSON.stringify({ encoded }) + '\n', { platform: this.platform, securePath: this.securePrivatePath });
       return;
     }
     this.storeNative(storage, 'write', record.generation, encoded);
@@ -238,7 +269,7 @@ class CredentialManager {
   }
 
   writeState(state) {
-    atomicPrivateWrite(this.stateFile, JSON.stringify(state, null, 2) + '\n');
+    atomicPrivateWrite(this.stateFile, JSON.stringify(state, null, 2) + '\n', { platform: this.platform, securePath: this.securePrivatePath });
     this.cacheKey = null;
     this.cacheValue = null;
   }
@@ -267,7 +298,10 @@ class CredentialManager {
   ensureCredential() {
     const existingState = this.state();
     if (existingState && existingState.status === 'active') {
-      if (!this.getCredential()) throw new Error('The Jicho credential is missing or unavailable. Run `npm run jicho -- credential rotate` after restoring credential-store access.');
+      if (!this.getCredential()) {
+        if (this.platform === 'win32' && this.allowFileCredential) return { ...this.rotate(), created: true };
+        throw new Error('The Jicho credential is missing or unavailable. Run `npm run jicho -- credential rotate` after restoring credential-store access.');
+      }
       return { created: false, storage: existingState.storage, installationId: existingState.installationId };
     }
     if (existingState && existingState.status === 'revoked') throw new Error('Jicho hook credentials are revoked. Run `npm run jicho -- credential rotate` to provision a new credential.');
@@ -279,12 +313,12 @@ class CredentialManager {
     if (storage) {
       try { this.writeRecord(storage, record); }
       catch (_) {
-        if (this.platform === 'win32') throw new Error('Windows Credential Manager is unavailable; Jicho did not write a plaintext fallback credential.');
+        if (this.platform === 'win32' && !this.allowFileCredential) throw new Error('Windows Credential Manager is unavailable; no fallback credential was written. Opt in with `jicho doctor --allow-file-credential` to use an owner-only ACL file.');
         storage = 'private-file';
         this.writeRecord(storage, record);
       }
     } else {
-      if (this.platform === 'win32') throw new Error('Windows Credential Manager is unavailable; Jicho did not write a plaintext fallback credential.');
+      if (this.platform === 'win32' && !this.allowFileCredential) throw new Error('Windows Credential Manager is unavailable; no fallback credential was written. Opt in with `jicho doctor --allow-file-credential` to use an owner-only ACL file.');
       storage = 'private-file';
       this.writeRecord(storage, record);
     }
@@ -306,12 +340,12 @@ class CredentialManager {
     if (storage) {
       try { this.writeRecord(storage, record); }
       catch (_) {
-        if (this.platform === 'win32') throw new Error('Windows Credential Manager is unavailable; Jicho did not write a plaintext fallback credential.');
+        if (this.platform === 'win32' && !this.allowFileCredential) throw new Error('Windows Credential Manager is unavailable; no fallback credential was written. Opt in with `jicho doctor --allow-file-credential` to use an owner-only ACL file.');
         storage = 'private-file';
         this.writeRecord(storage, record);
       }
     } else {
-      if (this.platform === 'win32') throw new Error('Windows Credential Manager is unavailable; Jicho did not write a plaintext fallback credential.');
+      if (this.platform === 'win32' && !this.allowFileCredential) throw new Error('Windows Credential Manager is unavailable; no fallback credential was written. Opt in with `jicho doctor --allow-file-credential` to use an owner-only ACL file.');
       storage = 'private-file';
       this.writeRecord(storage, record);
     }

@@ -308,8 +308,11 @@ function credentialCommand(action) {
 async function main(args) {
   const command = args[0];
   if (command === 'doctor') {
-    if (args.length !== 1) throw new Error('Usage: jicho doctor');
-    return require('../src/doctor').runDoctor();
+    const flags = args.slice(1);
+    if (flags.some((flag) => flag !== '--allow-file-credential') || flags.filter((flag) => flag === '--allow-file-credential').length > 1) {
+      throw new Error('Usage: jicho doctor [--allow-file-credential]');
+    }
+    return require('../src/doctor').runDoctor({ allowFileCredential: flags.includes('--allow-file-credential') });
   }
   if (command === 'credential') {
     if (args.length !== 2) throw new Error('Usage: jicho credential <status|rotate|revoke>');

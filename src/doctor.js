@@ -110,12 +110,20 @@ async function runDoctor(options = {}) {
   let manager;
   let credential;
   await record('Credential store', () => {
-    manager = new CredentialManager(options.credentialOptions);
+    manager = new CredentialManager({ ...(options.credentialOptions || {}), allowFileCredential: options.allowFileCredential === true });
     const provisioned = manager.ensureCredential();
     credential = manager.getCredential();
     if (!credential) throw new Error('Credential store write/read round-trip failed.');
+    if (provisioned.storage === 'private-file') {
+      return 'private-file (write/read verified; owner-only permissions; weaker guarantee: other processes running as your account can read it)';
+    }
     return provisioned.storage + ' (write/read verified)';
   });
+
+  const credentialResult = results.find((result) => result.name === 'Credential store');
+  if (!credentialResult.ok && process.platform === 'win32' && !options.allowFileCredential) {
+    credentialResult.detail += ' Run `jicho doctor --allow-file-credential` to opt into the weaker owner-only ACL file fallback.';
+  }
 
   let roundTrip;
   if (credential) {

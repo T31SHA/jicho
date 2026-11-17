@@ -18,6 +18,7 @@ const { CredentialManager } = require('../bin/hook-support/credentials');
 const { signRequest, sessionBinding, MAX_CLOCK_SKEW_MS } = require('../bin/hook-support/protocol');
 const { forwardHook } = require('../bin/hook-support/hook');
 const { isTrustedMainFrame } = require('../src/ipc-security');
+const { checkPort, settingsHooks, wrapperRoundTrip } = require('../src/doctor');
 
 const credentialDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-auth-harness-'));
 const credentialManager = new CredentialManager({ directory: credentialDirectory, forceFileStore: true, platform: 'test' });
@@ -514,6 +515,13 @@ const waitForPendingCount = async (core, count) => {
   assert.strictEqual(core.sessions.has('spoofed-by-rebound-host'), false);
   assert.strictEqual(core.sessions.has('spoofed-by-fetch-metadata'), false);
   console.log('PASS 23: browser-origin, cross-site, and rebound-host hook requests are rejected before event handling');
+
+  assert.strictEqual((await checkPort(port)).ok, true);
+  const doctorSettings = path.join(credentialDirectory, 'doctor-settings.json');
+  fs.writeFileSync(doctorSettings, JSON.stringify(mergeHooks({}).settings));
+  assert.strictEqual(settingsHooks(doctorSettings), EVENTS.length);
+  assert.deepStrictEqual(await wrapperRoundTrip(credentialManager), { accepted: true, held: true, settled: true });
+  console.log('PASS 24: doctor checks port, installed hooks, signed wrapper acceptance, and held request settlement');
 
   await new Promise((resolve) => srv.close(resolve));
   fs.rmSync(credentialDirectory, { recursive: true, force: true });

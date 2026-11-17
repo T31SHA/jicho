@@ -307,6 +307,10 @@ function credentialCommand(action) {
 
 async function main(args) {
   const command = args[0];
+  if (command === 'doctor') {
+    if (args.length !== 1) throw new Error('Usage: jicho doctor');
+    return require('../src/doctor').runDoctor();
+  }
   if (command === 'credential') {
     if (args.length !== 2) throw new Error('Usage: jicho credential <status|rotate|revoke>');
     return credentialCommand(args[1]);
@@ -317,7 +321,7 @@ async function main(args) {
     else await changeSettings(command, target.file, target.scope);
   }
   else {
-    console.log('Usage: jicho <install|uninstall|status> [--user|--project-local|--project-shared] | credential <status|rotate|revoke>');
+    console.log('Usage: jicho <install|uninstall|status> [--user|--project-local|--project-shared] | doctor | credential <status|rotate|revoke>');
     if (command) process.exitCode = 2;
   }
 }

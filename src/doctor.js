@@ -3,10 +3,11 @@
 const fs = require('fs');
 const net = require('net');
 const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
+const path = require('path');
 const { Core } = require('./core');
 const { createServer } = require('./server');
 const { CredentialManager } = require('../bin/hook-support/credentials');
-const { forwardHook } = require('../bin/hook-support/hook');
 const { EVENTS, settingsPath, isJichoHook } = require('../bin/jicho');
 
 function checkPort(port) {
@@ -53,6 +54,36 @@ function settingsHooks(file = settingsPath()) {
   return EVENTS.length;
 }
 
+function runColdWrapper(event, sid, manager, port) {
+  const body = Buffer.from(JSON.stringify({
+    hook_event_name: event, session_id: sid, cwd: process.cwd(),
+    tool_name: 'Bash', tool_input: { command: 'printf doctor-check' }
+  }));
+  const startedAt = process.hrtime.bigint();
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [path.join(__dirname, '..', 'bin', 'hook-support', 'hook.js')], {
+      env: { ...process.env, JICHO_CREDENTIAL_DIR: manager.directory, JICHO_PORT: String(port) },
+      stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true
+    });
+    let output = '';
+    const timeout = setTimeout(() => child.kill(), 5000);
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => { output += chunk; });
+    child.once('error', (error) => { clearTimeout(timeout); reject(error); });
+    child.once('exit', (code, signal) => {
+      clearTimeout(timeout);
+      if (code !== 0 || signal) return reject(new Error('Command wrapper exited unsuccessfully for ' + event + '.'));
+      let parsed = {};
+      if (output.trim()) {
+        try { parsed = JSON.parse(output); }
+        catch (_) { return reject(new Error('Command wrapper returned invalid JSON for ' + event + '.')); }
+      }
+      resolve({ parsed, latencyMs: Number(process.hrtime.bigint() - startedAt) / 1_000_000 });
+    });
+    child.stdin.end(body);
+  });
+}
+
 async function wrapperRoundTrip(manager) {
   const core = new Core();
   const server = createServer(core, { credentialProvider: () => manager.getCredential() });
@@ -61,31 +92,37 @@ async function wrapperRoundTrip(manager) {
     server.listen(0, '127.0.0.1', resolve);
   });
   try {
-    const sid = 'jicho-doctor-' + process.pid + '-' + Date.now();
-    const body = Buffer.from(JSON.stringify({
-      hook_event_name: 'PermissionRequest', session_id: sid, cwd: process.cwd(),
-      tool_name: 'Bash', tool_input: { command: 'printf doctor-check' }
-    }));
-    const pending = forwardHook(body, { credentialManager: manager, port: server.address().port });
-    const deadline = Date.now() + 3000;
-    let item;
-    while (Date.now() < deadline) {
-      item = core.list().find((entry) => entry.sid === sid);
-      if (item) break;
-      await new Promise((resolve) => setTimeout(resolve, 10));
+    const eventTimings = {};
+    let permissionHeld = false;
+    let permissionSettled = false;
+    for (const event of EVENTS) {
+      const sid = 'jicho-doctor-' + process.pid + '-' + Date.now() + '-' + event;
+      const resultPromise = runColdWrapper(event, sid, manager, server.address().port);
+      let pendingItem = null;
+      if (event === 'PermissionRequest') {
+        const deadline = Date.now() + 3000;
+        while (Date.now() < deadline) {
+          pendingItem = core.list().find((entry) => entry.sid === sid);
+          if (pendingItem) break;
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+        if (!pendingItem) throw new Error('Signed wrapper request was not accepted as a pending PermissionRequest.');
+        permissionHeld = core.list().some((entry) => entry.id === pendingItem.id);
+        permissionSettled = core.settle(pendingItem.id, 'allow', 'doctor');
+        if (!permissionSettled) throw new Error('Fake PermissionRequest could not be settled.');
+      }
+      const result = await resultPromise;
+      if (event === 'PermissionRequest' && (!result.parsed.hookSpecificOutput || result.parsed.hookSpecificOutput.decision.behavior !== 'allow')) {
+        throw new Error('Signed wrapper response did not contain the accepted decision.');
+      }
+      eventTimings[event] = result.latencyMs;
     }
-    if (!item) throw new Error('Signed wrapper request was not accepted as a pending PermissionRequest.');
-    const held = core.list().some((entry) => entry.id === item.id);
-    if (!held) throw new Error('Fake PermissionRequest was not held.');
-    if (!core.settle(item.id, 'allow', 'doctor')) throw new Error('Fake PermissionRequest could not be settled.');
-    const response = await pending;
-    let parsed;
-    try { parsed = JSON.parse(response.toString('utf8')); }
-    catch (_) { throw new Error('Signed wrapper did not receive a valid decision response.'); }
-    if (!parsed.hookSpecificOutput || parsed.hookSpecificOutput.decision.behavior !== 'allow') {
-      throw new Error('Signed wrapper response did not contain the accepted decision.');
-    }
-    return { accepted: true, held, settled: core.list().every((entry) => entry.id !== item.id) };
+    return {
+      accepted: true,
+      held: permissionHeld,
+      settled: permissionSettled && core.list().every((entry) => !entry.sid.startsWith('jicho-doctor-' + process.pid + '-')),
+      eventTimings
+    };
   } finally {
     for (const item of core.list()) core.settle(item.id, null, 'doctor-cleanup');
     await new Promise((resolve) => server.close(resolve));
@@ -130,7 +167,7 @@ async function runDoctor(options = {}) {
     await record('Wrapper round-trip', async () => {
       roundTrip = await wrapperRoundTrip(manager);
       if (!roundTrip.accepted) throw new Error('Signed hook request was rejected.');
-      return 'signed hook was accepted';
+      return 'signed hook was accepted; PermissionRequest ' + roundTrip.eventTimings.PermissionRequest.toFixed(1) + ' ms cold';
     });
     await record('PermissionRequest', () => {
       if (!roundTrip || !roundTrip.held || !roundTrip.settled) throw new Error('Fake PermissionRequest did not hold and settle.');
@@ -144,6 +181,11 @@ async function runDoctor(options = {}) {
 
   for (const result of results) {
     console.log((result.ok ? 'PASS' : 'FAIL') + '  ' + result.name + (result.detail ? ': ' + result.detail : ''));
+  }
+  if (roundTrip && roundTrip.eventTimings) {
+    for (const [event, milliseconds] of Object.entries(roundTrip.eventTimings)) {
+      console.log('LATENCY  ' + event + ' cold wrapper: ' + milliseconds.toFixed(1) + ' ms');
+    }
   }
   const failed = results.some((result) => !result.ok);
   if (failed) process.exitCode = 1;

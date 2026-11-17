@@ -180,6 +180,7 @@ const waitForPendingCount = async (core, count) => {
   for (const event of EVENTS) {
     const hooks = (secondInstall.settings.hooks[event] || []).flatMap((group) => group.hooks || []);
     assert.strictEqual(hooks.filter(isJichoHook).length, 1, 'one Jicho hook for ' + event);
+    assert.strictEqual(hooks.find(isJichoHook).async, event === 'PermissionRequest' ? undefined : true, 'only PermissionRequest is synchronous');
   }
   const uninstalled = removeHooks(secondInstall.settings);
   assert.strictEqual(uninstalled.removed, EVENTS.length);
@@ -533,7 +534,15 @@ const waitForPendingCount = async (core, count) => {
   const doctorSettings = path.join(credentialDirectory, 'doctor-settings.json');
   fs.writeFileSync(doctorSettings, JSON.stringify(mergeHooks({}).settings));
   assert.strictEqual(settingsHooks(doctorSettings), EVENTS.length);
-  assert.deepStrictEqual(await wrapperRoundTrip(credentialManager), { accepted: true, held: true, settled: true });
+  const doctorResult = await wrapperRoundTrip(credentialManager);
+  assert.strictEqual(doctorResult.accepted, true);
+  assert.strictEqual(doctorResult.held, true);
+  assert.strictEqual(doctorResult.settled, true);
+  assert.deepStrictEqual(Object.keys(doctorResult.eventTimings), EVENTS);
+  assert(Object.values(doctorResult.eventTimings).every((milliseconds) => Number.isFinite(milliseconds) && milliseconds > 0));
+  for (const [event, milliseconds] of Object.entries(doctorResult.eventTimings)) {
+    console.log('LATENCY ' + event + ' cold wrapper: ' + milliseconds.toFixed(1) + ' ms');
+  }
   console.log('PASS 24: doctor checks port, installed hooks, signed wrapper acceptance, and held request settlement');
 
   await new Promise((resolve) => srv.close(resolve));

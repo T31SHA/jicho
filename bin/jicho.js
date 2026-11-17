@@ -49,12 +49,14 @@ function selectSettingsTarget(args = [], options = {}) {
   return { scope, file };
 }
 
-function makeHook() {
-  return {
+function makeHook(event) {
+  const hook = {
     type: 'command',
     command: HOOK_COMMAND,
     timeout: 120
   };
+  if (event !== 'PermissionRequest') hook.async = true;
+  return hook;
 }
 
 function isJichoHook(hook) {
@@ -73,7 +75,7 @@ function mergeHooks(settings) {
     if (next.hooks[event] === undefined) next.hooks[event] = [];
     if (!Array.isArray(next.hooks[event])) throw new Error('The hooks.' + event + ' setting must be an array.');
     const existing = next.hooks[event].flatMap((group) => group && Array.isArray(group.hooks) ? group.hooks : []).filter(isJichoHook);
-    const current = existing.length === 1 && JSON.stringify(existing[0]) === JSON.stringify(makeHook());
+    const current = existing.length === 1 && JSON.stringify(existing[0]) === JSON.stringify(makeHook(event));
     if (!current) {
       if (existing.length) {
         next.hooks[event] = next.hooks[event].flatMap((group) => {
@@ -83,7 +85,7 @@ function mergeHooks(settings) {
           return group.hooks.some(isJichoHook) ? [] : [group];
         });
       }
-      next.hooks[event].push({ hooks: [makeHook()] });
+      next.hooks[event].push({ hooks: [makeHook(event)] });
       added += 1;
     }
   }

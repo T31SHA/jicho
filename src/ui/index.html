@@ -6,12 +6,13 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Jicho</title>
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="../../mascot/jicho-mascot.css">
 </head>
 <body>
   <main id="app" class="shell">
     <section id="idle" class="idle" aria-label="Jicho is watching">
       <button id="phone-toggle" class="eye-button" aria-label="Phone pairing" title="Open phone pairing">
-        <div class="eye" aria-hidden="true"><div class="white"><div id="pupil" class="pupil"></div></div></div>
+        <span id="idle-bot" class="mascot-host" aria-hidden="true"></span>
       </button>
       <button id="command-centre-open" class="dashboard-button" aria-label="Open command centre" title="Open command centre">▦</button>
       <span class="pair-hint">tap the eye to pair a phone</span>
@@ -38,7 +39,7 @@
     </section>
     <section id="card" class="card" hidden aria-live="polite">
       <header class="card-header">
-        <div class="avatar"><div class="mini-eye"><i></i></div></div>
+        <div id="card-bot" class="avatar" aria-hidden="true"></div>
         <div class="heading"><strong>Jicho needs you</strong><span id="folder"></span></div>
         <span id="queue" class="queue" hidden></span>
       </header>
@@ -53,6 +54,7 @@
       <div id="card-error" class="card-error" role="status"></div>
     </section>
   </main>
+  <script src="../../mascot/jicho-mascot.js"></script>
   <script src="./renderer.js"></script>
 </body>
 </html>

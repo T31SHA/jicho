@@ -19,6 +19,7 @@ const { signRequest, sessionBinding, MAX_CLOCK_SKEW_MS } = require('../bin/hook-
 const { forwardHook } = require('../bin/hook-support/hook');
 const { isTrustedMainFrame } = require('../src/ipc-security');
 const { checkPort, settingsHooks, wrapperRoundTrip } = require('../src/doctor');
+const { selectMascotMood } = require('../src/mascot-state');
 
 const credentialDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-auth-harness-'));
 const credentialManager = new CredentialManager({ directory: credentialDirectory, forceFileStore: true, platform: 'test' });
@@ -544,6 +545,12 @@ const waitForPendingCount = async (core, count) => {
     console.log('LATENCY ' + event + ' cold wrapper: ' + milliseconds.toFixed(1) + ' ms');
   }
   console.log('PASS 24: doctor checks port, installed hooks, signed wrapper acceptance, and held request settlement');
+  assert.strictEqual(selectMascotMood({ pendingCount: 1, working: true }), 'needs-you');
+  assert.strictEqual(selectMascotMood({ error: 'Port occupied', working: true }), 'offline');
+  assert.strictEqual(selectMascotMood({ working: true }), 'working');
+  assert.strictEqual(selectMascotMood({ doneUntil: 14_000, now: 10_000 }), 'done');
+  assert.strictEqual(selectMascotMood({ doneUntil: 14_000, now: 14_000 }), 'idle');
+  console.log('PASS 25: mascot mood selection covers pending, error, working, timed done, and idle');
 
   await new Promise((resolve) => srv.close(resolve));
   fs.rmSync(credentialDirectory, { recursive: true, force: true });

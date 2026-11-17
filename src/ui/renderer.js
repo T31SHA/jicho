@@ -1,7 +1,8 @@
 const app = document.getElementById('app');
 const idle = document.getElementById('idle');
 const card = document.getElementById('card');
-const pupil = document.getElementById('pupil');
+const idleBot = JichoBot.mount(document.getElementById('idle-bot'));
+const cardBot = JichoBot.mount(document.getElementById('card-bot'));
 let current = null;
 let state = { pending: [], sessions: [], working: false };
 let audioContext;
@@ -20,6 +21,8 @@ function draw() {
   card.hidden = layout !== 'card';
   document.getElementById('phone').hidden = layout !== 'phone';
   app.classList.toggle('working', layout === 'idle' && state.working);
+  idleBot.setMood(state.mood || (state.working ? 'working' : 'idle'));
+  cardBot.setMood(state.mood || (current ? 'needs-you' : 'idle'));
   const phone = state.phone;
   if (phone) {
     document.getElementById('phone-topic').textContent = phone.topic || '';
@@ -83,9 +86,8 @@ window.jicho.onState((next) => {
   if (current && current.id !== previousId) chime();
 });
 window.jicho.onCursor((point) => {
-  const x = Math.max(-9, Math.min(9, point.x / 12));
-  const y = Math.max(-7, Math.min(7, point.y / 12));
-  pupil.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
+  idleBot.lookAt(point.x, point.y);
+  cardBot.lookAt(point.x, point.y);
 });
 window.jicho.onError((message) => { document.getElementById('error').textContent = message; });
 

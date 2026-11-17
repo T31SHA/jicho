@@ -6,9 +6,9 @@ const { pathToFileURL } = require('url');
 const { Core } = require('./core');
 const { createServer } = require('./server');
 const { PhoneBridge } = require('./phone');
-const { createTrayIcon } = require('./tray-icon');
 const { Store } = require('./store');
 const { isTrustedMainFrame } = require('./ipc-security');
+const { selectMascotMood } = require('./mascot-state');
 const { CredentialManager } = require('../bin/hook-support/credentials');
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
@@ -18,6 +18,7 @@ const CARD_HEIGHT = 330;
 const PHONE_HEIGHT = 455;
 const COMPANION_PAGE = path.join(__dirname, 'ui', 'index.html');
 const COMMAND_CENTRE_PAGE = path.join(__dirname, 'command-centre.html');
+const MASCOT_ICON_DIR = path.join(__dirname, '..', 'mascot', 'icons');
 
 let core;
 let store;
@@ -37,6 +38,9 @@ let tray;
 let serverError = '';
 let credentialError = '';
 let autostartError = '';
+let doneUntil = 0;
+let doneTimer;
+let trayMood = 'idle';
 
 if (!hasSingleInstanceLock) app.quit();
 else app.on('second-instance', () => showCommandCentre());
@@ -148,8 +152,28 @@ function refreshTray() {
   ]));
 }
 
+function trayIconPath(mood) {
+  const candidate = path.join(MASCOT_ICON_DIR, 'tray-' + mood + '.png');
+  return fs.existsSync(candidate) ? candidate : path.join(MASCOT_ICON_DIR, 'tray-idle.png');
+}
+
+function setTrayMood(mood) {
+  if (!tray || trayMood === mood) return;
+  trayMood = mood;
+  tray.setImage(nativeImage.createFromPath(trayIconPath(mood)));
+}
+
+function showDoneMood() {
+  doneUntil = Date.now() + 4000;
+  if (doneTimer) clearTimeout(doneTimer);
+  doneTimer = setTimeout(() => { doneUntil = 0; publishState(); }, 4000);
+  publishState();
+}
+
 function createTray() {
-  tray = new Tray(createTrayIcon(nativeImage));
+  const mood = selectMascotMood({ pendingCount: pending.length, working: sessions.some((session) => session.state === 'working'), doneUntil, error: serverError });
+  trayMood = mood;
+  tray = new Tray(nativeImage.createFromPath(trayIconPath(mood)));
   tray.setToolTip('Jicho — local approval companion');
   refreshTray();
   tray.on('click', showSettings);
@@ -180,6 +204,10 @@ function placeWindow(layout) {
 }
 
 function publishState() {
+  const working = sessions.some((session) => session.state === 'working');
+  const error = serverError || credentialError || autostartError;
+  const mood = selectMascotMood({ pendingCount: pending.length, working, doneUntil, error, now: Date.now() });
+  setTrayMood(mood);
   if (!windowRef || windowRef.isDestroyed()) return;
   const layout = pending.length ? 'card' : showPhone ? 'phone' : 'idle';
   placeWindow(layout);
@@ -187,10 +215,11 @@ function publishState() {
     layout,
     pending,
     sessions,
-    working: sessions.some((session) => session.state === 'working'),
+    working,
+    mood,
     allowlistEnabled: Boolean(preferences.allowlistEnabled),
     autostartEnabled: Boolean(preferences.autostartEnabled),
-    error: serverError || autostartError,
+    error,
     phone: phoneBridge ? phoneBridge.viewState() : null
   });
 }
@@ -243,6 +272,7 @@ function createWindow() {
     show: false,
     backgroundColor: '#101820',
     title: 'Jicho',
+    icon: path.join(MASCOT_ICON_DIR, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -286,6 +316,7 @@ function createCommandCentre() {
     autoHideMenuBar: true,
     backgroundColor: '#0b1116',
     title: 'JICHO Command Centre',
+    icon: path.join(MASCOT_ICON_DIR, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'command-preload.js'),
       contextIsolation: true,
@@ -360,7 +391,10 @@ function startServer() {
   core.on('request-rejected', ({ reason, event }) => console.warn('Jicho rejected request:', event, reason));
   core.on('settled', ({ id }) => { phoneNotifications.delete(id); publishDashboard(); });
   core.on('sessions', (items) => { sessions = items; publishState(); publishDashboard(); });
-  core.on('activity', publishDashboard);
+  core.on('activity', (event) => {
+    if (event.type === 'Stop') showDoneMood();
+    publishDashboard();
+  });
   server = createServer(core, { credentialProvider: () => {
     let credential = null;
     try { credential = credentialManager.getCredential(); }
@@ -390,6 +424,7 @@ function startServer() {
 
 if (hasSingleInstanceLock) app.whenReady().then(() => {
   app.setAppUserModelId('org.jicho.desktop');
+  if (process.platform === 'darwin' && app.dock) app.dock.setIcon(nativeImage.createFromPath(path.join(MASCOT_ICON_DIR, 'icon.png')));
   nativeTheme.themeSource = 'dark';
   createWindow();
   startServer();
@@ -469,6 +504,7 @@ ipcMain.handle('jicho:dashboard:get', (event) => {
 
 app.on('before-quit', () => {
   if (cursorTimer) clearInterval(cursorTimer);
+  if (doneTimer) clearTimeout(doneTimer);
   if (core) {
     for (const item of core.list()) core.settle(item.id, null, 'app-shutdown');
   }

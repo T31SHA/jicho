@@ -27,8 +27,10 @@
   </g>
 </svg>`;
   const MOODS = ['idle', 'working', 'needs-you', 'done', 'offline'];
+  let instance = 0;
   function mount(el) {
-    el.innerHTML = SVG;
+    const glowId = 'jicho-glow-' + (++instance);
+    el.innerHTML = SVG.replaceAll('jicho-glow', glowId);
     const svg = el.querySelector('svg');
     return {
       setMood(m) { svg.setAttribute('data-mood', MOODS.includes(m) ? m : 'idle'); },

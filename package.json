@@ -27,6 +27,7 @@
     "files": [
       "src/**/*",
       "bin/**/*",
+      "mascot/**/*",
       "LICENSE",
       "README.md"
     ],
@@ -56,6 +57,7 @@
         "AppImage",
         "deb"
       ],
+      "icon": "mascot/icons/icon.png",
       "category": "Utility",
       "maintainer": "Jicho contributors <T31SHA@users.noreply.github.com>",
       "syncDesktopName": true

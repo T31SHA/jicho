@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="jicho-mascot.css">
+<style>body{margin:0;background:#101820;color:#cfe;font:13px system-ui;display:flex;gap:26px;padding:26px;align-items:flex-end}
+.c{display:flex;flex-direction:column;align-items:center;gap:8px}.big{width:150px;height:150px}.small{width:56px;height:56px}</style>
+<body>
+<div class="c"><div class="big" id="b1"></div>idle</div>
+<div class="c"><div class="big" id="b2"></div>working</div>
+<div class="c"><div class="big" id="b3"></div>needs-you</div>
+<div class="c"><div class="big" id="b4"></div>done</div>
+<div class="c"><div class="big" id="b5"></div>offline</div>
+<div class="c"><div class="small" id="b6"></div>56px</div>
+<script src="jicho-mascot.js"></script>
+<script>['idle','working','needs-you','done','offline','idle'].forEach((m,i)=>JichoBot.mount(document.getElementById('b'+(i+1))).setMood(m));</script>

@@ -1,0 +1,27 @@
+/* Jicho mascot: dark visor, glowing pill eyes, grey hood. Dependency-free. */
+.jicho-bot { --eye:#ff8a80; --eye-core:#ffe3df; --lx:0; --ly:0; width:100%; height:100%; display:block; overflow:visible; }
+.jicho-bot .eyes { transform: translate(calc(var(--lx) * 1px), calc(var(--ly) * 1px)); transition: transform 110ms ease-out; }
+.jicho-bot .eye { fill: var(--eye); filter: url(#jicho-glow); transform-box: fill-box; transform-origin: center; animation: jicho-blink 5.6s infinite; transition: fill 220ms; }
+.jicho-bot .eye.r { animation-delay: .04s; }
+.jicho-bot .core { fill: var(--eye-core); opacity:.85; transform-box: fill-box; transform-origin:center; }
+.jicho-bot .happy { display:none; stroke: var(--eye); stroke-width:5.5; stroke-linecap:round; fill:none; filter:url(#jicho-glow); }
+.jicho-bot .bob { transform-box: fill-box; transform-origin: 50% 100%; }
+
+/* moods */
+.jicho-bot[data-mood="working"] { --eye:#5fd6ff; --eye-core:#e4f8ff; }
+.jicho-bot[data-mood="working"] .eyes { animation: jicho-scan 1.8s ease-in-out infinite; }
+.jicho-bot[data-mood="needs-you"] { --eye:#ffb13b; --eye-core:#fff0cf; }
+.jicho-bot[data-mood="needs-you"] .eye { animation: jicho-alert 1s ease-in-out infinite; }
+.jicho-bot[data-mood="needs-you"] .bob { animation: jicho-hop 1s ease-in-out infinite; }
+.jicho-bot[data-mood="done"] { --eye:#4fe0a0; --eye-core:#dcffef; }
+.jicho-bot[data-mood="done"] .eye, .jicho-bot[data-mood="done"] .core { display:none; }
+.jicho-bot[data-mood="done"] .happy { display:block; }
+.jicho-bot[data-mood="offline"] { --eye:#7a7f87; --eye-core:#b7bcc4; }
+.jicho-bot[data-mood="offline"] .eye { animation:none; transform: scaleY(.14); }
+.jicho-bot[data-mood="offline"] .core { display:none; }
+
+@keyframes jicho-blink { 0%,44%,48%,100% { transform: scaleY(1); } 46% { transform: scaleY(.08); } }
+@keyframes jicho-scan { 0%,100% { transform: translate(-4px,0); } 50% { transform: translate(4px,0); } }
+@keyframes jicho-alert { 0%,100% { transform: scale(1); } 50% { transform: scale(1.14,1.08); } }
+@keyframes jicho-hop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
+@media (prefers-reduced-motion: reduce) { .jicho-bot * { animation: none !important; } }

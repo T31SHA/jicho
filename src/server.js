@@ -6,13 +6,74 @@ const { Core, isValidSessionId } = require('./core');
 const { Store } = require('./store');
 const { sessionBinding, verifyRequest } = require('../bin/hook-support/protocol');
 const { CredentialManager } = require('../bin/hook-support/credentials');
+const { CURSOR_EVENT_MAP, CODEX_EVENT_MAP } = require('./agents/protocol');
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
 const MAX_BODY_BYTES = 1024 * 1024;
 const AUTHENTICATED_EVENTS = new Set([
-  'PermissionRequest', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
-  'Stop', 'Notification', 'SubagentStart', 'SubagentStop', 'SessionEnd'
+  'SessionStart', 'PermissionRequest', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
+  'Stop', 'StopFailure', 'Notification', 'SubagentStart', 'SubagentStop', 'SessionEnd'
 ]);
+const CURSOR_HOOK_EVENTS = new Set(Object.keys(CURSOR_EVENT_MAP));
+const CODEX_HOOK_EVENTS = new Set(Object.keys(CODEX_EVENT_MAP));
+const ALL_AUTHENTICATED_EVENTS = new Set([...AUTHENTICATED_EVENTS, ...CURSOR_HOOK_EVENTS, ...CODEX_HOOK_EVENTS]);
+
+function isCodexHookBody(body) { return Boolean(body && Object.hasOwn(body, 'jicho_agent_id')); }
+
+function isCursorHookBody(body) {
+  return Boolean(body && (body.conversation_id !== undefined || body.cursor_version !== undefined || body.workspace_roots !== undefined));
+}
+
+function validateCursorHook(body) {
+  const allowedFields = new Set([
+    'hook_event_name', 'conversation_id', 'cursor_version', 'workspace_roots', 'cwd', 'duration',
+    'is_interrupt', 'failure_type', 'status', 'tool_name', 'tool_use_id', 'file_path',
+    'subagent_type', 'modified_files'
+  ]);
+  if (!CURSOR_HOOK_EVENTS.has(body.hook_event_name) || body.session_id !== undefined ||
+      !isValidSessionId(body.conversation_id) || typeof body.cursor_version !== 'string' ||
+      !body.cursor_version || body.cursor_version.length > 64 || !Array.isArray(body.workspace_roots) ||
+      body.workspace_roots.length < 1 || body.workspace_roots.length > 64 ||
+      body.workspace_roots.some((root) => typeof root !== 'string' || !root || root.length > 4096) ||
+      Object.keys(body).some((key) => !allowedFields.has(key))) return 'invalid-event';
+  if (body.cwd !== undefined && (typeof body.cwd !== 'string' || body.cwd.length > 4096)) return 'invalid-event';
+  if (body.file_path !== undefined && (typeof body.file_path !== 'string' || body.file_path.length > 2048)) return 'invalid-event';
+  if (body.hook_event_name === 'afterFileEdit' && typeof body.file_path !== 'string') return 'invalid-event';
+  if (['postToolUse', 'postToolUseFailure', 'afterMCPExecution'].includes(body.hook_event_name) &&
+      (typeof body.tool_name !== 'string' || !body.tool_name || body.tool_name.length > 128)) return 'invalid-event';
+  for (const field of ['failure_type', 'status', 'subagent_type', 'tool_use_id']) {
+    if (body[field] !== undefined && (typeof body[field] !== 'string' || body[field].length > (field === 'tool_use_id' ? 256 : 128))) return 'invalid-event';
+  }
+  if (body.duration !== undefined && (typeof body.duration !== 'number' || !Number.isFinite(body.duration) || body.duration < 0)) return 'invalid-event';
+  if (body.is_interrupt !== undefined && typeof body.is_interrupt !== 'boolean') return 'invalid-event';
+  if (body.modified_files !== undefined && (!Array.isArray(body.modified_files) || body.modified_files.length > 64 ||
+      body.modified_files.some((file) => typeof file !== 'string' || file.length > 2048))) return 'invalid-event';
+  return null;
+}
+
+function validateCodexHook(body) {
+  const allowedFields = new Set([
+    'jicho_agent_id', 'hook_event_name', 'session_id', 'cwd', 'permission_mode', 'turn_id',
+    'tool_name', 'tool_use_id', 'tool_input', 'source', 'reason', 'agent_id', 'agent_type'
+  ]);
+  if (body.jicho_agent_id !== 'codex' || !CODEX_HOOK_EVENTS.has(body.hook_event_name) ||
+      !isValidSessionId(body.session_id) || typeof body.cwd !== 'string' || body.cwd.length > 4096 ||
+      Object.keys(body).some((key) => !allowedFields.has(key))) return 'invalid-event';
+  for (const field of ['permission_mode', 'turn_id', 'tool_name', 'tool_use_id', 'source', 'reason', 'agent_id', 'agent_type']) {
+    if (body[field] !== undefined && (typeof body[field] !== 'string' || body[field].length > 256)) return 'invalid-event';
+  }
+  if (body.tool_input !== undefined && (!body.tool_input || typeof body.tool_input !== 'object' || Array.isArray(body.tool_input))) return 'invalid-event';
+  if (body.tool_input && Object.keys(body.tool_input).some((key) => !['command', 'file_path', 'path', 'description'].includes(key))) return 'invalid-event';
+  if (body.tool_input) {
+    for (const value of Object.values(body.tool_input)) if (typeof value !== 'string' || value.length > 4096) return 'invalid-event';
+  }
+  if (body.hook_event_name === 'PermissionRequest' &&
+      (!['Bash', 'apply_patch'].includes(body.tool_name) || !body.tool_input ||
+       !(typeof body.tool_input.command === 'string' || typeof body.tool_input.file_path === 'string'))) return 'invalid-event';
+  if (['PreToolUse', 'PostToolUse', 'PostToolUseFailure'].includes(body.hook_event_name) &&
+      (typeof body.tool_name !== 'string' || !body.tool_name)) return 'invalid-event';
+  return null;
+}
 
 function sendJson(res, statusCode, body) {
   if (res.destroyed || res.writableEnded) return;
@@ -42,6 +103,8 @@ function isTrustedHookRequest(req) {
 
 function validateHookBody(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return 'invalid-event';
+  if (isCodexHookBody(body)) return validateCodexHook(body);
+  if (isCursorHookBody(body)) return validateCursorHook(body);
   if (!AUTHENTICATED_EVENTS.has(body.hook_event_name)) return 'invalid-event';
   if (!isValidSessionId(body.session_id)) return 'invalid-session-id';
   if (body.cwd !== undefined && (typeof body.cwd !== 'string' || body.cwd.length > 4096)) return 'invalid-event';
@@ -159,7 +222,8 @@ function createServer(core, options = {}) {
           : 'Hook request did not match the required event schema.');
         return sendJson(res, 400, { error: bodyError.replace(/-/g, '_') });
       }
-      if (verified.sessionHash !== sessionBinding(body.session_id)) {
+      const sessionId = isCursorHookBody(body) ? body.conversation_id : body.session_id;
+      if (verified.sessionHash !== sessionBinding(sessionId)) {
         report(core, 'incorrect-session-binding', 'Hook request session binding did not match its body.');
         return sendJson(res, 401, { error: 'unauthorized' });
       }
@@ -173,7 +237,7 @@ function createServer(core, options = {}) {
         return sendJson(res, 503, { error: 'request_unavailable' });
       }
 
-      if (body.hook_event_name === 'PermissionRequest') {
+      if (!isCursorHookBody(body) && body.hook_event_name === 'PermissionRequest') {
         let closed = false;
         let requestId = null;
         const closePending = () => {
@@ -184,10 +248,11 @@ function createServer(core, options = {}) {
         res.once('close', () => { if (!res.writableFinished) closePending(); });
         req.once('aborted', closePending);
         try {
+          const agentId = isCodexHookBody(body) ? 'codex' : 'claude-code';
           const out = await core.request(body, (id) => {
             requestId = id;
             if (closed) core.settle(id, null, 'connection-close');
-          });
+          }, { agentId });
           if (closed || res.destroyed || res.writableEnded) return;
           return sendJson(res, 200, out);
         } catch (_) {
@@ -195,7 +260,11 @@ function createServer(core, options = {}) {
           return sendJson(res, 200, {});
         }
       }
-      try { core.observeEvent(body); }
+      try {
+        if (isCodexHookBody(body)) core.observeCodexEvent(body);
+        else if (isCursorHookBody(body)) core.observeCursorEvent(body);
+        else core.observeEvent(body);
+      }
       catch (_) { report(core, 'event-processing-failed', 'Hook event processing failed.'); }
       return sendJson(res, 200, {});
     });
@@ -206,7 +275,7 @@ function createServer(core, options = {}) {
   return server;
 }
 
-module.exports = { createServer, MAX_BODY_BYTES, AUTHENTICATED_EVENTS, validateHookBody, isTrustedHookRequest };
+module.exports = { createServer, MAX_BODY_BYTES, AUTHENTICATED_EVENTS, CURSOR_HOOK_EVENTS, CODEX_HOOK_EVENTS, ALL_AUTHENTICATED_EVENTS, validateHookBody, validateCursorHook, validateCodexHook, isCodexHookBody, isCursorHookBody, isTrustedHookRequest };
 
 if (require.main === module) {
   const credentialManager = new CredentialManager();

@@ -8,7 +8,7 @@ JICHO is an independent supervision and control surface for AI coding agents. It
 
 ## Current product baseline
 
-The current usable slice is an Electron companion for Claude Code in terminal or IDE terminal sessions, with a separate command centre. Claude command hooks pass events to a local helper, which signs the exact request for a loopback Node server and relays the existing hook response. Per-installation credentials use an OS store where available, with a private-file fallback on Linux/macOS; shared settings contain no personal key. Allow, deny, and SessionEnd passed a live Claude Code 2.1.325 smoke test. The floating companion shows one request at a time, with a queue, raw tool input, working directory, deterministic risk flags, and allow/deny controls. Every card maps to one original hook response. Sessions, supported hook observations, decisions, and replay nonces persist in local SQLite. A process restart marks in-flight approvals failed because the original hook response cannot be restored; Claude's native permission flow remains the fallback. Same-user processes can invoke the helper or use a same-user credential store; authentication does not establish Claude process identity. An optional ntfy bridge is not a native JICHO mobile application.
+The current usable slice is an Electron companion for Claude Code in terminal or IDE terminal sessions, with the mascot island as its primary surface and a separate command centre for deeper history. Claude command hooks pass events to a local helper, which signs the exact request for a loopback Node server and relays the existing hook response. Per-installation credentials use an OS store where available, with a private-file fallback on Linux/macOS; shared settings contain no personal key. Allow, deny, and SessionEnd passed a live Claude Code 2.1.325 smoke test. Protocol v1 normalizes actual Claude hook events while retaining the source event and adapter provenance. The floating island shows observed activity, supported file paths, and evidence-based local reminders; it does not store prompt text, infer task progress, or offer unimplemented diffs or questions. Every permission card maps to one original hook response. Sessions, supported hook observations, decisions, and replay nonces persist in local SQLite. A process restart marks in-flight approvals failed because the original hook response cannot be restored; Claude's native permission flow remains the fallback. Same-user processes can invoke the helper or use a same-user credential store; authentication does not establish Claude process identity. An optional ntfy bridge is not a native JICHO mobile application.
 
 ## Product principles
 
@@ -61,13 +61,13 @@ The current usable slice is an Electron companion for Claude Code in terminal or
 
 Each adapter declares monitoring and control capabilities separately, including discovery, lifecycle, tool, shell, file, completion, and genuine permission-control support. The adapter normalizes documented source events and returns decisions only through its supported protocol. Adapter failures preserve native agent behavior where possible.
 
-Initial integration status:
+Implementation status at 2026-11-17:
 
 | Agent | Supported mode today | Future acceptance condition |
 | --- | --- | --- |
-| Claude Code | Authenticated command hooks for documented lifecycle/tool events and `PermissionRequest` decisions | Verify native credential stores on macOS/Windows, hook timeout/failure behavior, and Electron desktop-card delivery against installed CLIs. |
-| OpenAI Codex | None | Review official App Server protocol and compatibility per Codex surface; verify JSON-RPC lifecycle and true approval-response handling. |
-| Cursor | None | Review official Hooks reference; implement only event/response forms that can actually block, allow, or deny. |
+| Claude Code | Authenticated command hooks for documented lifecycle/tool events and `PermissionRequest` decisions; real 2.1.325 allow/deny smoke passed | Verify broad event rendering, desktop-card delivery, timeout/recovery, and native credential stores on macOS/Windows. |
+| OpenAI Codex CLI | Hook adapter and synchronous Bash/`apply_patch` permission route implemented through the existing core; live smoke timed out before hooks ran | Retry a real authenticated session and verify actual Allow/Deny response semantics. Codex desktop and question handling are unsupported. |
+| Cursor | Authenticated activity-only hook adapter implemented; permissions and questions unsupported | Run a real Cursor agent session and verify lifecycle and file-edit observations. |
 | Other agents | None | Per-adapter protocol and capability review; no implied support. |
 
 ### Approval and policy model
@@ -91,10 +91,10 @@ Automatic policy remains opt-in and limited to explicit deterministic rules. Cri
 
 1. Verify OS credential-store behavior and packaged helper installation across desktop platforms; retain the documented same-user limitation.
 2. Stabilize the local Claude permission slice and its verified installer semantics.
-3. Add a typed domain/event contract and durable, versioned persistence without moving decision ownership away from the current core. **Local SQLite v1 and durable approval transitions are implemented; typed adapter contracts remain outstanding.**
+3. Add a typed domain/event contract and durable, versioned persistence without moving decision ownership away from the current core. **Local SQLite schema v2, durable approval transitions, and the protocol v1 adapter contract are implemented.**
 4. Expand Claude's documented event timeline and approval detail. **Documented events are installed and persisted; real installed-CLI verification remains outstanding.**
 5. Build the command centre and complete desktop lifecycle/position behavior. **The initial command centre is implemented; interaction and window behavior still need OS-specific verification.**
-6. Add Codex and Cursor only after protocol review and real verification.
+6. Complete real-session verification for Codex and Cursor; keep capability claims scoped to each adapter.
 7. Design a relay and device identity system before building the native mobile approval flow.
 8. Harden, test, package, and publish platform capability reports.
 

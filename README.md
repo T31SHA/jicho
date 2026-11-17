@@ -2,13 +2,13 @@
 
 ![Jicho mascot](docs/mascot.png)
 
-Jicho (Swahili for “eye”) is a free, MIT-licensed desktop companion for Claude Code. It shows permission requests in a small on-screen window and can send approval alerts to your phone.
+Jicho (Swahili for “eye”) is a free, MIT-licensed desktop companion for coding agents. Claude Code can send permission requests for approval; Codex CLI has an implemented but unverified hook path; Cursor currently provides authenticated activity observations only.
 
-Jicho does not call AI models and has no telemetry. When phone approvals are enabled, its only runtime network connection is to [ntfy.sh](https://ntfy.sh).
+Jicho does not call AI models and has no telemetry. Optional ntfy alerts contain only a generic notice and no approval actions; enabling them sends that notice to the configured ntfy service.
 
 ## Verification snapshot
 
-The last recorded live Claude Code approval test passed on Linux x86_64 with Claude Code `2.1.325`. The current host reports kernel `7.0.0-43-generic`, Node.js `v22.23.2`, and Electron `45.3.3`. The local automated harness passes; Windows/macOS CI and real phone delivery have not been run for this final polish.
+The authenticated Claude Code allow/deny flow passed on Linux x86_64 with Claude Code `2.1.325`. Codex CLI `0.169.0` is installed, but its real-agent smoke timed out before hooks ran. Cursor `3.17.19` is installed, but no live Cursor agent session has been verified. The current host reports kernel `7.0.0-43-generic`, Node.js `v22.23.2`, and Electron `45.3.3`. Windows/macOS CI and native phone apps have not been built.
 
 ## 60-second quickstart
 
@@ -22,7 +22,7 @@ npm run jicho -- install
 npm start
 ```
 
-Review the installer diff and confirm it before it changes `~/.claude/settings.json`. It saves a timestamped backup, provisions one installation credential, and installs a small credential-aware hook helper under `~/.jicho/hooks/`. Jicho opens its small eye window; on first run it also shows phone pairing. Phone alerts are off until you enable them.
+Review the installer diff and confirm it before it changes `~/.claude/settings.json`. It saves a timestamped backup, provisions one installation credential, and installs a small credential-aware hook helper under `~/.jicho/hooks/`. Jicho opens its compact top-edge mascot island; hover, click, or observed agent activity expands it. The initial run also offers optional generic ntfy alerts. Alerts are off until you enable them.
 
 In another terminal, start a **fresh** Claude Code session with `claude`, either directly or in your IDE’s integrated terminal. Ask Claude to do something that requires permission. Jicho shows the session folder, tool, and raw command with Allow, Deny, and Always buttons.
 
@@ -35,43 +35,67 @@ To remove the user-level hooks later, run `npm run jicho -- uninstall`. To check
 - Claude Code running in a terminal or IDE terminal, through authenticated command hooks.
 - A local desktop approval card, exact-response routing, a request queue, and timeout fall-through to Claude’s own dialog.
 - A separate command centre with persisted session history, observed Claude hook events, risk-labeled approval cards, and a source-labeled activity timeline.
-- Optional phone approvals through ntfy. The QR code pairs with the topic; Android can open it directly, while iPhone users can add the topic in ntfy.
+- Optional generic ntfy alerts with no project details, request IDs, credentials, or Allow/Deny actions.
 - Optional start-at-login, a tray menu, and a deterministic safe-command allowlist that is off by default.
 - `npm run jicho -- doctor` checks the loopback port, Claude Code version, credential store read/write, signed wrapper acceptance, held-and-settled fake permission request, and installed hooks. It also prints cold wrapper timings per configured event.
 - Only `PermissionRequest` runs synchronously. The other installed command hooks use Claude Code's `async: true` support and record observations without blocking the agent.
 - The desktop mascot reflects pending, working, recently stopped, offline, and idle states. Sessions idle for more than 30 minutes expire from the active session list.
+- The island shows actual observed Claude hook events, the current observed tool, and file paths from supported write-tool payloads. It retains hook provenance and does not store prompt text or infer task progress.
+- Codex CLI hooks report authenticated session, prompt-submission, tool, subagent, interrupt, turn, and session-end events. Its synchronous `PermissionRequest` hook is implemented for Bash and `apply_patch` using the existing Claude approval core; live Codex hook and decision behavior remain unverified.
+- Cursor's documented non-gating hooks can be installed with `npm run jicho -- cursor install`; they report session lifecycle, tool success/failure, file edits, subagent completion, and turn completion. Jicho strips prompts, transcripts, user email, tool inputs/outputs, shell output, and edit contents before forwarding. Cursor permission interception and questions are unsupported; no permission-affecting Cursor hook is installed.
+- Top-edge placement, display selection, drag placement, and manual horizontal/top offsets are implemented. Jicho never uses the camera to locate hardware. Native macOS notch integration and Linux Wayland placement have not been verified.
+- Local reminders can flag pending approvals, reported tool failures, no later test command after an observed edit, and stale sessions. Each reminder includes evidence and confidence; none is generated by an external AI service.
 - The desktop hides **Always** when the request is outside the safe allowlist. Risk-flagged commands require a 700 ms hold to allow; Escape denies, and Ctrl/Cmd+Enter allows only unflagged requests.
 
-The installer configures command hooks for PermissionRequest, UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure, Stop, Notification, SubagentStart, SubagentStop, and SessionEnd. Claude sends command-hook JSON on stdin and reads the same JSON decision schema used by HTTP hooks from stdout. The wrapper signs the original bytes and relays the server's response unchanged. The current [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) supports only command and MCP hooks for SessionStart, so Jicho does not register that event. A session first appears when Jicho receives a supported event. Only PermissionRequest carries a Jicho approval card; the other configured hooks are recorded as observations.
+The Claude installer configures command hooks for SessionStart, PermissionRequest, UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure, Stop, StopFailure, Notification, SubagentStart, SubagentStop, and SessionEnd. Claude sends command-hook JSON on stdin and reads the same JSON decision schema used by HTTP hooks from stdout. The wrapper signs the original bytes and relays the server's response unchanged. SessionStart is non-blocking; only PermissionRequest carries a Jicho approval card.
 
-Jicho can decide only requests Claude Code sends through `PermissionRequest`. Claude Auto mode or an existing allow rule can run a tool without that request; Jicho's `PreToolUse` hook observes the call but currently does not block it. Choose Claude's permission mode with that boundary in mind.
+Cursor's separate user-level integration is observation-only. Install, inspect, or remove it with:
 
-The tested live integration is limited to Linux x86_64 and Claude Code `2.1.325`; see [DEMO.md](DEMO.md) for the stage flow and recovery plan.
+```sh
+npm run jicho -- cursor install
+npm run jicho -- cursor status
+npm run jicho -- cursor uninstall
+```
+
+The installer shows the `~/.cursor/hooks.json` changes and asks before writing a backup and updating the file. It installs only hooks that report after an action or at session/turn boundaries. Cursor hook events use `conversation_id` as their session identity and are authenticated with the same HMAC, freshness, nonce, and session-binding checks as Claude. Permission interception, remote decisions, and interactive questions are not supported for Cursor.
+
+Codex has a separate `~/.codex/hooks.json` integration:
+
+```sh
+npm run jicho -- codex install
+npm run jicho -- codex status
+npm run jicho -- codex uninstall
+```
+
+The installer shows a diff, makes a timestamped backup, and preserves unrelated hook groups. Codex may ask you to review and trust new hooks. Only `PermissionRequest` for Bash and `apply_patch` is synchronous; session and activity hooks are observational. The helper removes prompts, transcripts, model names, and tool outputs before forwarding. If Jicho is unavailable, it returns no decision so Codex can continue with its native permission prompt. Decisions are Allow or Deny; Codex “Always” behavior is not enabled.
+
+Jicho can decide requests only when an installed adapter sends a supported synchronous `PermissionRequest`: Claude Code's hook or the unverified Codex CLI hook for Bash/`apply_patch`. Claude Auto mode or an existing allow rule can run a tool without that request; Jicho's `PreToolUse` hook observes the call but currently does not block it. Choose Claude's permission mode with that boundary in mind.
+
+The verified live permission integration is Linux x86_64 with Claude Code `2.1.325`. Codex CLI `0.169.0` is installed and its adapter/hook path is implemented, but its live smoke could not reach the Codex service (`chatgpt.com/backend-api/ps/mcp` timed out) before hook events arrived. Cursor activity still needs a real Cursor session test. See [DEMO.md](DEMO.md) for the stage flow and recovery plan. Island visual behavior, GNOME Wayland positioning, Codex desktop loading, and actual Electron approval-card delivery remain unverified.
 
 ## What does not work
 
 - Claude Desktop’s Code tab.
-- Cursor.
-- Codex.
+- Cursor permission interception and question answering.
+- Codex desktop behavior, question answering, and remote decisions.
+- Other agent integrations.
 - Native mobile apps or other agent integrations.
 
-Those adapters are planned, not implemented.
+Cursor activity observation and Codex CLI hooks are implemented but remain unverified against a live agent turn. Codex desktop behavior and the remaining adapters are also unverified.
 
 Windows and macOS builds, native credential stores on those systems, and delivery to a real phone have not been verified. The GitHub Actions matrix is present but has not run.
 
-## Phone pairing
+## Phone alerts
 
-Open the pairing panel from the mascot or tray. Scan the QR code with ntfy on Android, or subscribe to the displayed topic in ntfy on iPhone. Enable **Phone approvals** to start alerts. Content-free alerts hide the request details and provide a Deny-only **Review on desktop** notification. Set `JICHO_NTFY_URL` before starting Jicho to use a self-hosted HTTP or HTTPS ntfy server.
+Jicho can publish a generic alert to ntfy. Scan the QR code with ntfy on Android, or subscribe to the displayed topic in ntfy on iPhone. Enable **Generic phone alerts** to publish. The notification contains only “An agent is waiting. Review it in Jicho on your computer.” It does not include a project, command, request ID, or action button. Set `JICHO_NTFY_URL` before starting Jicho to use a self-hosted HTTP or HTTPS ntfy server.
 
-Phone notifications show command previews with both the head and tail when needed. Truncated, risk-flagged, and content-free requests never include an Allow action; review them on the desktop.
-
-**The topic is the password.** Anyone who knows it can read its ntfy messages, so keep it private and do not post screenshots of the pairing panel. Phone actions send a signed reply to a separate reply topic; Jicho checks its local HMAC secret before applying an answer.
+This is a notification bridge, not device pairing or remote approval. The ntfy topic is a bearer subscription identifier; anyone with it can see generic notices. Do not treat it as an authentication credential. Android/iOS apps, device identity, pinned TLS, revocation, and request-bound remote decisions are not implemented.
 
 ## Hook authentication and recovery
 
 The installer generates a 256-bit credential once per Jicho installation. It prefers Linux Secret Service through `secret-tool`, macOS Keychain through `security`, or Windows Credential Manager through the Windows credential API. Linux and macOS can use an owner-only credential file if their native store is unavailable. Windows stays fail-closed by default; `npm run jicho -- doctor --allow-file-credential` explicitly opts into a Windows file protected by a verified owner-only ACL. File fallback is weaker because other processes running as your account can read the credential. Windows and macOS native-store behavior and Windows ACLs have not been tested on those operating systems.
 
-Claude settings contain only `node "$HOME/.jicho/hooks/hook.js"`; they never contain the credential. Shared project settings use the current user's home directory, so each collaborator must install Jicho locally to provision their own credential and helper. The generated hook command is machine-portable and does not share authentication material.
+Claude, Cursor, and Codex settings contain only commands pointing at local helpers; they never contain the credential. Shared Claude project settings use the current user's home directory, so each collaborator must install Jicho locally to provision their own credential and helper. Cursor and Codex helpers forward only allowlisted event subsets. The generated hook commands are machine-portable and do not share authentication material.
 
 Each hook request is authenticated with HMAC-SHA256 over a fixed canonical form: protocol version, method, path, installation ID, Unix-millisecond timestamp, random nonce, SHA-256 of the exact request bytes, and a SHA-256 binding to the session ID. The server checks the timestamp within 30 seconds, compares the MAC in constant time, validates the event/session schema, and records each nonce once in SQLite before handling the event. The SQLite history and nonce table are not encrypted.
 
@@ -93,7 +117,7 @@ Rotation takes effect on the next hook request; the installation identity stays 
 - Each PermissionRequest holds one HTTP response. Allow or Deny settles that exact response. A stale or unrelated answer cannot approve another request. If a request times out, Jicho sends no decision and Claude can show its own dialog.
 - The desktop card displays the raw command without summarizing or redacting it. Keep the screen private if commands may contain secrets.
 - The command centre shows bounded command/path evidence in local history. It identifies Claude hook observations separately from Jicho decision records and does not create synthetic progress events.
-- Phone alerts redact common token and key patterns and environment-style assignments. Truncated previews show the head and tail with a middle ellipsis; truncation, any risk flag, or Content-free mode removes Allow and directs the user to the desktop. Redaction is heuristic; use Content-free alerts when command text should not leave the computer.
+- ntfy receives only a generic attention notice, with no command, project, request ID, or decision action. The topic identifies the subscription but is not device authentication.
 - Session, event, approval, decision, and audit history is stored in a versioned SQLite database in Jicho’s local application-data directory. Commands and relevant paths from tool and permission events can be persisted there; prompt text and tool output are omitted. The database is not encrypted, so protect the OS account and local data directory. POSIX database files are restricted to owner access; Windows uses the application-data directory’s OS ACLs.
 - The separate JSONL audit log stores decision metadata and risk flags, not raw command text.
 - The auto-allow policy is off by default. When enabled, it allows exact read-only `Read`, `Glob`, and `Grep` requests within the session folder, plus a small set of exact `git status`, `git diff`, and `git log` commands. Chaining, redirection, and flagged commands require review. “Always” enables only this built-in safe policy; it does not remember an arbitrary command.
@@ -107,7 +131,7 @@ With the desktop app running, open another terminal and run:
 npm run demo
 ```
 
-Three fake sessions send permission requests at once. Answer the cards in the overlay or on the phone; each fake session prints the reply it received. The demo does not execute the displayed commands. See [DEMO.md](DEMO.md) for the 90-second stage script and recovery steps.
+Three fake sessions send permission requests at once. Answer the cards in the overlay; each fake session prints the reply it received. The demo does not execute the displayed commands. See [DEMO.md](DEMO.md) for the 90-second stage script and recovery steps.
 
 To check a real Claude Code installation, stop the desktop app first, then run:
 
@@ -119,7 +143,7 @@ The guided verifier prints the installed Claude Code version and tells you to st
 
 For a project-local setup, run `npm run verify -- --project-local`. The verifier checks that project's `.claude/settings.local.json` and prints the matching install command if needed. Run it from the project directory where you start Claude Code.
 
-Run the local automated harness with `npm test` (26 checks pass on the recorded Linux host). To exercise the actual Claude CLI command-hook path, run `npm run test:claude-auth`; it uses two prompts, creates one temporary allowed marker, verifies that a denied marker stays absent, and checks SessionEnd. It requires an authenticated Claude CLI and may use your Claude account. The GitHub Actions workflow and its Windows/macOS packaging jobs remain unverified until CI runs.
+Run the local automated harness with `npm test` (30 test groups pass on the current Linux host). It includes simulated Cursor/Codex hook payloads and authenticated relay checks. `npm run test:claude-auth` runs the real Claude command-hook path; `npm run test:codex-auth` runs a small real Codex task with isolated temporary settings and marker files. Both may use your signed-in agent account. Cursor has no live agent-session result. The GitHub Actions workflow and its Windows/macOS packaging jobs remain unverified until CI runs.
 
 ## Packaging
 

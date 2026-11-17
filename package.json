@@ -1,14 +1,14 @@
 {
   "name": "jicho",
   "version": "0.0.1",
-  "description": "The eye on your coding agents. Approve Claude Code permissions from your desktop or phone.",
+  "description": "The eye on your coding agents. Supervise agent activity and review supported permissions from the desktop.",
   "author": "Jicho contributors <T31SHA@users.noreply.github.com>",
   "homepage": "https://github.com/T31SHA/jicho",
   "desktopName": "jicho",
   "license": "MIT",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "node bin/start.js",
     "core": "node src/server.js",
     "jicho": "node bin/jicho.js",
     "verify": "node src/verify.js",
@@ -18,7 +18,8 @@
     "dist:mac": "electron-builder --mac dmg",
     "dist:linux": "electron-builder --linux AppImage deb",
     "test": "node test/harness.js",
-    "test:claude-auth": "node test/claude-auth-smoke.js"
+    "test:claude-auth": "node test/claude-auth-smoke.js",
+    "test:codex-auth": "node test/codex-auth-smoke.js"
   },
   "build": {
     "appId": "org.jicho.desktop",

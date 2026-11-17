@@ -9,13 +9,13 @@ const { PhoneBridge } = require('./phone');
 const { Store } = require('./store');
 const { isTrustedMainFrame } = require('./ipc-security');
 const { selectMascotMood } = require('./mascot-state');
+const { buildIslandModel } = require('./island-model');
+const { selectIslandLayout, selectIslandBounds } = require('./island-layout');
 const { CredentialManager } = require('../bin/hook-support/credentials');
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
-const WIDTH = 390;
-const IDLE_HEIGHT = 76;
-const CARD_HEIGHT = 330;
-const PHONE_HEIGHT = 455;
+const IDLE_WIDTH = 448;
+const IDLE_HEIGHT = 92;
 const COMPANION_PAGE = path.join(__dirname, 'ui', 'index.html');
 const COMMAND_CENTRE_PAGE = path.join(__dirname, 'command-centre.html');
 const MASCOT_ICON_DIR = path.join(__dirname, '..', 'mascot', 'icons');
@@ -27,10 +27,9 @@ let windowRef;
 let commandCentreWindow;
 let sessions = [];
 let pending = [];
-let cursorTimer;
 let phoneBridge;
 let showPhone = false;
-let preferences = { allowlistEnabled: false, autostartEnabled: false };
+let preferences = { allowlistEnabled: false, autostartEnabled: false, displayId: 'auto', offsetX: 0, offsetY: 0 };
 let preferencesFile;
 const phoneNotifications = new Set();
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -42,6 +41,12 @@ let doneUntil = 0;
 let doneTimer;
 let trayMood = 'idle';
 let sessionExpiryTimer;
+let manuallyExpanded = false;
+let selectedSession = null;
+let activeLayout = 'idle';
+let placementInProgress = false;
+let moveSaveTimer;
+let displayRepositionHandler;
 
 if (!hasSingleInstanceLock) app.quit();
 else app.on('second-instance', () => showCommandCentre());
@@ -71,6 +76,7 @@ function applyAutostart(enabled) {
         return true;
       }
       const args = [process.env.APPIMAGE || process.execPath];
+      if (process.env.XDG_SESSION_TYPE === 'wayland' && process.env.DISPLAY) args.push('--ozone-platform=x11');
       if (!app.isPackaged && !process.env.APPIMAGE) args.push(app.getAppPath());
       fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
       const entry = [
@@ -190,11 +196,16 @@ function createTray() {
 function loadPreferences(dataDirectory) {
   preferencesFile = path.join(dataDirectory, 'preferences.json');
   try {
-    preferences = JSON.parse(fs.readFileSync(preferencesFile, 'utf8'));
+    preferences = { ...preferences, ...JSON.parse(fs.readFileSync(preferencesFile, 'utf8')) };
     if (typeof preferences.allowlistEnabled !== 'boolean') preferences.allowlistEnabled = false;
     if (typeof preferences.autostartEnabled !== 'boolean') preferences.autostartEnabled = false;
+    if (typeof preferences.displayId !== 'string') preferences.displayId = 'auto';
+    if (!Number.isFinite(preferences.offsetX)) preferences.offsetX = 0;
+    if (!Number.isFinite(preferences.offsetY)) preferences.offsetY = 0;
+    preferences.offsetX = Math.max(-2000, Math.min(2000, Math.round(preferences.offsetX)));
+    preferences.offsetY = Math.max(-2000, Math.min(2000, Math.round(preferences.offsetY)));
   } catch (_) {
-    preferences = { allowlistEnabled: false, autostartEnabled: false };
+    preferences = { allowlistEnabled: false, autostartEnabled: false, displayId: 'auto', offsetX: 0, offsetY: 0 };
     savePreferences();
   }
   if (preferences.autostartEnabled) applyAutostart(true);
@@ -202,11 +213,12 @@ function loadPreferences(dataDirectory) {
 
 function placeWindow(layout) {
   if (!windowRef || windowRef.isDestroyed()) return;
-  const area = screen.getPrimaryDisplay().workArea;
-  const height = layout === 'phone' ? PHONE_HEIGHT : layout === 'card' ? CARD_HEIGHT : IDLE_HEIGHT;
-  const x = Math.round(area.x + (area.width - WIDTH) / 2);
-  const y = area.y + area.height - height - 18;
-  windowRef.setBounds({ x, y, width: WIDTH, height });
+  const displays = screen.getAllDisplays();
+  const selected = displays.find((display) => String(display.id) === preferences.displayId) || screen.getPrimaryDisplay();
+  const bounds = selectIslandBounds(selected, layout, preferences.offsetX, preferences.offsetY);
+  placementInProgress = true;
+  windowRef.setBounds(bounds);
+  setTimeout(() => { placementInProgress = false; }, 120);
   windowRef.webContents.send('jicho:layout', { layout });
 }
 
@@ -216,8 +228,27 @@ function publishState() {
   const mood = selectMascotMood({ pendingCount: pending.length, working, doneUntil, error, now: Date.now() });
   setTrayMood(mood);
   if (!windowRef || windowRef.isDestroyed()) return;
-  const layout = pending.length ? 'card' : showPhone ? 'phone' : 'idle';
-  placeWindow(layout);
+  const layout = selectIslandLayout({
+    pendingCount: pending.length,
+    showSettings: showPhone,
+    expanded: manuallyExpanded
+  });
+  if (layout !== activeLayout) {
+    activeLayout = layout;
+    placeWindow(layout);
+    if (windowRef && !windowRef.isDestroyed() && process.platform !== 'linux') {
+      windowRef.setFocusable(layout !== 'idle');
+      if (layout === 'idle') windowRef.blur();
+    }
+  }
+  let island;
+  try {
+    const recentActivity = store ? store.listRecentActivity(150) : [];
+    island = buildIslandModel({ sessions, events: recentActivity, pending, selectedSession, now: Date.now() });
+  } catch (failure) {
+    island = buildIslandModel({ sessions, pending, selectedSession, now: Date.now() });
+    island.historyError = 'Local activity history could not be read.';
+  }
   windowRef.webContents.send('jicho:state', {
     layout,
     pending,
@@ -227,7 +258,10 @@ function publishState() {
     allowlistEnabled: Boolean(preferences.allowlistEnabled),
     autostartEnabled: Boolean(preferences.autostartEnabled),
     error,
-    phone: phoneBridge ? phoneBridge.viewState() : null
+    phone: phoneBridge ? phoneBridge.viewState() : null,
+    island,
+    displays: screen.getAllDisplays().map((display) => ({ id: String(display.id), label: display.label || 'Display', bounds: display.bounds })),
+    placement: { displayId: preferences.displayId, offsetX: preferences.offsetX, offsetY: preferences.offsetY }
   });
 }
 
@@ -238,7 +272,7 @@ function dashboardSnapshot() {
   let activity = [];
   let error = serverError || '';
   try {
-    sessions = storeAvailable ? store.listSessions() : core ? [...core.sessions.values()] : [];
+    sessions = storeAvailable ? (store.listAllSessions ? store.listAllSessions() : store.listSessions()) : core ? [...core.sessions.values()] : [];
     activity = storeAvailable ? store.listRecentActivity(100) : [];
   } catch (failure) {
     error = 'Jicho could not read local history: ' + failure.message;
@@ -264,20 +298,22 @@ function guardLocalNavigation(win, expectedPage) {
 }
 
 function createWindow() {
+  activeLayout = '';
   windowRef = new BrowserWindow({
-    width: WIDTH,
+    width: IDLE_WIDTH,
     height: IDLE_HEIGHT,
     frame: false,
     resizable: false,
-    movable: false,
+    movable: true,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    focusable: true,
+    focusable: process.platform !== 'linux',
     alwaysOnTop: true,
     skipTaskbar: true,
     show: false,
-    backgroundColor: '#101820',
+    transparent: true,
+    backgroundColor: '#00000000',
     title: 'Jicho',
     icon: path.join(MASCOT_ICON_DIR, 'icon.png'),
     webPreferences: {
@@ -296,21 +332,46 @@ function createWindow() {
     windowRef.showInactive();
     publishState();
   });
-  windowRef.on('closed', () => { windowRef = null; });
-  windowRef.webContents.on('did-finish-load', () => {
-    if (cursorTimer) clearInterval(cursorTimer);
-    cursorTimer = setInterval(() => {
-      if (!windowRef || windowRef.isDestroyed()) return;
-      const point = screen.getCursorScreenPoint();
-      if (!point || (point.x === 0 && point.y === 0)) return;
-      const bounds = windowRef.getBounds();
-      windowRef.webContents.send('jicho:cursor', {
-        x: point.x - (bounds.x + bounds.width / 2),
-        y: point.y - (bounds.y + 27)
-      });
-    }, 80);
-    publishState();
+  windowRef.on('closed', () => {
+    if (displayRepositionHandler) {
+      screen.removeListener('display-added', displayRepositionHandler);
+      screen.removeListener('display-removed', displayRepositionHandler);
+      screen.removeListener('display-metrics-changed', displayRepositionHandler);
+      displayRepositionHandler = null;
+    }
+    windowRef = null;
   });
+  windowRef.on('move', () => {
+    if (placementInProgress || !windowRef || windowRef.isDestroyed()) return;
+    if (moveSaveTimer) clearTimeout(moveSaveTimer);
+    moveSaveTimer = setTimeout(() => {
+      if (!windowRef || windowRef.isDestroyed()) return;
+      const bounds = windowRef.getBounds();
+      const center = { x: bounds.x + bounds.width / 2, y: bounds.y + 12 };
+      const nearest = screen.getAllDisplays().slice().sort((a, b) => {
+        const distance = (display) => {
+          const area = display.workArea || display.bounds;
+          return Math.hypot(area.x + area.width / 2 - center.x, area.y - center.y);
+        };
+        return distance(a) - distance(b);
+      })[0] || screen.getPrimaryDisplay();
+      const area = nearest.workArea || nearest.bounds;
+      preferences.displayId = String(nearest.id);
+      preferences.offsetX = Math.max(-2000, Math.min(2000, Math.round(center.x - (area.x + area.width / 2))));
+      preferences.offsetY = Math.max(-2000, Math.min(2000, Math.round(bounds.y - area.y - 8)));
+      savePreferences();
+    }, 250);
+  });
+  displayRepositionHandler = () => {
+    if (!windowRef || windowRef.isDestroyed()) return;
+    if (!screen.getAllDisplays().some((display) => String(display.id) === preferences.displayId)) preferences.displayId = 'auto';
+    activeLayout = '';
+    publishState();
+  };
+  screen.on('display-added', displayRepositionHandler);
+  screen.on('display-removed', displayRepositionHandler);
+  screen.on('display-metrics-changed', displayRepositionHandler);
+  windowRef.webContents.on('did-finish-load', publishState);
 }
 
 function createCommandCentre() {
@@ -376,10 +437,10 @@ function startServer() {
   sessions = [...core.sessions.values()];
   startSessionExpiry();
   phoneBridge = new PhoneBridge(core, app.getPath('userData'));
-  showPhone = (phoneBridge.isFirstRun && !phoneBridge.config.pairingDismissed) || phoneBridge.storageBlocked;
+  showPhone = phoneBridge.storageBlocked;
   phoneBridge.on('status', publishState);
   phoneBridge.qrPromise.then((uri) => { phoneBridge.qrDataUrl = uri; publishState(); }).catch((error) => {
-    console.error('Could not generate phone pairing QR code:', error.message);
+    console.error('Could not generate phone alert subscription QR code:', error.message);
     phoneBridge.qrDataUrl = null;
     phoneBridge.setStatus(false, 'Could not generate the pairing QR code.');
     publishState();
@@ -389,7 +450,7 @@ function startServer() {
     for (const item of items) {
       if (phoneNotifications.has(item.id)) continue;
       phoneNotifications.add(item.id);
-      phoneBridge.publishRequest(item).catch((error) => console.error('Could not publish approval notification:', error.message));
+      phoneBridge.publishRequest(item).catch((error) => console.error('Could not publish generic phone alert:', error.message));
     }
     publishState();
     publishDashboard();
@@ -402,6 +463,7 @@ function startServer() {
   core.on('sessions', (items) => { sessions = items; publishState(); publishDashboard(); });
   core.on('activity', (event) => {
     if (event.type === 'Stop') showDoneMood();
+    publishState();
     publishDashboard();
   });
   server = createServer(core, { credentialProvider: () => {
@@ -454,6 +516,43 @@ function trustedDesktopWindow(event) {
   return isTrustedMainFrame(event, [COMPANION_PAGE, COMMAND_CENTRE_PAGE]);
 }
 
+ipcMain.handle('jicho:island:toggle-expanded', (event) => {
+  if (!trustedCompanion(event)) return false;
+  manuallyExpanded = !manuallyExpanded;
+  publishState();
+  return manuallyExpanded;
+});
+
+ipcMain.handle('jicho:island:select-session', (event, agentId, sessionId) => {
+  if (!trustedCompanion(event) || typeof agentId !== 'string' || typeof sessionId !== 'string' ||
+      agentId.length > 64 || sessionId.length > 256) return false;
+  const session = sessions.find((item) => (item.agentId || 'claude-code') === agentId && item.id === sessionId);
+  if (!session) return false;
+  selectedSession = { agentId, id: sessionId };
+  publishState();
+  return true;
+});
+
+ipcMain.handle('jicho:island:set-display', (event, displayId) => {
+  if (!trustedCompanion(event)) return false;
+  if (displayId !== 'auto' && !screen.getAllDisplays().some((display) => String(display.id) === displayId)) return false;
+  preferences.displayId = displayId;
+  activeLayout = '';
+  savePreferences();
+  publishState();
+  return true;
+});
+
+ipcMain.handle('jicho:island:set-offset', (event, offset) => {
+  if (!trustedCompanion(event) || !offset || !Number.isInteger(offset.x) || !Number.isInteger(offset.y)) return false;
+  preferences.offsetX = Math.max(-2000, Math.min(2000, offset.x));
+  preferences.offsetY = Math.max(-2000, Math.min(2000, offset.y));
+  activeLayout = '';
+  savePreferences();
+  publishState();
+  return true;
+});
+
 ipcMain.handle('jicho:answer', (event, id, decision) => {
   if (!trustedDesktopWindow(event)) return false;
   if (!core) return false;
@@ -463,7 +562,7 @@ ipcMain.handle('jicho:answer', (event, id, decision) => {
     return answered;
   }
   if (!['allow', 'deny'].includes(decision)) return false;
-  return core.settle(id, decision, 'desktop');
+  return core.handleRequestDecision(id, decision, 'desktop');
 });
 
 ipcMain.handle('jicho:toggle-phone', (event, visible) => {
@@ -478,14 +577,6 @@ ipcMain.handle('jicho:phone-enabled', (event, enabled) => {
   if (!trustedCompanion(event)) return false;
   if (!phoneBridge) return false;
   phoneBridge.setEnabled(Boolean(enabled));
-  publishState();
-  return true;
-});
-
-ipcMain.handle('jicho:phone-content-free', (event, contentFree) => {
-  if (!trustedCompanion(event)) return false;
-  if (!phoneBridge) return false;
-  phoneBridge.setContentFree(Boolean(contentFree));
   publishState();
   return true;
 });
@@ -512,9 +603,14 @@ ipcMain.handle('jicho:dashboard:get', (event) => {
 });
 
 app.on('before-quit', () => {
-  if (cursorTimer) clearInterval(cursorTimer);
   if (doneTimer) clearTimeout(doneTimer);
   if (sessionExpiryTimer) clearInterval(sessionExpiryTimer);
+  if (moveSaveTimer) clearTimeout(moveSaveTimer);
+  if (displayRepositionHandler) {
+    screen.removeListener('display-added', displayRepositionHandler);
+    screen.removeListener('display-removed', displayRepositionHandler);
+    screen.removeListener('display-metrics-changed', displayRepositionHandler);
+  }
   if (core) {
     for (const item of core.list()) core.settle(item.id, null, 'app-shutdown');
   }

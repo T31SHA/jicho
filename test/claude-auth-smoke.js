@@ -61,6 +61,7 @@ async function main() {
     timeout: 120
   };
   fs.writeFileSync(statePath, JSON.stringify({ hooks: {
+    SessionStart: [{ hooks: [{ ...hookCommand, async: true }] }],
     PermissionRequest: [{ hooks: [hookCommand] }],
     SessionEnd: [{ hooks: [hookCommand] }]
   } }, null, 2) + '\n', { mode: 0o600 });
@@ -68,6 +69,7 @@ async function main() {
   const store = new Store(path.join(root, 'events.sqlite3'));
   const core = new Core({ store });
   const decisions = [];
+  let sessionStartCount = 0;
   let sessionEndCount = 0;
   core.on('pending', (items) => {
     for (const item of items) {
@@ -78,6 +80,7 @@ async function main() {
     }
   });
   core.on('activity', (event) => {
+    if (event.type === 'SessionStart') sessionStartCount += 1;
     if (event.type === 'SessionEnd') sessionEndCount += 1;
   });
   const server = createServer(core, { credentialProvider: () => manager.getCredential() });
@@ -100,8 +103,9 @@ async function main() {
     assert(decisions.some((item) => item.command === 'touch ' + denyFile && item.decision === 'deny'), 'no authenticated deny PermissionRequest was observed');
     assert(fs.existsSync(allowFile), 'Claude did not execute the allowed marker command.');
     assert(!fs.existsSync(denyFile), 'Claude executed the denied marker command.');
+    assert(sessionStartCount > 0, 'Claude Code did not emit the configured SessionStart command hook.');
     assert(sessionEndCount > 0, 'Claude Code did not emit the configured SessionEnd command hook.');
-    console.log('PASS: Claude Code 2.1.325 command hooks authenticated through the local wrapper; allow, deny, and SessionEnd were observed.');
+    console.log('PASS: Claude Code command hooks authenticated through the local wrapper; SessionStart, allow, deny, and SessionEnd were observed.');
   } finally {
     core.list().forEach((item) => core.settle(item.id, null, 'app-shutdown'));
     await new Promise((resolve) => server.listening ? server.close(resolve) : resolve());

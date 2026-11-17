@@ -12,9 +12,13 @@ const HOOK_TIMEOUT_MS = 118_000;
 function parseHookInput(body) {
   try {
     const input = JSON.parse(body.toString('utf8'));
-    if (!input || typeof input !== 'object' || Array.isArray(input) || typeof input.session_id !== 'string') return null;
+    if (!input || typeof input !== 'object' || Array.isArray(input) || typeof hookSessionId(input) !== 'string') return null;
     return input;
   } catch (_) { return null; }
+}
+
+function hookSessionId(input) {
+  return input && (typeof input.session_id === 'string' ? input.session_id : input.conversation_id);
 }
 
 function forwardHook(body, options = {}) {
@@ -31,7 +35,7 @@ function forwardHook(body, options = {}) {
   const headers = {
     ...signRequest(credential, {
       method: 'POST', path: '/', timestamp, nonce,
-      sessionHash: sessionBinding(input.session_id), body
+      sessionHash: sessionBinding(hookSessionId(input)), body
     }),
     'Content-Type': 'application/json',
     'Content-Length': body.length,
@@ -103,4 +107,4 @@ async function main() {
 
 if (require.main === module) main();
 
-module.exports = { MAX_BODY_BYTES, parseHookInput, forwardHook };
+module.exports = { MAX_BODY_BYTES, parseHookInput, hookSessionId, forwardHook };

@@ -46,13 +46,47 @@ function compactAction(input) {
   return result;
 }
 
+function lineDiffCounts(oldText, newText) {
+  if (typeof oldText !== 'string' || typeof newText !== 'string') return null;
+  const splitLines = (text) => {
+    if (!text) return [];
+    const lines = text.split(/\r\n|\n|\r/);
+    if (lines[lines.length - 1] === '') lines.pop();
+    return lines;
+  };
+  const oldLines = splitLines(oldText);
+  const newLines = splitLines(newText);
+  if (oldLines.length > 400 || newLines.length > 400) return null;
+
+  let previous = new Uint16Array(newLines.length + 1);
+  for (const oldLine of oldLines) {
+    const current = new Uint16Array(newLines.length + 1);
+    for (let index = 1; index <= newLines.length; index += 1) {
+      current[index] = oldLine === newLines[index - 1]
+        ? previous[index - 1] + 1
+        : Math.max(previous[index], current[index - 1]);
+    }
+    previous = current;
+  }
+  const common = previous[newLines.length];
+  return { additions: newLines.length - common, deletions: oldLines.length - common };
+}
+
 function safeEventDetails(body) {
   const input = body.tool_input && typeof body.tool_input === 'object' && !Array.isArray(body.tool_input) ? body.tool_input : {};
   const details = {};
   if (typeof body.tool_name === 'string') details.toolName = body.tool_name.slice(0, 128);
   if (typeof body.tool_use_id === 'string') details.toolUseId = body.tool_use_id.slice(0, 256);
+  if (typeof body.turn_id === 'string') details.turnId = body.turn_id.slice(0, 256);
+  if (typeof body.permission_mode === 'string') details.permissionMode = body.permission_mode.slice(0, 64);
+  if (typeof body.source === 'string') details.sessionStartSource = body.source.slice(0, 64);
+  if (typeof body.reason === 'string') details.reason = body.reason.slice(0, 128);
   if (typeof body.cwd === 'string') details.cwd = body.cwd.slice(0, 2048);
+  if (typeof body.cursor_version === 'string') details.cursorVersion = body.cursor_version.slice(0, 64);
+  if (Array.isArray(body.workspace_roots)) details.workspaceRoots = body.workspace_roots.slice(0, 16)
+    .filter((root) => typeof root === 'string').map((root) => root.slice(0, 2048));
   if (typeof body.duration_ms === 'number' && Number.isFinite(body.duration_ms)) details.durationMs = body.duration_ms;
+  if (typeof body.duration === 'number' && Number.isFinite(body.duration)) details.durationMs = body.duration;
   if (typeof body.is_interrupt === 'boolean') details.interrupted = body.is_interrupt;
   if (typeof body.error === 'string') {
     details.errorPresent = true;
@@ -62,9 +96,22 @@ function safeEventDetails(body) {
   if (typeof body.notification_type === 'string') details.notificationType = body.notification_type.slice(0, 128);
   if (typeof body.agent_id === 'string') details.subagentId = body.agent_id.slice(0, 256);
   if (typeof body.agent_type === 'string') details.subagentType = body.agent_type.slice(0, 128);
+  if (typeof body.tool_name === 'string') details.toolName = body.tool_name.slice(0, 128);
+  if (typeof body.tool_use_id === 'string') details.toolUseId = body.tool_use_id.slice(0, 256);
+  if (typeof body.failure_type === 'string') details.failureType = body.failure_type.slice(0, 128);
+  if (typeof body.status === 'string') details.status = body.status.slice(0, 64);
+  if (typeof body.subagent_type === 'string') details.subagentType = body.subagent_type.slice(0, 128);
+  if (Array.isArray(body.modified_files)) details.modifiedFiles = body.modified_files.slice(0, 64)
+    .filter((file) => typeof file === 'string').map((file) => file.slice(0, 2048));
+  if (typeof body.file_path === 'string') details.filePath = body.file_path.slice(0, 2048);
   if (typeof input.command === 'string') details.command = input.command.slice(0, 2000);
   if (typeof input.file_path === 'string') details.filePath = input.file_path.slice(0, 2048);
   if (typeof input.path === 'string') details.path = input.path.slice(0, 2048);
+  if (body.hook_event_name === 'PostToolUse' && body.tool_name === 'Edit' &&
+      typeof input.old_string === 'string' && typeof input.new_string === 'string') {
+    const counts = lineDiffCounts(input.old_string, input.new_string);
+    if (counts) Object.assign(details, counts);
+  }
   return details;
 }
 
@@ -237,6 +284,12 @@ class Store {
       .all(agentId, Date.now() - 30 * 60 * 1000);
   }
 
+  listAllSessions() {
+    return this.db.prepare(`SELECT session_id AS id, agent_id AS agentId, cwd, state, started_at AS startedAt,
+      last_activity_at AS last FROM sessions WHERE last_activity_at >= ? ORDER BY last_activity_at DESC`)
+      .all(Date.now() - 30 * 60 * 1000);
+  }
+
   appendEvent(event) {
     this.db.prepare(`INSERT INTO events (id, agent_id, session_id, source, event_type, observed_at, details_json)
       VALUES (?, ?, ?, ?, ?, ?, ?)`)
@@ -257,9 +310,14 @@ class Store {
           jsonBounded(item.riskFlags || []), jsonBounded({ cwd: String(item.cwd || '').slice(0, 2048) }),
           jsonBounded(['allow', 'deny']), item.at);
       this.appendEvent({
-        id: crypto.randomUUID(), agentId: item.agentId, sessionId: item.sid, source: 'claude-hook',
+        id: crypto.randomUUID(), agentId: item.agentId, sessionId: item.sid, source: item.agentId + '-hook',
         type: 'PermissionRequest', at: item.at,
-        details: { toolName: String(item.tool || '').slice(0, 128), cwd: String(item.cwd || '').slice(0, 2048), riskLevel: item.riskLevel }
+        details: {
+          toolName: String(item.tool || '').slice(0, 128), cwd: String(item.cwd || '').slice(0, 2048), riskLevel: item.riskLevel,
+          canonicalType: item.canonical && item.canonical.type || 'PermissionRequested',
+          protocolVersion: item.canonical && item.canonical.protocolVersion || 1,
+          provenance: item.canonical && item.canonical.provenance || { adapterId: item.agentId || 'claude-code', interface: 'authenticated-command-hook', sourceEventName: 'PermissionRequest' }
+        }
       });
     });
     tx();
@@ -353,4 +411,4 @@ class Store {
   close() { this.db.close(); }
 }
 
-module.exports = { Store, SCHEMA_VERSION, APPROVAL_STATES, compactAction, safeEventDetails };
+module.exports = { Store, SCHEMA_VERSION, APPROVAL_STATES, compactAction, safeEventDetails, lineDiffCounts };

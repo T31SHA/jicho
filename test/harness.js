@@ -20,6 +20,7 @@ const { forwardHook } = require('../bin/hook-support/hook');
 const { isTrustedMainFrame } = require('../src/ipc-security');
 const { checkPort, settingsHooks, wrapperRoundTrip } = require('../src/doctor');
 const { selectMascotMood } = require('../src/mascot-state');
+const { runDemo } = require('../src/demo');
 
 const credentialDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-auth-harness-'));
 const credentialManager = new CredentialManager({ directory: credentialDirectory, forceFileStore: true, platform: 'test' });
@@ -650,6 +651,18 @@ const waitForPendingCount = async (core, count) => {
   assert.strictEqual(selectMascotMood({ doneUntil: 14_000, now: 10_000 }), 'done');
   assert.strictEqual(selectMascotMood({ doneUntil: 14_000, now: 14_000 }), 'idle');
   console.log('PASS 25: mascot mood selection covers pending, error, working, timed done, and idle');
+
+  const demoCore = new Core();
+  const demoServer = createServer(demoCore, { credentialProvider: () => credentialManager.getCredential() });
+  await new Promise((resolve) => demoServer.listen(0, '127.0.0.1', resolve));
+  demoCore.on('pending', (items) => {
+    if (items.length === 3) for (const item of items) demoCore.settle(item.id, 'allow', 'demo-test');
+  });
+  const demoOutput = [];
+  assert.strictEqual(await runDemo({ port: demoServer.address().port, cwd: '/tmp', credentialManager, log: (line) => demoOutput.push(line) }), true);
+  for (let index = 1; index <= 3; index += 1) assert(demoOutput.some((line) => line.includes('Fake session ' + index + ' received: ALLOW')));
+  await new Promise((resolve) => demoServer.close(resolve));
+  console.log('PASS 26: concurrent demo requests each print their own reply');
 
   await new Promise((resolve) => srv.close(resolve));
   fs.rmSync(credentialDirectory, { recursive: true, force: true });

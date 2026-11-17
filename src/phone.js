@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const fs = require('fs');
+const http = require('http');
 const https = require('https');
 const path = require('path');
 const QRCode = require('qrcode');
@@ -53,26 +54,78 @@ function truncate(input, length = 120) {
   return chars.length <= length ? input : chars.slice(0, length - 1).join('') + '…';
 }
 
+function truncateMiddle(input, length = 120) {
+  const chars = Array.from(String(input));
+  if (chars.length <= length) return { text: chars.join(''), truncated: false };
+  const ellipsis = ' … ';
+  const remaining = Math.max(0, length - Array.from(ellipsis).length);
+  const headLength = Math.ceil(remaining / 2);
+  const tailLength = remaining - headLength;
+  return {
+    text: chars.slice(0, headLength).join('') + ellipsis + (tailLength ? chars.slice(-tailLength).join('') : ''),
+    truncated: true
+  };
+}
+
 function commandText(item) {
   if (item.input && Object.prototype.hasOwnProperty.call(item.input, 'command')) return item.input.command;
   return JSON.stringify(item.input || {});
 }
 
-function phoneMessage(item, contentFree) {
-  if (contentFree) return 'Approval needed';
-  const folder = String(item.cwd || 'session').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'session';
-  return truncate(redact(folder + ' · ' + (item.tool || 'Tool') + ': ' + commandText(item)));
+function ntfyBaseUrl(value = process.env.JICHO_NTFY_URL) {
+  if (!value) return NTFY;
+  let parsed;
+  try { parsed = new URL(value); }
+  catch (_) { throw new Error('JICHO_NTFY_URL must be an absolute HTTP or HTTPS URL.'); }
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error('JICHO_NTFY_URL must be an HTTP or HTTPS base URL without credentials, query, or fragment.');
+  }
+  return parsed.toString().replace(/\/+$/, '');
 }
 
-function action(topic, label, id, decision, secret) {
+function ntfyPairingUrl(baseUrl, topic) {
+  const parsed = new URL(baseUrl);
+  const basePath = parsed.pathname.replace(/\/+$/, '');
+  return 'ntfy://' + parsed.host + basePath + '/' + topic;
+}
+
+function phonePreview(item, contentFree, maxLength = 120) {
+  const folder = String(item.cwd || 'session').replace(/[\\/]+$/, '').split(/[\\/]/).pop() || 'session';
+  const safeText = redact(folder + ' · ' + (item.tool || 'Tool') + ': ' + commandText(item));
+  const preview = truncateMiddle(safeText, maxLength);
+  const riskFlagged = Array.isArray(item.riskFlags) && item.riskFlags.length > 0;
+  const allow = !contentFree && !preview.truncated && !riskFlagged;
+  let message = preview.text;
+  if (contentFree || riskFlagged) message = 'Review on desktop';
+  else if (preview.truncated) message += ' · Review on desktop';
+  return { message, allow, truncated: preview.truncated, riskFlagged, contentFree: Boolean(contentFree) };
+}
+
+function phoneMessage(item, contentFree) {
+  return phonePreview(item, contentFree).message;
+}
+
+function action(topic, label, id, decision, secret, baseUrl = NTFY) {
   return {
     action: 'http',
     label,
-    url: NTFY + '/' + topic,
+    url: baseUrl + '/' + topic,
     method: 'POST',
     body: id + ':' + decision + ':' + macFor(secret, id, decision),
     clear: true
   };
+}
+
+function notificationFor(item, config, baseUrl = NTFY) {
+  const preview = phonePreview(item, config.contentFree);
+  const actions = [];
+  if (preview.allow) actions.push(action(config.replyTopic, 'Approve', item.id, 'allow', config.secret, baseUrl));
+  actions.push(action(config.replyTopic, 'Deny', item.id, 'deny', config.secret, baseUrl));
+  return { topic: config.topic, title: 'Jicho approval needed', message: preview.message, priority: 4, actions };
+}
+
+function transportFor(url) {
+  return new URL(url).protocol === 'https:' ? https : http;
 }
 
 class PhoneBridge extends EventEmitter {
@@ -80,6 +133,8 @@ class PhoneBridge extends EventEmitter {
     super();
     this.core = core;
     this.directory = userDataDir;
+    try { this.ntfyBaseUrl = ntfyBaseUrl(); }
+    catch (error) { this.ntfyBaseUrl = ''; this.ntfyError = error.message; }
     this.configPath = path.join(userDataDir, CONFIG_NAME);
     fs.mkdirSync(userDataDir, { recursive: true, mode: 0o700 });
     this.isFirstRun = !fs.existsSync(this.configPath);
@@ -110,16 +165,16 @@ class PhoneBridge extends EventEmitter {
     this.reconnectTimer = null;
     this.reconnectDelay = 1000;
     this.stopped = false;
-    this.status = { connected: false, message: this.configError || (this.config.enabled ? 'Connecting to ntfy…' : 'Phone alerts are off') };
+    this.status = { connected: false, message: this.configError || this.ntfyError || (this.config.enabled ? 'Connecting to ' + this.ntfyBaseUrl + '…' : 'Phone alerts are off') };
     if (!this.storageBlocked) this.save();
     this.qrDataUrl = null;
-    this.qrPromise = QRCode.toString('ntfy://ntfy.sh/' + this.config.topic, {
+    this.qrPromise = this.ntfyBaseUrl ? QRCode.toString(ntfyPairingUrl(this.ntfyBaseUrl, this.config.topic), {
       type: 'svg', margin: 2, width: 190, errorCorrectionLevel: 'M',
       color: { dark: '#10212b', light: '#ffffff' }
     }).then((svg) => {
       this.qrDataUrl = 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
       return this.qrDataUrl;
-    });
+    }) : Promise.resolve(null);
     if (this.config.enabled && !this.storageBlocked) this.connect();
   }
 
@@ -132,7 +187,7 @@ class PhoneBridge extends EventEmitter {
   async pairingInfo() {
     return {
       topic: this.storageBlocked ? '' : this.config.topic,
-      pairingUrl: this.storageBlocked ? '' : 'ntfy://ntfy.sh/' + this.config.topic,
+      pairingUrl: this.storageBlocked || !this.ntfyBaseUrl ? '' : ntfyPairingUrl(this.ntfyBaseUrl, this.config.topic),
       qrDataUrl: this.storageBlocked ? null : await this.qrPromise,
       enabled: Boolean(this.config.enabled),
       contentFree: Boolean(this.config.contentFree),
@@ -144,7 +199,7 @@ class PhoneBridge extends EventEmitter {
   viewState() {
     return {
       topic: this.storageBlocked ? '' : this.config.topic,
-      pairingUrl: this.storageBlocked ? '' : 'ntfy://ntfy.sh/' + this.config.topic,
+      pairingUrl: this.storageBlocked || !this.ntfyBaseUrl ? '' : ntfyPairingUrl(this.ntfyBaseUrl, this.config.topic),
       qrDataUrl: this.storageBlocked ? null : this.qrDataUrl,
       enabled: Boolean(this.config.enabled),
       contentFree: Boolean(this.config.contentFree),
@@ -160,17 +215,10 @@ class PhoneBridge extends EventEmitter {
 
   async publishRequest(item) {
     if (!this.config.enabled || this.stopped) return false;
-    const body = JSON.stringify({
-      topic: this.config.topic,
-      title: 'Jicho approval needed',
-      message: phoneMessage(item, this.config.contentFree),
-      priority: 4,
-      actions: [
-        action(this.config.replyTopic, 'Approve', item.id, 'allow', this.config.secret),
-        action(this.config.replyTopic, 'Deny', item.id, 'deny', this.config.secret)
-      ]
-    });
-    const request = https.request(NTFY + '/', {
+    if (!this.ntfyBaseUrl) { this.setStatus(false, this.ntfyError || 'ntfy URL is unavailable'); return false; }
+    const target = this.ntfyBaseUrl + '/';
+    const body = JSON.stringify(notificationFor(item, this.config, this.ntfyBaseUrl));
+    const request = transportFor(target).request(target, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
     }, (response) => {
@@ -182,7 +230,7 @@ class PhoneBridge extends EventEmitter {
       }
     });
     request.setTimeout(8000, () => request.destroy(new Error('timeout')));
-    request.on('error', () => this.setStatus(this.status.connected, 'Could not reach ntfy.sh'));
+    request.on('error', () => this.setStatus(this.status.connected, 'Could not reach ' + this.ntfyBaseUrl));
     request.end(body);
     return true;
   }
@@ -209,7 +257,7 @@ class PhoneBridge extends EventEmitter {
       try { event = JSON.parse(line); } catch (_) { continue; }
       if (event.event === 'open') {
         this.reconnectDelay = 1000;
-        this.setStatus(true, 'Connected to ntfy.sh');
+        this.setStatus(true, 'Connected to ' + this.ntfyBaseUrl);
       } else if (event.event === 'message') {
         this.receive(event.message);
       }
@@ -220,7 +268,7 @@ class PhoneBridge extends EventEmitter {
     if (this.stopped || !this.config.enabled || this.reconnectTimer) return;
     const delay = this.reconnectDelay;
     this.reconnectDelay = Math.min(this.reconnectDelay * 2, 60000);
-    this.setStatus(false, 'Reconnecting to ntfy.sh…');
+    this.setStatus(false, 'Reconnecting to ' + this.ntfyBaseUrl + '…');
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
@@ -229,9 +277,10 @@ class PhoneBridge extends EventEmitter {
 
   connect() {
     if (this.stopped || !this.config.enabled || this.subscribeRequest) return;
+    if (!this.ntfyBaseUrl) { this.setStatus(false, this.ntfyError || 'ntfy URL is unavailable'); return; }
     this.buffer = '';
-    const url = NTFY + '/' + encodeURIComponent(this.config.replyTopic) + '/json';
-    const request = https.get(url, (response) => {
+    const url = this.ntfyBaseUrl + '/' + encodeURIComponent(this.config.replyTopic) + '/json';
+    const request = transportFor(url).get(url, (response) => {
       this.subscribeResponse = response;
       if (response.statusCode !== 200) {
         this.setStatus(false, 'ntfy subscription failed (HTTP ' + response.statusCode + ')');
@@ -268,7 +317,7 @@ class PhoneBridge extends EventEmitter {
     this.save();
     if (this.config.enabled) {
       this.stopped = false;
-      this.setStatus(false, 'Connecting to ntfy.sh…');
+      this.setStatus(false, 'Connecting to ' + (this.ntfyBaseUrl || 'ntfy') + '…');
       this.connect();
     } else {
       this.stopConnection();
@@ -306,4 +355,7 @@ class PhoneBridge extends EventEmitter {
   }
 }
 
-module.exports = { PhoneBridge, isValidConfig, macFor, verifyMac, redact, truncate, phoneMessage, action };
+module.exports = {
+  PhoneBridge, isValidConfig, macFor, verifyMac, redact, truncate, truncateMiddle,
+  ntfyBaseUrl, ntfyPairingUrl, phonePreview, phoneMessage, action, notificationFor
+};

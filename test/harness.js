@@ -12,7 +12,7 @@ const { Core } = require('../src/core');
 const { Store, compactAction, safeEventDetails } = require('../src/store');
 const { createServer } = require('../src/server');
 const { evaluate } = require('../src/policy');
-const { macFor, verifyMac, PhoneBridge } = require('../src/phone');
+const { macFor, verifyMac, PhoneBridge, phonePreview, notificationFor, ntfyBaseUrl, ntfyPairingUrl } = require('../src/phone');
 const { EVENTS, settingsPath, projectSettingsPath, selectSettingsTarget, atomicWrite, makeHook, isJichoHook, mergeHooks, removeHooks } = require('../bin/jicho');
 const { CredentialManager } = require('../bin/hook-support/credentials');
 const { signRequest, sessionBinding, MAX_CLOCK_SKEW_MS } = require('../bin/hook-support/protocol');
@@ -171,6 +171,69 @@ const waitForPendingCount = async (core, count) => {
   bridge.close();
   fs.rmSync(phoneDirectory, { recursive: true, force: true });
   console.log('PASS 12: invalid phone settings remain untouched and phone actions fail closed');
+
+  const safePhoneItem = { id: 'phone-safe', cwd: '/work/repo', tool: 'Bash', input: { command: 'git status' }, riskFlags: [] };
+  const phoneConfig = { topic: 'a'.repeat(32), replyTopic: 'a'.repeat(32) + '-reply', secret: 'b'.repeat(64), contentFree: false };
+  const safeNotification = notificationFor(safePhoneItem, phoneConfig, 'https://ntfy.example.test/base');
+  assert.deepStrictEqual(safeNotification.actions.map((entry) => entry.label), ['Approve', 'Deny']);
+  const longPhoneItem = { ...safePhoneItem, id: 'phone-long', input: { command: 'HEAD_MARK ' + 'x'.repeat(150) + ' TAIL_MARK' } };
+  const longPreview = phonePreview(longPhoneItem, false);
+  assert.strictEqual(longPreview.truncated, true);
+  assert.strictEqual(longPreview.allow, false);
+  assert(longPreview.message.includes('HEAD_MARK'));
+  assert(longPreview.message.includes('…'));
+  assert(longPreview.message.includes('TAIL_MARK'));
+  assert(longPreview.message.includes('Review on desktop'));
+  assert.deepStrictEqual(notificationFor(longPhoneItem, phoneConfig).actions.map((entry) => entry.label), ['Deny']);
+  const flaggedPhoneItem = { ...safePhoneItem, id: 'phone-risk', riskFlags: [{ code: 'sudo' }] };
+  const flaggedNotification = notificationFor(flaggedPhoneItem, phoneConfig);
+  assert.strictEqual(flaggedNotification.message, 'Review on desktop');
+  assert.deepStrictEqual(flaggedNotification.actions.map((entry) => entry.label), ['Deny']);
+  const contentFreeNotification = notificationFor(safePhoneItem, { ...phoneConfig, contentFree: true });
+  assert.strictEqual(contentFreeNotification.message, 'Review on desktop');
+  assert.deepStrictEqual(contentFreeNotification.actions.map((entry) => entry.label), ['Deny']);
+  assert.strictEqual(ntfyBaseUrl('http://localhost:1234/selfhost/'), 'http://localhost:1234/selfhost');
+  assert.strictEqual(ntfyPairingUrl('https://ntfy.example.test/base', 'topic'), 'ntfy://ntfy.example.test/base/topic');
+  assert.throws(() => ntfyBaseUrl('file:///tmp/ntfy'), /HTTP or HTTPS/);
+  console.log('PASS 12A: phone previews show both ends and truncation, risk, and content-free mode are Deny-only');
+
+  const ntfyRequests = [];
+  const localNtfy = http.createServer((request, response) => {
+    if (request.method === 'GET') {
+      ntfyRequests.push({ method: 'GET', url: request.url });
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.write('{"event":"open"}\n');
+      return;
+    }
+    const chunks = [];
+    request.on('data', (chunk) => chunks.push(chunk));
+    request.on('end', () => {
+      ntfyRequests.push({ method: 'POST', url: request.url, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) });
+      response.writeHead(200);
+      response.end();
+    });
+  });
+  await new Promise((resolve) => localNtfy.listen(0, '127.0.0.1', resolve));
+  const oldNtfyUrl = process.env.JICHO_NTFY_URL;
+  process.env.JICHO_NTFY_URL = 'http://127.0.0.1:' + localNtfy.address().port + '/selfhost';
+  const selfHostedDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-phone-selfhost-'));
+  fs.writeFileSync(path.join(selfHostedDirectory, 'phone.json'), JSON.stringify({ ...phoneConfig, enabled: false, contentFree: false }));
+  const selfHostedBridge = new PhoneBridge(new Core(), selfHostedDirectory);
+  selfHostedBridge.setEnabled(true);
+  assert.strictEqual(await selfHostedBridge.publishRequest(safePhoneItem), true);
+  const notificationDeadline = Date.now() + 1500;
+  while (!ntfyRequests.some((entry) => entry.method === 'POST') && Date.now() < notificationDeadline) await wait(10);
+  const postNotification = ntfyRequests.find((entry) => entry.method === 'POST');
+  assert(postNotification);
+  assert.strictEqual(postNotification.url, '/selfhost/');
+  assert.strictEqual(postNotification.body.actions[0].url, 'http://127.0.0.1:' + localNtfy.address().port + '/selfhost/' + phoneConfig.replyTopic);
+  assert(ntfyRequests.some((entry) => entry.method === 'GET' && entry.url === '/selfhost/' + phoneConfig.replyTopic + '/json'));
+  selfHostedBridge.close();
+  await new Promise((resolve) => localNtfy.close(resolve));
+  fs.rmSync(selfHostedDirectory, { recursive: true, force: true });
+  if (oldNtfyUrl === undefined) delete process.env.JICHO_NTFY_URL;
+  else process.env.JICHO_NTFY_URL = oldNtfyUrl;
+  console.log('PASS 12B: JICHO_NTFY_URL routes publish, reply subscription, and actions to self-hosted ntfy');
 
   const initial = { hooks: { PreToolUse: [{ hooks: [{ type: 'command', command: 'keep-me' }] }] } };
   const firstInstall = mergeHooks(initial);

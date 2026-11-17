@@ -1,10 +1,10 @@
 # JICHO Threat Model
 
-**Version:** Initial audit, 2026-11-16
+**Version:** Updated 2026-11-17
 
 ## Scope and assumptions
 
-This model covers the checked-in Electron application, Node loopback hook server, Claude Code HTTP hook configuration, local SQLite database/preferences/audit files, and optional ntfy bridge. It does not assume a cloud account, JICHO relay, native mobile app, or other agent adapter exists.
+This model covers the checked-in Electron application, Node loopback hook server, Claude Code command-hook wrapper, installation credential, local SQLite database/preferences/audit files, and optional ntfy bridge. It does not assume a cloud account, JICHO relay, native mobile app, or other agent adapter exists.
 
 The desktop and the coding agent run as the same OS user. A fully compromised OS account can read local files, control the app, or interact with the agent; JICHO cannot defend against that. The relay (currently ntfy for optional notifications) is outside the desktop trust boundary.
 
@@ -22,9 +22,9 @@ The desktop and the coding agent run as the same OS user. A fully compromised OS
 
 | Boundary / actor | Current relationship |
 | --- | --- |
-| Claude Code → `127.0.0.1:47821` | Local HTTP hook input; exact loopback Host validation and browser-origin metadata rejection; optional bearer authentication. The service does not listen on external interfaces. |
+| Claude Code → local helper → `127.0.0.1:47821` | Command hook receives JSON on stdin, signs it with the installation credential, and relays the loopback response to stdout. The server requires HMAC authentication, freshness, installation/session binding, replay protection, exact loopback Host, and no browser-origin metadata. |
 | Renderer → Electron main | Context-isolated, sandboxed preloads; IPC handlers accept only the expected local main frame, and both pages use a restrictive CSP and block popups/navigation away. |
-| Local process on same user account | Can attempt to reach the loopback server. Browser requests and non-loopback Host headers are rejected, but native local processes can still forge events when `JICHO_TOKEN` is unset. |
+| Local process on same user account | Can invoke the installed signing helper or access a same-user credential store. The protocol does not establish Claude Code process identity; the owner-only file fallback is readable by the same account. |
 | Agent/project content | Commands and tool inputs are untrusted strings. Renderer uses text nodes for the shown request content. |
 | ntfy.sh → mobile ntfy client → ntfy reply stream | Third-party service sees published content and signed action values; a topic acts like a password. |
 | Local filesystem | Preferences, phone config, JSONL audit, and versioned SQLite history are local. POSIX SQLite files are restricted to owner access; the database is not encrypted and no retention/rotation policy exists. |
@@ -34,10 +34,10 @@ The desktop and the coding agent run as the same OS user. A fully compromised OS
 | Threat | Current mitigation | Gap / disposition |
 | --- | --- | --- |
 | Approval response reaches the wrong concurrent request | Each held HTTP response owns its request resolver; `settle(id)` is single-use. Local harness covers 20 concurrent requests; durable rows bind agent and session. | Preserve this design. Approval transitions are transactional and insert at most one decision per request. |
-| Missing session ID is treated as a shared identity | The current core rejects invalid IDs, and safe auto-allow requires a previously observed session. | The original code used a shared `unknown` ID; regression checks now cover missing IDs and first-seen sessions. Local hook spoofing remains possible when no bearer token is configured. |
-| Oversized or malformed hook payload consumes memory or is silently ignored | Current receiver caps bodies at 1 MiB, validates JSON objects, reports errors, and bounds header/body/keep-alive times. | Malformed JSON gets a non-2xx response; Claude Code's default HTTP hook failure behavior is non-blocking, preserving the native flow. |
-| Local process forges a Claude event | Loopback-only bind; exact Host validation; browser-origin metadata rejection; optional bearer token | Token is optional, and no per-process or session proof exists. A native local same-user process can spoof requests and potentially manipulate what the user sees. Keep remote-control endpoints absent until authenticated pairing exists. |
-| Hostile web page targets Jicho through loopback or DNS rebinding | Exact `127.0.0.1:<port>` Host check; reject Origin, Referer, and cross-site Fetch Metadata before parsing or storing the body. | Native same-user processes can omit browser metadata and forge requests when the optional token is unset. The checks prevent browser-mediated access; they do not authenticate local processes. |
+| Missing session ID is treated as a shared identity | The server validates session IDs before event handling, and the signed session hash must match the body. Safe auto-allow requires a previously observed session. | Same-user processes with access to the signing helper can sign arbitrary session IDs; the protocol does not prove Claude process identity. |
+| Oversized or malformed hook payload consumes memory or is silently ignored | Current receiver caps bodies at 1 MiB, validates the event/session schema, reports generic errors, and bounds header/body/keep-alive times. | Malformed requests are rejected before event handling. The wrapper emits no decision on failure, preserving Claude's native permission flow. |
+| Unsigned process forges a Claude event | Loopback-only bind; exact Host validation; browser-origin rejection; mandatory HMAC-SHA256 over method, path, installation ID, timestamp, nonce, exact body hash, and session hash; constant-time MAC comparison; durable nonce uniqueness in SQLite. | A same-user process can invoke the local helper or read/use the account's credential store. Authentication proves key possession, not Claude process identity. |
+| Hostile web page targets Jicho through loopback or DNS rebinding | Exact `127.0.0.1:<port>` Host check; reject Origin, Referer, and cross-site Fetch Metadata before parsing or storing the body. Mandatory HMAC is an additional boundary. | The browser checks do not authenticate native callers. See the same-user process limitation above. |
 | Replay or duplicate ntfy action | HMAC binds the request ID and decision; only a pending ID can settle; settled IDs are removed. | No explicit timestamp/nonce in message. Pending request expiry and one-use map provide current practical replay bound; add durable replay state and device identity in a first-party protocol. |
 | Unauthorized ntfy subscriber approves a pending request | Topic is 128-bit random; HMAC secret is local; desktop checks MAC. | A subscriber who can read a pending notification can see its signed action bodies. The shared topic is a bearer capability, not per-device authentication. Do not describe it as a secure first-party mobile approval system. |
 | ntfy service reads request information | TLS to `ntfy.sh`; optional content-free mode; heuristic redaction/truncation | TLS protects transport, not message confidentiality from the relay. Signed action values are also included in the notification. Content-free mode should be used for sensitive commands. |
@@ -60,6 +60,14 @@ The desktop and the coding agent run as the same OS user. A fully compromised OS
 5. Remote approval is not enabled until the request is authenticated to a registered device, request-scoped, expiring, replay-resistant, and revocable.
 6. User-facing status distinguishes sent, delivered, accepted, and executed outcomes.
 7. Audit information avoids unnecessary raw command/output persistence and has an explicit retention policy.
+
+## Authenticated hook protocol (2026-11-17)
+
+The installer provisions a 32-byte random key and installation UUID once. The key is stored in Linux Secret Service (`secret-tool`), macOS Keychain (`security`), or Windows Credential Manager. When native storage is unavailable, Linux/macOS use a `0700` directory and `0600` credential file; this protects against other OS accounts, not same-user processes. Windows fails closed if Credential Manager is unavailable. Only Linux's file fallback was exercised in this environment; macOS/Windows native integrations are unverified.
+
+Claude settings contain a generic `$HOME/.jicho/hooks/hook.js` command reference and no personal secret. Each collaborator provisions a local helper and credential. The helper signs the exact stdin bytes using the canonical newline-delimited fields `JICHO-HOOK-V1`, `POST`, `/`, installation UUID, Unix milliseconds, 24-byte random nonce (base64url), session-ID SHA-256 (hex), and body SHA-256 (hex). The server enforces a 30-second clock window, strict event/session fields, 1 MiB limit, HMAC-SHA256, timing-safe signature comparison, and durable one-use nonces (SQLite schema v2). The helper forwards the original JSON response unchanged; on missing credential, connection failure, or non-200 response it emits no decision, leaving Claude's own permission flow.
+
+Credential rotation switches the active generation and invalidates the previous key on the next request. Revocation rejects new requests but does not cancel requests already accepted by JICHO. Authentication failures are logged by category only; signatures, credentials, and request bodies are not logged. The current Claude Code `2.1.325` command-hook path passed a temporary allow/deny/SessionEnd smoke test. This does not establish universal interception, protection from a compromised user account, or production readiness.
 
 ## Incident and residual-risk notes
 

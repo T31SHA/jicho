@@ -1,6 +1,6 @@
 # JICHO Product Specification
 
-**Version:** Working specification, 2026-11-16
+**Version:** Working specification, 2026-11-17
 
 ## Product intent
 
@@ -8,7 +8,7 @@ JICHO is an independent supervision and control surface for AI coding agents. It
 
 ## Current product baseline
 
-The current usable slice is an Electron companion for Claude Code in terminal or IDE terminal sessions, with a separate command centre. Claude's HTTP hooks send events to a loopback Node server. The floating companion shows one request at a time, with a queue, raw tool input, working directory, deterministic risk flags, and allow/deny controls. Every card maps to one open hook response. The command centre shows current approval requests, persisted sessions, and a source-labeled timeline of actual hook events and local JICHO decisions. Sessions, supported hook observations, request states, decisions, and audit records persist in a versioned local SQLite database. A process restart marks in-flight requests failed because the original hook response cannot be restored; the native agent permission flow remains the safe fallback. The command centre renderer and IPC button flow passed a headless smoke check using a simulated snapshot; native window interactions and real Claude events remain unverified. An optional ntfy bridge can publish an alert and receive a signed action; it is not a native JICHO mobile application.
+The current usable slice is an Electron companion for Claude Code in terminal or IDE terminal sessions, with a separate command centre. Claude command hooks pass events to a local helper, which signs the exact request for a loopback Node server and relays the existing hook response. Per-installation credentials use an OS store where available, with a private-file fallback on Linux/macOS; shared settings contain no personal key. Allow, deny, and SessionEnd passed a live Claude Code 2.1.325 smoke test. The floating companion shows one request at a time, with a queue, raw tool input, working directory, deterministic risk flags, and allow/deny controls. Every card maps to one original hook response. Sessions, supported hook observations, decisions, and replay nonces persist in local SQLite. A process restart marks in-flight approvals failed because the original hook response cannot be restored; Claude's native permission flow remains the fallback. Same-user processes can invoke the helper or use a same-user credential store; authentication does not establish Claude process identity. An optional ntfy bridge is not a native JICHO mobile application.
 
 ## Product principles
 
@@ -65,7 +65,7 @@ Initial integration status:
 
 | Agent | Supported mode today | Future acceptance condition |
 | --- | --- | --- |
-| Claude Code | Real HTTP hooks for documented lifecycle/tool events and `PermissionRequest` decisions | Verify the installed-version event payloads, configuration behavior, allow/deny behavior, timeout, and restart behavior against the installed CLI. |
+| Claude Code | Authenticated command hooks for documented lifecycle/tool events and `PermissionRequest` decisions | Verify native credential stores on macOS/Windows, hook timeout/failure behavior, and Electron desktop-card delivery against installed CLIs. |
 | OpenAI Codex | None | Review official App Server protocol and compatibility per Codex surface; verify JSON-RPC lifecycle and true approval-response handling. |
 | Cursor | None | Review official Hooks reference; implement only event/response forms that can actually block, allow, or deny. |
 | Other agents | None | Per-adapter protocol and capability review; no implied support. |
@@ -89,7 +89,7 @@ Automatic policy remains opt-in and limited to explicit deterministic rules. Cri
 
 ## Delivery sequencing
 
-1. Audit and close the current hook-ingress identity/size-validation gaps.
+1. Verify OS credential-store behavior and packaged helper installation across desktop platforms; retain the documented same-user limitation.
 2. Stabilize the local Claude permission slice and its verified installer semantics.
 3. Add a typed domain/event contract and durable, versioned persistence without moving decision ownership away from the current core. **Local SQLite v1 and durable approval transitions are implemented; typed adapter contracts remain outstanding.**
 4. Expand Claude's documented event timeline and approval detail. **Documented events are installed and persisted; real installed-CLI verification remains outstanding.**

@@ -1,5 +1,7 @@
 # JICHO Architecture Audit
 
+> **Current follow-up:** The audit below records the 2026-11-16 state. The 2026-11-17 authenticated command-hook implementation supersedes its HTTP/optional-bearer descriptions; see the final section for the current design and verification.
+
 **Audit date:** 2026-11-16  
 **Repository revision:** `2d35970` (`master`, `origin/master`)  
 **Working tree at audit start:** clean
@@ -137,3 +139,11 @@ The local hook server now requires the exact `127.0.0.1:<local-port>` Host heade
 The next increment adds a second bounded Electron window at `src/command-centre.html`, with overview, session, activity, and approval views. Its snapshot comes from `Store.listSessions()`, `Store.listRecentActivity()`, and the existing in-memory `Core.list()` queue. Hook events are labeled as Claude observations; decision and restart audit entries are labeled as Jicho local actions. Approval buttons call the same core handler and held HTTP response used by the floating companion.
 
 The command centre has its own sandboxed preload. Every IPC handler checks that the sender is the expected local main frame; both local pages use a restrictive CSP and block popups/navigation. The companion button, tray menu, and global shortcut open the new window. A headless Electron smoke test loaded the page/preload, rendered a simulated snapshot, and observed its button call the mocked IPC endpoint. This does not verify native window behavior or a real agent event. Linux x64 AppImage and Debian package builds passed; the artifacts were not installed or launched.
+
+## Authenticated Claude command-hook follow-up (2026-11-17)
+
+The installer now uses Claude command hooks. Official hook documentation confirms command hooks receive JSON on stdin, `command` plus `args` uses direct exec form without shell parsing, and command stdout uses the same JSON output schema as HTTP hooks. `PermissionRequest` supports `hookSpecificOutput.decision.behavior` allow/deny. See the [official Hooks reference](https://code.claude.com/docs/en/hooks). This works with the installed Claude Code 2.1.325 CLI; a live isolated smoke test confirmed allow, deny, and SessionEnd through the signed helper.
+
+The helper retrieves a 32-byte installation credential from the OS store or a private-file fallback, signs method/path, installation identity, timestamp, nonce, exact body hash, and session hash with HMAC-SHA256, then relays the original response. The server mandates signature/freshness/scope checks and stores nonces in SQLite schema v2. Claude settings include only a generic `$HOME/.jicho/hooks/hook.js` path. Tests verify settings secrecy, rotation/revocation, restart behavior, concurrent routing, replay rejection, and fail-closed auth errors.
+
+Linux Secret Service was unavailable during this run, so the tested fallback was a `0700` config directory with `0600` files. macOS Keychain and Windows Credential Manager adapters are implemented but unverified. Same-user native processes can invoke the signing helper or access same-user key storage; this authenticates key possession, not Claude's process identity. Auto mode can still bypass `PermissionRequest`; SQLite remains unencrypted; this work does not establish universal interception or production readiness.

@@ -9,6 +9,7 @@ const { PhoneBridge } = require('./phone');
 const { createTrayIcon } = require('./tray-icon');
 const { Store } = require('./store');
 const { isTrustedMainFrame } = require('./ipc-security');
+const { CredentialManager } = require('../bin/hook-support/credentials');
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
 const WIDTH = 390;
@@ -34,6 +35,7 @@ const phoneNotifications = new Set();
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let tray;
 let serverError = '';
+let credentialError = '';
 let autostartError = '';
 
 if (!hasSingleInstanceLock) app.quit();
@@ -304,6 +306,15 @@ function createCommandCentre() {
 function startServer() {
   const dataDirectory = app.getPath('userData');
   loadPreferences(dataDirectory);
+  const credentialManager = new CredentialManager();
+  try {
+    const credentialStatus = credentialManager.status();
+    if (credentialStatus.status !== 'active') {
+      credentialError = 'Hook authentication is unavailable. Run `npm run jicho -- install` or `npm run jicho -- credential rotate`.';
+    }
+  } catch (_) {
+    credentialError = 'Hook authentication state is unavailable or unsafe. Check Jicho credential status before reinstalling hooks.';
+  }
   try {
     store = new Store(path.join(dataDirectory, 'jicho.sqlite3'));
     core = new Core({
@@ -350,7 +361,19 @@ function startServer() {
   core.on('settled', ({ id }) => { phoneNotifications.delete(id); publishDashboard(); });
   core.on('sessions', (items) => { sessions = items; publishState(); publishDashboard(); });
   core.on('activity', publishDashboard);
-  server = createServer(core);
+  server = createServer(core, { credentialProvider: () => {
+    let credential = null;
+    try { credential = credentialManager.getCredential(); }
+    catch (_) { credential = null; }
+    const previousError = credentialError;
+    credentialError = credential ? '' : 'Hook authentication is unavailable. Run `npm run jicho -- install` or `npm run jicho -- credential rotate`.';
+    if (previousError !== credentialError) {
+      if (serverError === previousError) serverError = credentialError;
+      publishState();
+      publishDashboard();
+    }
+    return credential;
+  } });
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') {
       serverError = 'Port ' + PORT + ' is already in use. Close the other app using it, then restart Jicho.';
@@ -361,7 +384,7 @@ function startServer() {
     publishState();
     publishDashboard();
   });
-  server.on('listening', () => { serverError = ''; publishState(); publishDashboard(); });
+  server.on('listening', () => { serverError = credentialError; publishState(); publishDashboard(); });
   server.listen(PORT, '127.0.0.1');
 }
 

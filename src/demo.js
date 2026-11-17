@@ -2,28 +2,32 @@
 
 const http = require('http');
 const crypto = require('crypto');
+const { CredentialManager } = require('../bin/hook-support/credentials');
+const { signRequest, sessionBinding } = require('../bin/hook-support/protocol');
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
 const SESSION_COUNT = 3;
 
-function permissionRequest(port, sessionId, cwd, command, token) {
+function permissionRequest(port, sessionId, cwd, command, credential) {
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify({
+    const body = Buffer.from(JSON.stringify({
       hook_event_name: 'PermissionRequest',
       session_id: sessionId,
       cwd,
       tool_name: 'Bash',
       tool_input: { command }
-    });
-    const headers = { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) };
-    if (token) headers.authorization = 'Bearer ' + token;
+    }));
+    const headers = {
+      ...signRequest(credential, { body, sessionHash: sessionBinding(sessionId) }),
+      'content-type': 'application/json', 'content-length': body.length
+    };
     const request = http.request({ host: '127.0.0.1', port, method: 'POST', headers }, (response) => {
       let data = '';
       response.setEncoding('utf8');
       response.on('data', (chunk) => { data += chunk; });
       response.on('end', () => {
         if (response.statusCode !== 200) {
-          reject(new Error('Jicho returned HTTP ' + response.statusCode + (response.statusCode === 401 ? '; check JICHO_TOKEN' : '')));
+          reject(new Error('Jicho rejected the authenticated demo request; check the local Jicho credential status.'));
           return;
         }
         try { resolve(JSON.parse(data || '{}')); }
@@ -45,9 +49,15 @@ function replyLabel(reply) {
 async function runDemo(options = {}) {
   const port = options.port || PORT;
   const cwd = options.cwd || process.cwd();
-  const token = options.token === undefined ? process.env.JICHO_TOKEN || '' : options.token;
+  const credentialManager = options.credentialManager || new CredentialManager();
+  const credential = options.credential || credentialManager.getCredential();
   const log = options.log || console.log;
   const runId = crypto.randomUUID().slice(0, 8);
+
+  if (!credential) {
+    log('No active Jicho hook credential is available. Run `npm run jicho -- install` first.');
+    return false;
+  }
 
   log('Sending 3 concurrent fake permission requests to Jicho at 127.0.0.1:' + port + '.');
   log('Answer each card in the desktop overlay; the fake sessions will report the replies.');
@@ -57,7 +67,7 @@ async function runDemo(options = {}) {
     const sessionId = 'jicho-demo-' + runId + '-' + number;
     const command = "printf 'Jicho demo request " + number + "\\n'";
     log('Fake session ' + number + ' is waiting for an answer.');
-    return permissionRequest(port, sessionId, cwd, command, token)
+    return permissionRequest(port, sessionId, cwd, command, credential)
       .then((reply) => {
         log('Fake session ' + number + ' received: ' + replyLabel(reply));
         return { sessionId, reply };

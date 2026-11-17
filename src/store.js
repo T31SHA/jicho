@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const Database = require('better-sqlite3');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const APPROVAL_STATES = ['CREATED', 'PENDING', 'DELIVERED', 'VIEWED', 'APPROVED', 'DENIED', 'CANCELLED', 'EXPIRED', 'FAILED', 'SUPERSEDED'];
 const TERMINAL_REASONS = new Set(['timeout', 'resolved-elsewhere', 'connection-close', 'app-shutdown', 'process-restart']);
 const MAX_JSON_BYTES = 32 * 1024;
@@ -92,7 +92,7 @@ class Store {
   }
 
   migrate() {
-    const version = this.db.pragma('user_version', { simple: true });
+    let version = this.db.pragma('user_version', { simple: true });
     if (version > SCHEMA_VERSION) throw new Error('Jicho database is newer than this application supports.');
     if (version === 0) {
       const migrateV1 = this.db.transaction(() => {
@@ -173,7 +173,36 @@ class Store {
         this.db.pragma('user_version = 1');
       });
       migrateV1();
+      version = 1;
     }
+    if (version === 1) {
+      const migrateV2 = this.db.transaction(() => {
+        this.db.exec(`
+          CREATE TABLE hook_auth_nonces (
+            installation_id TEXT NOT NULL,
+            nonce TEXT NOT NULL,
+            signed_at INTEGER NOT NULL,
+            consumed_at INTEGER NOT NULL,
+            PRIMARY KEY (installation_id, nonce)
+          );
+          CREATE INDEX hook_auth_nonces_time_idx ON hook_auth_nonces(consumed_at);
+        `);
+        this.db.pragma('user_version = 2');
+      });
+      migrateV2();
+    }
+  }
+
+  consumeHookNonce(installationId, nonce, signedAt, now = Date.now()) {
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM hook_auth_nonces WHERE consumed_at < ?').run(now - 5 * 60_000);
+      const result = this.db.prepare(`INSERT OR IGNORE INTO hook_auth_nonces
+        (installation_id, nonce, signed_at, consumed_at) VALUES (?, ?, ?, ?)`).run(installationId, nonce, signedAt, now);
+      return result.changes === 1;
+    });
+    const consumed = tx();
+    this.restrictFilePermissions();
+    return consumed;
   }
 
   ensureWorkspace(cwd, now) {

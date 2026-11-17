@@ -13,19 +13,48 @@ const { Store, compactAction, safeEventDetails } = require('../src/store');
 const { createServer } = require('../src/server');
 const { evaluate } = require('../src/policy');
 const { macFor, verifyMac, PhoneBridge } = require('../src/phone');
-const { EVENTS, settingsPath, projectSettingsPath, selectSettingsTarget, atomicWrite, isJichoHook, mergeHooks, removeHooks } = require('../bin/jicho');
+const { EVENTS, settingsPath, projectSettingsPath, selectSettingsTarget, atomicWrite, makeHook, isJichoHook, mergeHooks, removeHooks } = require('../bin/jicho');
+const { CredentialManager } = require('../bin/hook-support/credentials');
+const { signRequest, sessionBinding, MAX_CLOCK_SKEW_MS } = require('../bin/hook-support/protocol');
+const { forwardHook } = require('../bin/hook-support/hook');
 const { isTrustedMainFrame } = require('../src/ipc-security');
 
-const post = (port, body) => new Promise((resolve, reject) => {
-  const r = http.request({ port, host: '127.0.0.1', method: 'POST' }, (res) => {
+const credentialDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-auth-harness-'));
+const credentialManager = new CredentialManager({ directory: credentialDirectory, forceFileStore: true, platform: 'test' });
+credentialManager.ensureCredential();
+let activeCredential = credentialManager.getCredential();
+
+function signedHeaders(body, options = {}) {
+  const bytes = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  let sessionId = '';
+  try { sessionId = JSON.parse(bytes.toString('utf8')).session_id || ''; } catch (_) {}
+  const credential = options.credential || activeCredential;
+  return {
+    ...signRequest(credential, {
+      body: bytes,
+      timestamp: options.timestamp === undefined ? Date.now() : options.timestamp,
+      nonce: options.nonce,
+      sessionHash: options.sessionHash || sessionBinding(sessionId)
+    }),
+    'content-type': 'application/json',
+    'content-length': bytes.length,
+    ...(options.headers || {})
+  };
+}
+
+const post = (port, body, authOptions = {}) => new Promise((resolve, reject) => {
+  const raw = Buffer.from(JSON.stringify(body));
+  const r = http.request({ port, host: '127.0.0.1', method: 'POST', headers: signedHeaders(raw, authOptions) }, (res) => {
     let d = ''; res.on('data', (c) => (d += c)); res.on('end', () => resolve(JSON.parse(d || '{}')));
-  }); r.on('error', reject); r.end(JSON.stringify(body));
+  }); r.on('error', reject); r.end(raw);
 });
-const postRaw = (port, body, headers = {}) => new Promise((resolve, reject) => {
-  const r = http.request({ port, host: '127.0.0.1', method: 'POST', headers }, (res) => {
+const postRaw = (port, body, headers = {}, authOptions = {}) => new Promise((resolve, reject) => {
+  const raw = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  const requestHeaders = authOptions.unsigned ? { 'content-type': 'application/json', 'content-length': raw.length, ...headers } : signedHeaders(raw, { ...authOptions, headers });
+  const r = http.request({ port, host: '127.0.0.1', method: 'POST', headers: requestHeaders }, (res) => {
     let data = ''; res.setEncoding('utf8'); res.on('data', (chunk) => { data += chunk; });
     res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
-  }); r.on('error', reject); r.end(body);
+  }); r.on('error', reject); r.end(raw);
 });
 const req = (sid, cmd) => ({ hook_event_name: 'PermissionRequest', session_id: sid, cwd: '/p/' + sid, tool_name: 'Bash', tool_input: { command: cmd } });
 const behavior = (o) => o.hookSpecificOutput && o.hookSpecificOutput.decision.behavior;
@@ -37,7 +66,7 @@ const waitForPendingCount = async (core, count) => {
 };
 
 (async () => {
-  const core = new Core(); const srv = createServer(core);
+  const core = new Core(); const srv = createServer(core, { credential: activeCredential });
   await new Promise((r) => srv.listen(0, '127.0.0.1', r)); const port = srv.address().port;
 
   const A = post(port, req('A', 'ls')), B = post(port, req('B', 'rm -rf x')), C = post(port, req('C', 'npm i'));
@@ -65,10 +94,10 @@ const waitForPendingCount = async (core, count) => {
   core.setPolicyEnabled(true);
   const ingressErrors = [];
   core.on('ingress-error', (detail) => ingressErrors.push(detail));
-  const missingSession = await post(port, {
+  const missingSession = await postRaw(port, JSON.stringify({
     hook_event_name: 'PermissionRequest', cwd: '/p/no-session', tool_name: 'Bash', tool_input: { command: 'git status' }
-  });
-  assert.deepStrictEqual(missingSession, {});
+  }));
+  assert.strictEqual(missingSession.statusCode, 400);
   assert.strictEqual(core.list().length, 0);
   assert.strictEqual(core.sessions.has('unknown'), false);
   assert(ingressErrors.some((detail) => detail.kind === 'invalid-session-id'));
@@ -93,9 +122,10 @@ const waitForPendingCount = async (core, count) => {
   assert(ingressErrors.some((detail) => detail.kind === 'payload-too-large'));
   console.log('PASS 7: malformed and oversized hook requests are rejected and reported');
 
-  const dropped = http.request({ port, host: '127.0.0.1', method: 'POST' });
+  const droppedBody = Buffer.from(JSON.stringify(req('H', 'connection-close-check')));
+  const dropped = http.request({ port, host: '127.0.0.1', method: 'POST', headers: signedHeaders(droppedBody) });
   dropped.on('error', () => {});
-  dropped.end(JSON.stringify(req('H', 'connection-close-check')));
+  dropped.end(droppedBody);
   await wait(80);
   const H = core.list().find((item) => item.sid === 'H');
   assert(H); dropped.destroy(); await wait(80);
@@ -188,12 +218,15 @@ const waitForPendingCount = async (core, count) => {
   }
   fs.rmSync(atomicDirectory, { recursive: true, force: true });
   const scopedProject = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-installer-scope-'));
+  const scopedHome = path.join(scopedProject, '.test-home');
+  fs.mkdirSync(scopedHome, { recursive: true });
+  const isolatedEnv = { ...process.env, HOME: scopedHome, USERPROFILE: scopedHome, JICHO_CREDENTIAL_DIR: path.join(scopedHome, 'credential-state') };
   fs.mkdirSync(path.join(scopedProject, '.claude'));
   fs.writeFileSync(path.join(scopedProject, '.claude', 'settings.local.json'), JSON.stringify({
     model: 'keep-model', hooks: { PreToolUse: [{ hooks: [{ type: 'command', command: 'keep-existing-hook' }] }] }
   }, null, 2));
   const installer = path.join(__dirname, '..', 'bin', 'jicho.js');
-  const scopedInstall = spawnSync(process.execPath, [installer, 'install', '--project-local'], { cwd: scopedProject, input: 'y\n', encoding: 'utf8' });
+  const scopedInstall = spawnSync(process.execPath, [installer, 'install', '--project-local'], { cwd: scopedProject, env: isolatedEnv, input: 'y\n', encoding: 'utf8' });
   assert.strictEqual(scopedInstall.status, 0, scopedInstall.stderr);
   const scopedSettingsPath = path.join(scopedProject, '.claude', 'settings.local.json');
   let scopedSettings = JSON.parse(fs.readFileSync(scopedSettingsPath, 'utf8'));
@@ -201,14 +234,50 @@ const waitForPendingCount = async (core, count) => {
   assert(scopedSettings.hooks.PreToolUse.flatMap((group) => group.hooks || []).some((hook) => hook.command === 'keep-existing-hook'));
   assert(scopedSettings.hooks.PermissionRequest.flatMap((group) => group.hooks || []).some(isJichoHook));
   assert(fs.readdirSync(path.dirname(scopedSettingsPath)).some((name) => name.includes('.jicho-backup-')));
-  const scopedUninstall = spawnSync(process.execPath, [installer, 'uninstall', '--project-local'], { cwd: scopedProject, input: 'y\n', encoding: 'utf8' });
+  const installedCredential = new CredentialManager({ directory: isolatedEnv.JICHO_CREDENTIAL_DIR, platform: 'test', forceFileStore: true }).getCredential();
+  const scopedSettingsText = fs.readFileSync(scopedSettingsPath, 'utf8');
+  assert(!scopedSettingsText.includes(installedCredential.key.toString('base64url')));
+  assert(!scopedSettingsText.includes('Authorization'));
+  const backupCount = fs.readdirSync(path.dirname(scopedSettingsPath)).filter((name) => name.includes('.jicho-backup-')).length;
+  const repeatInstall = spawnSync(process.execPath, [installer, 'install', '--project-local'], { cwd: scopedProject, env: isolatedEnv, input: '', encoding: 'utf8' });
+  assert.strictEqual(repeatInstall.status, 0, repeatInstall.stderr);
+  assert.strictEqual(fs.readdirSync(path.dirname(scopedSettingsPath)).filter((name) => name.includes('.jicho-backup-')).length, backupCount);
+  assert(fs.existsSync(path.join(scopedHome, '.jicho', 'hooks', 'hook.js')));
+  if (process.platform !== 'win32') {
+    const shellHook = spawnSync('sh', ['-c', makeHook().command], {
+      cwd: scopedProject,
+      env: { ...isolatedEnv, JICHO_CREDENTIAL_DIR: path.join(scopedHome, 'no-credential') },
+      input: JSON.stringify({ hook_event_name: 'SessionEnd', session_id: 'shell-hook-check' }),
+      encoding: 'utf8'
+    });
+    assert.strictEqual(shellHook.status, 0, shellHook.stderr);
+    assert.strictEqual(shellHook.stdout, '');
+  }
+  const scopedUninstall = spawnSync(process.execPath, [installer, 'uninstall', '--project-local'], { cwd: scopedProject, env: isolatedEnv, input: 'y\n', encoding: 'utf8' });
   assert.strictEqual(scopedUninstall.status, 0, scopedUninstall.stderr);
   scopedSettings = JSON.parse(fs.readFileSync(scopedSettingsPath, 'utf8'));
   assert.strictEqual(scopedSettings.model, 'keep-model');
   assert(scopedSettings.hooks.PreToolUse.flatMap((group) => group.hooks || []).some((hook) => hook.command === 'keep-existing-hook'));
   assert(!Object.values(scopedSettings.hooks).flatMap((groups) => groups || []).flatMap((group) => group.hooks || []).some(isJichoHook));
+
+  const sharedProject = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-installer-shared-'));
+  const sharedHome = path.join(sharedProject, '.test-home');
+  fs.mkdirSync(sharedHome, { recursive: true });
+  const sharedEnv = { ...process.env, HOME: sharedHome, USERPROFILE: sharedHome, JICHO_CREDENTIAL_DIR: path.join(sharedHome, 'credential-state') };
+  const sharedInstall = spawnSync(process.execPath, [installer, 'install', '--project-shared'], { cwd: sharedProject, env: sharedEnv, input: 'y\n', encoding: 'utf8' });
+  assert.strictEqual(sharedInstall.status, 0, sharedInstall.stderr);
+  const sharedSettingsPath = path.join(sharedProject, '.claude', 'settings.json');
+  const sharedSettingsText = fs.readFileSync(sharedSettingsPath, 'utf8');
+  const sharedCredential = new CredentialManager({ directory: sharedEnv.JICHO_CREDENTIAL_DIR, platform: 'test', forceFileStore: true }).getCredential();
+  assert(!sharedSettingsText.includes(sharedCredential.key.toString('base64url')));
+  assert(!sharedSettingsText.includes('Authorization'));
+  assert(!sharedSettingsText.includes('JICHO_TOKEN'));
+  assert(sharedSettingsText.includes('$HOME/.jicho/hooks/hook.js'));
+  const sharedUninstall = spawnSync(process.execPath, [installer, 'uninstall', '--project-shared'], { cwd: sharedProject, env: sharedEnv, input: 'y\n', encoding: 'utf8' });
+  assert.strictEqual(sharedUninstall.status, 0, sharedUninstall.stderr);
+  fs.rmSync(sharedProject, { recursive: true, force: true });
   fs.rmSync(scopedProject, { recursive: true, force: true });
-  console.log('PASS 13: installer is idempotent, preserves unrelated hooks, supports documented scopes/config directory, and skips unsupported HTTP SessionStart');
+  console.log('PASS 13: installer is idempotent, preserves unrelated hooks, keeps shared credentials private, and supports all Claude settings scopes');
 
   const bulk = Array.from({ length: 20 }, (_, index) => post(port, req('bulk-' + index, 'printf demo-' + index)));
   await waitForPendingCount(core, 20);
@@ -222,19 +291,123 @@ const waitForPendingCount = async (core, count) => {
   const bulkReplies = await Promise.all(bulk);
   bulkReplies.forEach((reply, index) => assert.strictEqual(behavior(reply), expected.get('bulk-' + index)));
   assert.strictEqual(core.list().length, 0);
-  console.log('PASS 14: 20 concurrent requests each receive their own answer');
+  console.log('PASS 14: 20 concurrent authenticated requests each receive their own answer');
 
   const authCore = new Core();
-  const authServer = createServer(authCore, { token: 'test-token' });
+  const authServer = createServer(authCore, { credential: activeCredential });
   await new Promise((resolve) => authServer.listen(0, '127.0.0.1', resolve));
   const authPort = authServer.address().port;
   const authPayload = JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'auth-session', cwd: '/p/auth' });
-  assert.strictEqual((await postRaw(authPort, authPayload)).statusCode, 401);
-  const authorized = await postRaw(authPort, authPayload, { authorization: 'Bearer test-token' });
+  assert.strictEqual((await postRaw(authPort, authPayload, {}, { unsigned: true })).statusCode, 401);
+  assert.strictEqual((await postRaw(authPort, authPayload, { authorization: 'Bearer legacy-token' }, { unsigned: true })).statusCode, 401);
+  const authorized = await postRaw(authPort, authPayload);
   assert.strictEqual(authorized.statusCode, 200);
   assert.strictEqual(authCore.sessions.has('auth-session'), true);
+  const unsignedCore = new Core();
+  const unsignedServer = createServer(unsignedCore, { credentialProvider: () => null });
+  await new Promise((resolve) => unsignedServer.listen(0, '127.0.0.1', resolve));
+  const unsignedPort = unsignedServer.address().port;
+  assert.strictEqual((await postRaw(unsignedPort, authPayload)).statusCode, 401);
+  assert.strictEqual(unsignedCore.sessions.size, 0);
+  await new Promise((resolve) => unsignedServer.close(resolve));
+
+  const badSignatureHeaders = signedHeaders(authPayload);
+  badSignatureHeaders['X-Jicho-Signature'] = '0'.repeat(64);
+  assert.strictEqual((await postRaw(authPort, authPayload, badSignatureHeaders)).statusCode, 401);
+  const originalForTamper = Buffer.from(authPayload);
+  const tamperHeaders = signedHeaders(originalForTamper);
+  assert.strictEqual((await postRaw(authPort, authPayload.replace('auth-session', 'evil-session'), tamperHeaders)).statusCode, 401);
+  const expiredHeaders = signedHeaders(authPayload, { timestamp: Date.now() - MAX_CLOCK_SKEW_MS - 1 });
+  assert.strictEqual((await postRaw(authPort, authPayload, expiredHeaders)).statusCode, 401);
+
+  const otherInstall = { ...activeCredential, installationId: crypto.randomUUID() };
+  const wrongInstallHeaders = signedHeaders(authPayload, { credential: otherInstall });
+  assert.strictEqual((await postRaw(authPort, authPayload, wrongInstallHeaders)).statusCode, 401);
+  const wrongSessionHeaders = signedHeaders(authPayload, { sessionHash: sessionBinding('another-session') });
+  assert.strictEqual((await postRaw(authPort, authPayload, wrongSessionHeaders)).statusCode, 401);
+
+  const replayPayload = JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'replay-session', cwd: '/p/replay' });
+  const replayHeaders = signedHeaders(replayPayload, { nonce: crypto.randomBytes(24).toString('base64url') });
+  assert.strictEqual((await postRaw(authPort, replayPayload, replayHeaders)).statusCode, 200);
+  assert.strictEqual((await postRaw(authPort, replayPayload, replayHeaders)).statusCode, 401);
+  assert.strictEqual(authCore.sessions.has('replay-session'), true);
+  assert.strictEqual(authCore.sessions.size, 2);
   await new Promise((resolve) => authServer.close(resolve));
-  console.log('PASS 15: configured loopback bearer tokens are enforced');
+
+  const wrapperCore = new Core();
+  const wrapperServer = createServer(wrapperCore, { credential: activeCredential });
+  await new Promise((resolve) => wrapperServer.listen(0, '127.0.0.1', resolve));
+  const wrapperBody = Buffer.from(JSON.stringify(req('wrapper-session', 'npm test')));
+  const wrapperResponsePromise = forwardHook(wrapperBody, { credentialManager, port: wrapperServer.address().port });
+  await waitForPendingCount(wrapperCore, 1);
+  wrapperCore.settle(wrapperCore.list()[0].id, 'allow', 'wrapper-test');
+  const wrapperResponse = await wrapperResponsePromise;
+  assert.strictEqual(behavior(JSON.parse(wrapperResponse.toString('utf8'))), 'allow');
+  assert.deepStrictEqual(await forwardHook(wrapperBody, {
+    credentialManager: { getCredential: () => null }, port: wrapperServer.address().port
+  }), Buffer.alloc(0));
+  await new Promise((resolve) => wrapperServer.close(resolve));
+
+  const protectedCore = new Core({ policyEnabled: true });
+  protectedCore.touch('protected-session', { state: 'working', cwd: '/p/protected' });
+  const protectedServer = createServer(protectedCore, { credential: activeCredential });
+  await new Promise((resolve) => protectedServer.listen(0, '127.0.0.1', resolve));
+  const protectedBody = JSON.stringify(req('protected-session', 'git status'));
+  assert.strictEqual((await postRaw(protectedServer.address().port, protectedBody, {}, { unsigned: true })).statusCode, 401);
+  assert.strictEqual(protectedCore.list().length, 0);
+  await new Promise((resolve) => protectedServer.close(resolve));
+
+  const persistentReplayDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-replay-restart-'));
+  let replayStore = new Store(path.join(persistentReplayDirectory, 'auth.sqlite3'));
+  let replayCore = new Core({ store: replayStore });
+  let replayServer = createServer(replayCore, { credential: activeCredential });
+  await new Promise((resolve) => replayServer.listen(0, '127.0.0.1', resolve));
+  const persistentReplayBody = JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'persistent-replay', cwd: '/p/replay' });
+  const persistentReplayHeaders = signedHeaders(persistentReplayBody, { nonce: crypto.randomBytes(24).toString('base64url') });
+  assert.strictEqual((await postRaw(replayServer.address().port, persistentReplayBody, persistentReplayHeaders)).statusCode, 200);
+  await new Promise((resolve) => replayServer.close(resolve));
+  replayStore.close();
+  replayStore = new Store(path.join(persistentReplayDirectory, 'auth.sqlite3'));
+  replayCore = new Core({ store: replayStore });
+  replayServer = createServer(replayCore, { credential: activeCredential });
+  await new Promise((resolve) => replayServer.listen(0, '127.0.0.1', resolve));
+  assert.strictEqual((await postRaw(replayServer.address().port, persistentReplayBody, persistentReplayHeaders)).statusCode, 401);
+  assert.strictEqual(replayCore.sessions.size, 1);
+  await new Promise((resolve) => replayServer.close(resolve));
+  replayStore.close();
+  fs.rmSync(persistentReplayDirectory, { recursive: true, force: true });
+  console.log('PASS 15: authenticated command wrapper relays the original decision response and fails closed without credentials');
+  console.log('PASS 16: invalid MACs, body changes, expiry, replay, installation/session mismatch, and auth failure never approve');
+
+  const lifecycleDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-credential-lifecycle-'));
+  const lifecycle = new CredentialManager({ directory: lifecycleDirectory, platform: 'test', forceFileStore: true });
+  const initialCredential = lifecycle.getCredential() || lifecycle.ensureCredential() && lifecycle.getCredential();
+  const restartedLifecycle = new CredentialManager({ directory: lifecycleDirectory, platform: 'test', forceFileStore: true });
+  const afterRestartCredential = restartedLifecycle.getCredential();
+  assert.strictEqual(afterRestartCredential.installationId, initialCredential.installationId);
+  assert(afterRestartCredential.key.equals(initialCredential.key));
+  const rotationCore = new Core();
+  const rotationServer = createServer(rotationCore, { credentialProvider: () => restartedLifecycle.getCredential() });
+  await new Promise((resolve) => rotationServer.listen(0, '127.0.0.1', resolve));
+  const rotationPort = rotationServer.address().port;
+  const beforeRotate = JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'before-rotate', cwd: '/p/rotate' });
+  assert.strictEqual((await postRaw(rotationPort, beforeRotate, signedHeaders(beforeRotate, { credential: initialCredential }))).statusCode, 200);
+  restartedLifecycle.rotate();
+  const rotatedCredential = restartedLifecycle.getCredential();
+  assert.strictEqual(rotatedCredential.installationId, initialCredential.installationId);
+  assert(!rotatedCredential.key.equals(initialCredential.key));
+  const afterRotate = JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'after-rotate', cwd: '/p/rotate' });
+  assert.strictEqual((await postRaw(rotationPort, afterRotate, signedHeaders(afterRotate, { credential: initialCredential }))).statusCode, 401);
+  assert.strictEqual((await postRaw(rotationPort, afterRotate, signedHeaders(afterRotate, { credential: rotatedCredential }))).statusCode, 200);
+  const afterRevoke = JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'after-revoke', cwd: '/p/rotate' });
+  restartedLifecycle.revoke();
+  assert.strictEqual((await postRaw(rotationPort, afterRevoke, signedHeaders(afterRevoke, { credential: rotatedCredential }))).statusCode, 401);
+  assert.strictEqual(new CredentialManager({ directory: lifecycleDirectory, platform: 'test', forceFileStore: true }).getCredential(), null);
+  assert.strictEqual(restartedLifecycle.status().status, 'revoked');
+  await new Promise((resolve) => rotationServer.close(resolve));
+  assert.strictEqual(fs.statSync(path.join(lifecycleDirectory, 'hook-auth-state.json')).mode & 0o077, 0);
+  fs.rmSync(lifecycleDirectory, { recursive: true, force: true });
+  console.log('PASS 17: installation credential survives restart, rotates in place, and revokes immediately');
 
   const databaseDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'jicho-store-test-'));
   const databasePath = path.join(databaseDirectory, 'jicho.sqlite3');
@@ -273,7 +446,7 @@ const waitForPendingCount = async (core, count) => {
   assert.deepStrictEqual(failureDetails, { errorPresent: true, exitCode: 7 });
   store.close();
   assert.strictEqual(fs.statSync(databasePath).mode & 0o077, 0);
-  console.log('PASS 16: SQLite migration, session/event history, bounded sensitive data, atomic decisions, durable concurrency, and local file permissions');
+  console.log('PASS 18: SQLite migration, session/event history, bounded sensitive data, atomic decisions, durable concurrency, and local file permissions');
 
   store = new Store(databasePath);
   const expiringCore = new Core({ store });
@@ -284,7 +457,7 @@ const waitForPendingCount = async (core, count) => {
   assert.deepStrictEqual(await expiringResponse, {});
   assert.strictEqual(expiringCore.settle(expiringId, 'allow', 'late-desktop'), false);
   assert.strictEqual(store.db.prepare('SELECT state FROM approval_requests WHERE id = ?').get(expiringId).state, 'EXPIRED');
-  console.log('PASS 17: expired requests cannot be approved after their timeout');
+  console.log('PASS 19: expired requests cannot be approved after their timeout');
 
   const interruptedResponse = expiringCore.request(req('durable-session', 'npm run deploy'));
   await waitForPendingCount(expiringCore, 1);
@@ -305,7 +478,7 @@ const waitForPendingCount = async (core, count) => {
   store.close();
   fs.rmSync(databaseDirectory, { recursive: true, force: true });
   assert(interruptedResponse instanceof Promise);
-  console.log('PASS 18: restart marks in-flight requests failed and requires fresh session observation');
+  console.log('PASS 20: restart marks in-flight requests failed and requires fresh session observation');
 
   const closedStore = new Store(':memory:');
   const failClosedCore = new Core({ store: closedStore });
@@ -315,7 +488,7 @@ const waitForPendingCount = async (core, count) => {
   assert.deepStrictEqual(await failClosedCore.request(req('unavailable-store', 'git status')), {});
   assert.strictEqual(failClosedCore.pending.size, 0);
   assert.strictEqual(persistenceErrors.length, 1);
-  console.log('PASS 19: persistence failure is visible and cannot deliver an approval');
+  console.log('PASS 21: persistence failure is visible and cannot deliver an approval');
 
   const dashboardPath = path.resolve(__dirname, '../src/command-centre.html');
   const mainFrame = { url: pathToFileURL(dashboardPath).href };
@@ -323,7 +496,7 @@ const waitForPendingCount = async (core, count) => {
   assert.strictEqual(isTrustedMainFrame(trustedEvent, [dashboardPath]), true);
   assert.strictEqual(isTrustedMainFrame({ sender: { mainFrame }, senderFrame: { url: mainFrame.url } }, [dashboardPath]), false);
   assert.strictEqual(isTrustedMainFrame({ sender: { mainFrame }, senderFrame: { url: 'https://example.com' } }, [dashboardPath]), false);
-  console.log('PASS 20: dashboard IPC accepts only its own trusted main frame');
+  console.log('PASS 22: dashboard IPC accepts only its own trusted main frame');
 
   const webOriginAttack = await postRaw(port, JSON.stringify({
     hook_event_name: 'UserPromptSubmit', session_id: 'spoofed-by-web-origin', cwd: '/tmp'
@@ -340,7 +513,9 @@ const waitForPendingCount = async (core, count) => {
   assert.strictEqual(core.sessions.has('spoofed-by-web-origin'), false);
   assert.strictEqual(core.sessions.has('spoofed-by-rebound-host'), false);
   assert.strictEqual(core.sessions.has('spoofed-by-fetch-metadata'), false);
-  console.log('PASS 21: browser-origin, cross-site, and rebound-host hook requests are rejected before event handling');
+  console.log('PASS 23: browser-origin, cross-site, and rebound-host hook requests are rejected before event handling');
 
-  await new Promise((resolve) => srv.close(resolve)); console.log('ALL PASS');
+  await new Promise((resolve) => srv.close(resolve));
+  fs.rmSync(credentialDirectory, { recursive: true, force: true });
+  console.log('ALL PASS');
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

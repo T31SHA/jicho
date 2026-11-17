@@ -6,11 +6,13 @@ const os = require('os');
 const path = require('path');
 const readline = require('readline');
 const crypto = require('crypto');
+const { CredentialManager } = require('./hook-support/credentials');
 
 const URL = 'http://127.0.0.1:47821';
 const MARKER_HEADER = 'X-Jicho-Installer';
 const MARKER_VALUE = 'jicho';
-// SessionStart currently supports command and MCP hooks, but not HTTP hooks.
+const HOOK_COMMAND = 'node "$HOME/.jicho/hooks/hook.js"';
+// Jicho does not install SessionStart; it receives the session ID on the first configured event.
 const EVENTS = [
   'PermissionRequest', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
   'Stop', 'Notification', 'SubagentStart', 'SubagentStop', 'SessionEnd'
@@ -49,19 +51,17 @@ function selectSettingsTarget(args = [], options = {}) {
 
 function makeHook() {
   return {
-    type: 'http',
-    url: URL,
-    timeout: 120,
-    headers: {
-      [MARKER_HEADER]: MARKER_VALUE,
-      Authorization: 'Bearer $JICHO_TOKEN'
-    },
-    allowedEnvVars: ['JICHO_TOKEN']
+    type: 'command',
+    command: HOOK_COMMAND,
+    timeout: 120
   };
 }
 
 function isJichoHook(hook) {
-  return Boolean(hook && hook.type === 'http' && hook.headers && hook.headers[MARKER_HEADER] === MARKER_VALUE);
+  return Boolean(hook && (
+    (hook.type === 'command' && hook.command === HOOK_COMMAND) ||
+    (hook.type === 'http' && hook.headers && hook.headers[MARKER_HEADER] === MARKER_VALUE)
+  ));
 }
 
 function mergeHooks(settings) {
@@ -73,20 +73,35 @@ function mergeHooks(settings) {
     if (next.hooks[event] === undefined) next.hooks[event] = [];
     if (!Array.isArray(next.hooks[event])) throw new Error('The hooks.' + event + ' setting must be an array.');
     const existing = next.hooks[event].flatMap((group) => group && Array.isArray(group.hooks) ? group.hooks : []).filter(isJichoHook);
-    if (!existing.length) {
+    const current = existing.length === 1 && JSON.stringify(existing[0]) === JSON.stringify(makeHook());
+    if (!current) {
+      if (existing.length) {
+        next.hooks[event] = next.hooks[event].flatMap((group) => {
+          if (!group || !Array.isArray(group.hooks)) return [group];
+          const kept = group.hooks.filter((hook) => !isJichoHook(hook));
+          if (kept.length) return [{ ...group, hooks: kept }];
+          return group.hooks.some(isJichoHook) ? [] : [group];
+        });
+      }
       next.hooks[event].push({ hooks: [makeHook()] });
       added += 1;
-    } else {
-      for (const hook of existing) {
-        if (!hook.headers.Authorization) { hook.headers.Authorization = 'Bearer $JICHO_TOKEN'; added += 1; }
-        if (!Array.isArray(hook.allowedEnvVars) || !hook.allowedEnvVars.includes('JICHO_TOKEN')) {
-          hook.allowedEnvVars = [...new Set([...(Array.isArray(hook.allowedEnvVars) ? hook.allowedEnvVars : []), 'JICHO_TOKEN'])];
-          added += 1;
-        }
-      }
     }
   }
   return { settings: next, added };
+}
+
+function hookSupportDirectory(home = os.homedir()) {
+  return path.join(home, '.jicho', 'hooks');
+}
+
+function installHookSupport(home = os.homedir()) {
+  const target = hookSupportDirectory(home);
+  fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+  for (const name of ['hook.js', 'credentials.js', 'protocol.js']) {
+    const source = path.join(__dirname, 'hook-support', name);
+    atomicWrite(path.join(target, name), fs.readFileSync(source, 'utf8'));
+  }
+  return target;
 }
 
 function removeHooks(settings) {
@@ -206,11 +221,15 @@ function atomicWrite(file, contents) {
   }
 }
 
-async function changeSettings(action, file = settingsPath(), scope = 'user') {
+async function changeSettings(action, file = settingsPath(), scope = 'user', options = {}) {
   const { settings, original } = readSettings(file);
   const result = action === 'install' ? mergeHooks(settings) : removeHooks(settings);
   if (action === 'install' && result.added === 0) {
-    console.log('Jicho hooks are already installed. No changes made.');
+    const credentials = new CredentialManager(options.credentialOptions);
+    const credential = credentials.ensureCredential();
+    installHookSupport(options.home || os.homedir());
+    console.log('Jicho hooks are already installed. No settings changes made.');
+    console.log('Hook credential: active in ' + credential.storage + (credential.created ? ' (new installation credential)' : ''));
     return false;
   }
   if (action === 'uninstall' && result.removed === 0) {
@@ -228,10 +247,20 @@ async function changeSettings(action, file = settingsPath(), scope = 'user') {
   }
   console.log(makeDiff(before, after, path.basename(file)));
   if (!(await askToProceed())) { console.log('Cancelled. No changes made.'); return false; }
+  let credential;
+  if (action === 'install') {
+    const credentials = new CredentialManager(options.credentialOptions);
+    credential = credentials.ensureCredential();
+    installHookSupport(options.home || os.homedir());
+  }
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const backupPath = backup(file);
   atomicWrite(file, after + '\n');
   console.log('Updated ' + file + (backupPath ? '\nBackup: ' + backupPath : ''));
+  if (credential) {
+    console.log('Hook credential: active in ' + credential.storage + (credential.created ? ' (new installation credential)' : ''));
+    if (credential.storage === 'private-file') console.log('Credential fallback file is protected by owner-only permissions; other processes running as your account can read it.');
+  }
   return true;
 }
 
@@ -246,17 +275,49 @@ function status(file = settingsPath(), scope = 'user') {
   }
   if (found.length) console.log('Jicho hooks installed for: ' + found.join(', '));
   else console.log('Jicho hooks are not installed.');
+  try {
+    const credential = new CredentialManager().status();
+    console.log('Hook credential: ' + credential.status + (credential.storage ? ' (' + credential.storage + ')' : ''));
+    if (credential.status === 'unavailable') process.exitCode = 1;
+  } catch (_) {
+    console.log('Hook credential: unavailable or unsafe');
+    process.exitCode = 1;
+  }
+}
+
+function credentialCommand(action) {
+  const manager = new CredentialManager();
+  if (action === 'status') {
+    const status = manager.status();
+    console.log('Hook credential: ' + status.status + (status.storage ? ' (' + status.storage + ')' : ''));
+    if (status.status === 'unavailable') process.exitCode = 1;
+    return;
+  }
+  if (action === 'rotate') {
+    const result = manager.rotate();
+    console.log('Rotated the Jicho hook credential in ' + result.storage + '. Restart Jicho before starting new Claude sessions.');
+    return;
+  }
+  if (action === 'revoke') {
+    console.log(manager.revoke() ? 'Revoked the Jicho hook credential. Protected hook requests will fail closed.' : 'No active Jicho hook credential to revoke.');
+    return;
+  }
+  throw new Error('Usage: jicho credential <status|rotate|revoke>');
 }
 
 async function main(args) {
   const command = args[0];
+  if (command === 'credential') {
+    if (args.length !== 2) throw new Error('Usage: jicho credential <status|rotate|revoke>');
+    return credentialCommand(args[1]);
+  }
   if (command === 'install' || command === 'uninstall' || command === 'status') {
     const target = selectSettingsTarget(args.slice(1));
     if (command === 'status') status(target.file, target.scope);
     else await changeSettings(command, target.file, target.scope);
   }
   else {
-    console.log('Usage: jicho <install|uninstall|status> [--user|--project-local|--project-shared]');
+    console.log('Usage: jicho <install|uninstall|status> [--user|--project-local|--project-shared] | credential <status|rotate|revoke>');
     if (command) process.exitCode = 2;
   }
 }
@@ -266,4 +327,4 @@ if (require.main === module) main(process.argv.slice(2)).catch((error) => {
   process.exitCode = 1;
 });
 
-module.exports = { EVENTS, URL, settingsPath, projectSettingsPath, selectSettingsTarget, atomicWrite, makeHook, isJichoHook, mergeHooks, removeHooks, makeDiff };
+module.exports = { EVENTS, URL, HOOK_COMMAND, settingsPath, projectSettingsPath, selectSettingsTarget, atomicWrite, makeHook, isJichoHook, mergeHooks, removeHooks, makeDiff, hookSupportDirectory, installHookSupport, changeSettings };

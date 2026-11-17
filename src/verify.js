@@ -8,14 +8,25 @@ const readline = require('readline');
 const crypto = require('crypto');
 const { Core } = require('./core');
 const { createServer } = require('./server');
-const { isJichoHook, selectSettingsTarget } = require('../bin/jicho');
+const { isJichoHook, selectSettingsTarget, installHookSupport } = require('../bin/jicho');
+const { CredentialManager } = require('../bin/hook-support/credentials');
 const settingsTarget = selectSettingsTarget(process.argv.slice(2));
 const scopeFlag = settingsTarget.scope === 'user' ? '--user' : '--' + settingsTarget.scope;
 const settingsSource = { user: 'user', 'project-local': 'local', 'project-shared': 'project' }[settingsTarget.scope];
 
 const PORT = Number(process.env.JICHO_PORT || 47821);
 const core = new Core();
-const server = createServer(core);
+const credentialManager = new CredentialManager();
+let credentialStorage = 'unavailable';
+try {
+  credentialStorage = credentialManager.ensureCredential().storage;
+  installHookSupport();
+} catch (error) {
+  console.error('Could not provision Jicho hook authentication. Check `npm run jicho -- credential status`.');
+  process.exitCode = 1;
+  process.exit();
+}
+const server = createServer(core, { credentialProvider: () => credentialManager.getCredential() });
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const seen = new Set();
 const queue = [];
@@ -170,9 +181,10 @@ function start() {
     console.log('Jicho real-hook verification');
     console.log('Claude Code version: ' + version);
     console.log('Claude settings scope: ' + settingsTarget.scope + ' (' + settingsTarget.file + ')');
+    console.log('Jicho credential storage: ' + credentialStorage);
     const installed = permissionHookInstalled();
     console.log('Jicho PermissionRequest hook: ' + (installed ? 'installed' : 'not installed'));
-    console.log('Local Jicho core listening on http://127.0.0.1:' + PORT);
+    console.log('Authenticated local Jicho core listening on http://127.0.0.1:' + PORT);
     console.log('\nIn another terminal at this project root:');
     if (!installed) console.log('  1. Run `npm run jicho -- install ' + scopeFlag + '`, review the diff, accept it, then start a fresh Claude session.');
     console.log('  Start a fresh interactive Claude session with `claude --permission-mode manual --setting-sources ' + settingsSource + '`. Manual mode ensures permission requests reach the hook during this check.');

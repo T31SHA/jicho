@@ -99,6 +99,7 @@ Checks that did not complete:
 ## Behavior and known limits
 
 - Application state names, state-machine flow, platform interfaces, hook/relay contract, and feature code were retained while identifiers and branding were changed.
+- **Kito drawing comparison:** `git fetch upstream` completed, and the comparison used `UPSTREAM_SHA` (`fe643c8d33d2ad4ad9e52c6c7958e24f61557119`), mapping upstream `windows/src/mochi/` files to `windows/src/kito/` and normalizing the Mochi/Kito names. `engine.ts` has 5 removed and 18 added non-comment code lines (23 changed lines): body proportions and colors differ, and Kito adds a shell and visor. `outfits.ts` and `greeting.ts` have no drawing-logic line differences. Kito is not just a renamed copy of the upstream shape. No redesign was made.
 - The mascot, icons, and sounds are original replacements. Promotional donation/Botan links and TestFlight references were removed; relay and signing values remain unset until configured. These are intentional branding/account changes.
 - No native platform build was available to establish end-to-end behavioral parity. The Windows/Linux full test runner also did not exit cleanly; those checks remain open above.
 - The checked-in generated Xcode project file from the imported source was removed in favor of `JichoBot/project.yml`; local regeneration could not be tested without XcodeGen. CI regenerates the project before its unsigned scheme builds.

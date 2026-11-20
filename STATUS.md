@@ -58,6 +58,8 @@
 - **Verified by running:** `node android/scripts/gen-strings.mjs --check` (459 strings, 6 plurals, 16 translations); generated icon and sound asset checks.
 - **Built but not exercised:** none.
 - **Not built:** debug APK and desktop-to-phone interop. Android SDK/JDK tooling is unavailable.
+- **Build requirements read from `android/README.md`, `android/build.gradle.kts`, `android/app/build.gradle.kts`, and `.github/workflows/android.yml`:** JDK 17; compile SDK 35; Android Gradle Plugin 8.7.3 selects build-tools 35.0.0 by default; minimum SDK 30. The CI setup explicitly uses Temurin 17.
+- **2026-11-20 Android audit, item 1:** `java -version` and `javac -version` both returned `command not found`; `ANDROID_HOME` and `ANDROID_SDK_ROOT` are unset, and no JDK was found in the standard system or user install locations checked. The environment does not match the stated JDK-installed context. Required Ubuntu package: `openjdk-17-jdk`. Work stopped before SDK setup or Gradle commands because the required JDK is absent.
 
 ### Relay
 

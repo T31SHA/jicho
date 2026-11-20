@@ -30,8 +30,8 @@
 ### Linux
 
 - **Verified by running:** shared TypeScript typecheck and focused what's-new test; fake hook event, socket override, approval/answer round trip, and prompt exit when the app is absent; session-title and Codex auto-review tests; relay typecheck. The hook and socket tests used isolated temporary paths.
-- **Built but not exercised:** none.
-- **Not built:** Tauri app, AppImage, deb, and rpm. Rust/Cargo is missing. `npm run tauri dev`, `npm run build`, `cargo test`, `cargo test phone_link`, and `npm run pack` were attempted and stopped because Cargo is unavailable. The machine is non-root, so Linux packages were not installed.
+- **Built but not exercised:** `cargo build` in `windows/` built both workspace members (`jichobot-hook` and `jichobot`) successfully on Linux. It emitted four dead-code warnings for Windows Spotify helpers; there were no compile errors or source fixes needed.
+- **Not yet exercised or packaged:** launching the Tauri app, generating AppImage/deb/rpm bundles, full Rust tests, and the hook/install round trip. These are the remaining Linux checks for this build session.
 
 ### Android
 

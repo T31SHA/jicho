@@ -1,0 +1,45 @@
+{
+  "about": "What's new, shown once in the island after JichoBot updates itself (src/whats-new/). Every Windows and Linux release adds its entry here, in the 14 languages: 1 to 4 items, a short title and one line each, an icon from scripts/test-whats-new.py. python3 scripts/test-whats-new.py checks it.",
+  "releases": [
+    {
+      "version": "0.1.0",
+      "items": [
+        {
+          "icon": "sparkles",
+          "title": {
+            "en": "Meet JichoBot",
+            "zh-Hans": "认识 JichoBot",
+            "hi": "मिलिए JichoBot से",
+            "es": "Conoce JichoBot",
+            "ar": "تعرّف على JichoBot",
+            "fr": "Découvrez JichoBot",
+            "bn": "JichoBot-এর সঙ্গে পরিচিত হন",
+            "pt-BR": "Conheça o JichoBot",
+            "ru": "Знакомьтесь: JichoBot",
+            "id": "Kenali JichoBot",
+            "de": "Lerne JichoBot kennen",
+            "tr": "JichoBot'u tanıyın",
+            "ko": "JichoBot을 만나 보세요",
+            "ja": "JichoBot の紹介"
+          },
+          "detail": {
+            "en": "Kito brings agent activity and approvals to your desktop and phone.",
+            "zh-Hans": "Kito 可在电脑和手机上显示智能体活动与审批请求。",
+            "hi": "Kito डेस्कटॉप और फ़ोन पर एजेंट गतिविधि और स्वीकृति दिखाता है।",
+            "es": "Kito muestra actividad y aprobaciones de agentes en el ordenador y el móvil.",
+            "ar": "يعرض Kito نشاط الوكلاء وطلبات الموافقة على الكمبيوتر والهاتف.",
+            "fr": "Kito affiche l’activité des agents et les approbations sur ordinateur et téléphone.",
+            "bn": "Kito ডেস্কটপ ও ফোনে এজেন্টের কার্যকলাপ ও অনুমোদনের অনুরোধ দেখায়।",
+            "pt-BR": "Kito mostra a atividade e as aprovações dos agentes no computador e no celular.",
+            "ru": "Kito показывает активность агентов и запросы на подтверждение на компьютере и телефоне.",
+            "id": "Kito menampilkan aktivitas agen dan persetujuan di desktop dan ponsel.",
+            "de": "Kito zeigt Agentenaktivität und Freigaben auf Desktop und Smartphone.",
+            "tr": "Kito, masaüstü ve telefonda ajan etkinliğini ve onayları gösterir.",
+            "ko": "Kito가 데스크톱과 휴대폰에서 에이전트 활동과 승인 요청을 보여 줍니다.",
+            "ja": "Kito がデスクトップとスマートフォンでエージェントの活動や承認依頼を表示します。"
+          }
+        }
+      ]
+    }
+  ]
+}

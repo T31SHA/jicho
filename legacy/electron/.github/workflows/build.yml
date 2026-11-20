@@ -1,0 +1,35 @@
+# UNVERIFIED: written without a CI run. Push it, open the Actions tab, fix whatever fails.
+name: build
+on:
+  push: { branches: [master, main] }
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-and-package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  dist: "npx electron-builder --linux AppImage deb --publish never" }
+          - { os: windows-latest, dist: "npx electron-builder --win nsis --publish never" }
+          - { os: macos-latest,   dist: "npx electron-builder --mac dmg --publish never" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+      - run: ${{ matrix.dist }}
+        env: { CSC_IDENTITY_AUTO_DISCOVERY: "false" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jicho-${{ matrix.os }}
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.exe
+            dist/*.dmg
+          if-no-files-found: warn

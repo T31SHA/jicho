@@ -1,0 +1,286 @@
+{
+  "config": {
+    "PRODUCT_NAME": "JichoBot",
+    "MASCOT_NAME": "Kito",
+    "WAKE_PHRASE": "OK JichoBot",
+    "BUNDLE_PREFIX": "org.jichobot",
+    "DESKTOP_BUNDLE_ID": "org.jichobot.desktop",
+    "URL_SCHEME": "jichobot",
+    "MDNS_SERVICE": "_jichobot._tcp",
+    "ENV_PREFIX": "JICHOBOT_",
+    "AGENT_FIELD": "jichobot_agent",
+    "HOOK_BINARY": "jichobot-hook",
+    "GITHUB_REPO": "T31SHA/jicho",
+    "SITE_URL": "https://t31sha.github.io/jicho/",
+    "UPSTREAM": "upstream/main",
+    "APPLE_TEAM_ID": "",
+    "ICLOUD_CONTAINER": "iCloud.org.jichobot.JichoBot",
+    "RELAY_URL": ""
+  },
+  "skip_directories": [
+    ".git",
+    "node_modules",
+    "target",
+    "build",
+    "DerivedData",
+    "vendor",
+    "third_party",
+    "third-party",
+    "Pods",
+    "dist",
+    "release",
+    "legacy"
+  ],
+  "path_rules": [
+    {
+      "source_b64": "YW5kcm9pZC9hcHAvc3JjL2RlYnVnL2tvdGxpbi9jb20vY291Y291L2FuZHJvaWQ=",
+      "target": "android/app/src/debug/kotlin/org/jichobot/android"
+    },
+    {
+      "source_b64": "YW5kcm9pZC9hcHAvc3JjL21haW4va290bGluL2NvbS9jb3Vjb3UvYW5kcm9pZA==",
+      "target": "android/app/src/main/kotlin/org/jichobot/android"
+    },
+    {
+      "source_b64": "YW5kcm9pZC9hcHAvc3JjL3Rlc3Qva290bGluL2NvbS9jb3Vjb3UvYW5kcm9pZA==",
+      "target": "android/app/src/test/kotlin/org/jichobot/android"
+    },
+    {
+      "source_b64": "Q291Y291LmVudGl0bGVtZW50cw==",
+      "target": "JichoBot.entitlements"
+    },
+    {
+      "source_b64": "Y29tLmNvdWNvdS5hbmRyb2lk",
+      "target": "org.jichobot.android"
+    },
+    {
+      "source_b64": "ZnIvbG91aXNyYWlsbGU=",
+      "target": "org/jichobot"
+    },
+    {
+      "source_b64": "TG91aXNSYWlsbMOp",
+      "target": "JichoBot"
+    },
+    {
+      "source_b64": "bG91aXNyYWlsbGU=",
+      "target": "jichobot"
+    },
+    {
+      "source_b64": "Tm90Y2hCdWRkeQ==",
+      "target": "JichoBot"
+    },
+    {
+      "source_b64": "bm90Y2hidWRkeQ==",
+      "target": "jichobot"
+    },
+    {
+      "source_b64": "bm90Y2hCdWRkeQ==",
+      "target": "jichoBot"
+    },
+    {
+      "source_b64": "Y29tLmNvdWNvdQ==",
+      "target": "org.jichobot"
+    },
+    {
+      "source_b64": "Y291Y291LnJi",
+      "target": "jichobot.rb"
+    },
+    {
+      "source_b64": "bG91aXMtY2Zt",
+      "target": "t31sha"
+    },
+    {
+      "source_b64": "TG91aXMtQ0ZN",
+      "target": "T31SHA"
+    },
+    {
+      "source_b64": "Q291Y291",
+      "target": "JichoBot"
+    },
+    {
+      "source_b64": "Y291Y291",
+      "target": "jichobot"
+    },
+    {
+      "source_b64": "Q09VQ09V",
+      "target": "JICHOBOT"
+    },
+    {
+      "source_b64": "TW9jaGk=",
+      "target": "Kito"
+    },
+    {
+      "source_b64": "bW9jaGk=",
+      "target": "kito"
+    },
+    {
+      "source_b64": "TU9DSEk=",
+      "target": "KITO"
+    }
+  ],
+  "content_rules": [
+    {
+      "source_b64": "aHR0cHM6Ly9hcHBzLmFwcGxlLmNvbS9hcHAvdGVzdGZsaWdodC9pZDg5OTI0NzY2NA==",
+      "target": ""
+    },
+    {
+      "source_b64": "aHR0cHM6Ly9idXkuc3RyaXBlLmNvbS9kUm02b0diZmE3S3FjczBoeEVTMDAz",
+      "target": ""
+    },
+    {
+      "source_b64": "aHR0cHM6Ly9jb3Vjb3UtcmVsYXkucmFpbGxlbG91aXMud29ya2Vycy5kZXY=",
+      "target": ""
+    },
+    {
+      "source_b64": "aHR0cHM6Ly90ZXN0ZmxpZ2h0LmFwcGxlLmNvbS9qb2luLzNHcGVIdjJi",
+      "target": ""
+    },
+    {
+      "source_b64": "amljaG9ib3QtcmVsYXkucmFpbGxlbG91aXMud29ya2Vycy5kZXY=",
+      "target": ""
+    },
+    {
+      "source_b64": "aHR0cHM6Ly9naXRodWIuY29tL0xvdWlzLUNGTS9jb3Vjb3U=",
+      "target": "https://github.com/T31SHA/jicho"
+    },
+    {
+      "source_b64": "aHR0cHM6Ly9naXRodWIuY29tL1QzMVNIQS9qaWNob2JvdA==",
+      "target": "https://github.com/T31SHA/jicho"
+    },
+    {
+      "source_b64": "aHR0cHM6Ly9naXRodWIuY29tL3QzMXNoYS9qaWNob2JvdA==",
+      "target": "https://github.com/T31SHA/jicho"
+    },
+    {
+      "source_b64": "aHR0cHM6Ly9sb3Vpcy1jZm0uZ2l0aHViLmlvL2NvdWNvdQ==",
+      "target": "https://t31sha.github.io/jicho"
+    },
+    {
+      "source_b64": "aUNsb3VkLmZyLmxvdWlzcmFpbGxlLkNvdWNvdQ==",
+      "target": "iCloud.org.jichobot.JichoBot"
+    },
+    {
+      "source_b64": "Z3JvdXAuZnIubG91aXNyYWlsbGUuQ291Y291",
+      "target": "group.org.jichobot.JichoBot"
+    },
+    {
+      "source_b64": "Z2l0aHViLmNvbS9UMzFTSEEvamljaG9ib3Q=",
+      "target": "github.com/T31SHA/jicho"
+    },
+    {
+      "source_b64": "Z2l0aHViLmNvbS90MzFzaGEvamljaG9ib3Q=",
+      "target": "github.com/T31SHA/jicho"
+    },
+    {
+      "source_b64": "ZnIubG91aXNyYWlsbGUuTm90Y2hCdWRkeQ==",
+      "target": "org.jichobot.desktop"
+    },
+    {
+      "source_b64": "ZnIubG91aXNyYWlsbGUuQ291Y291",
+      "target": "org.jichobot.JichoBot"
+    },
+    {
+      "source_b64": "ZnIubG91aXNyYWlsbGUuY291Y291",
+      "target": "org.jichobot"
+    },
+    {
+      "source_b64": "cmFpbGxlbG91aXNAZ21haWwuY29t",
+      "target": ""
+    },
+    {
+      "source_b64": "Y29tLmNvdWNvdS5hbmRyb2lk",
+      "target": "org.jichobot.android"
+    },
+    {
+      "source_b64": "bG91aXNyYWlsbGUuZnI=",
+      "target": ""
+    },
+    {
+      "source_b64": "Y291Y291X2FnZW50",
+      "target": "jichobot_agent"
+    },
+    {
+      "source_b64": "X2NvdWNvdS5fdGNw",
+      "target": "_jichobot._tcp"
+    },
+    {
+      "source_b64": "Y291Y291X2tpbmQ=",
+      "target": "jichobot_kind"
+    },
+    {
+      "source_b64": "bG91aXNyYWlsbGU=",
+      "target": "jichobot"
+    },
+    {
+      "source_b64": "ZnIuamljaG9ib3Q=",
+      "target": "org.jichobot"
+    },
+    {
+      "source_b64": "Y29tLmNvdWNvdQ==",
+      "target": "org.jichobot"
+    },
+    {
+      "source_b64": "Tm90Y2hCdWRkeQ==",
+      "target": "JichoBot"
+    },
+    {
+      "source_b64": "bm90Y2hCdWRkeQ==",
+      "target": "jichoBot"
+    },
+    {
+      "source_b64": "bm90Y2hidWRkeQ==",
+      "target": "jichobot"
+    },
+    {
+      "source_b64": "MjU2QVVKOTU1NQ==",
+      "target": ""
+    },
+    {
+      "source_b64": "Y291Y291Oi8v",
+      "target": "jichobot://"
+    },
+    {
+      "source_b64": "TG91aXMtQ0ZN",
+      "target": "T31SHA"
+    },
+    {
+      "source_b64": "bG91aXMtY2Zt",
+      "target": "t31sha"
+    },
+    {
+      "source_b64": "Q09VQ09VXw==",
+      "target": "JICHOBOT_"
+    },
+    {
+      "source_b64": "bmItaG9vaw==",
+      "target": "jichobot-hook"
+    },
+    {
+      "source_b64": "bmIuc29jaw==",
+      "target": "jichobot.sock"
+    },
+    {
+      "source_b64": "Q291Y291",
+      "target": "JichoBot"
+    },
+    {
+      "source_b64": "Y291Y291",
+      "target": "jichobot"
+    },
+    {
+      "source_b64": "Q09VQ09V",
+      "target": "JICHOBOT"
+    },
+    {
+      "source_b64": "TW9jaGk=",
+      "target": "Kito"
+    },
+    {
+      "source_b64": "bW9jaGk=",
+      "target": "kito"
+    },
+    {
+      "source_b64": "TU9DSEk=",
+      "target": "KITO"
+    }
+  ]
+}

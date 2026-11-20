@@ -23,7 +23,8 @@
 
 ### Windows
 
-- **Verified by running:** `npx tsc --noEmit`; focused what's-new test; Windows/Linux localization and what's-new checks; string-generation check. The full `npm test` run reported all 43 test files as `ok`, but its runner did not exit after the last test and was interrupted (exit 130), so this is not a clean full-suite pass.
+- **Verified by running:** `npx tsc --noEmit`; focused what's-new test; Windows/Linux localization and what's-new checks; string-generation check; full `npm test` (44 test files, 44 passed, 0 failed, exit 0 in 5.3 seconds).
+- **Test-runner fix:** `tests/whatsapp.test.mjs` left the production 60-second pill-reset timer running after its last message test. The test now sends the reset event and clears that timer.
 - **Built but not exercised:** none.
 - **Not built:** Windows desktop executable and installer. No Windows host is available; CI workflow was updated for JichoBot.
 
@@ -58,6 +59,7 @@ Successful checks:
 - `node android/scripts/gen-strings.mjs --check`: passed.
 - `node windows/scripts/gen-strings.mjs --check`: passed.
 - `npx tsc --noEmit` in `windows/`: passed.
+- `npm test` in `windows/`: 44 test files passed, 0 failed, exit 0 in 5.3 seconds after clearing the WhatsApp pill-reset timer in test cleanup.
 - `node --import ./tests/setup.mjs --test tests/whats-new.test.mjs` in `windows/`: passed.
 - `python3 scripts/test-jichobot-hook.py`: passed fake event, socket override, approval round trip, and non-blocking missing-app checks.
 - `python3 scripts/test-session-title.py`: passed both package variants.
@@ -71,7 +73,6 @@ Successful checks:
 
 Checks that did not complete:
 
-- `npm test` in `windows/`: all 43 test files reported `ok`; runner hung after the last subtest and was interrupted (exit 130).
 - `bash scripts/test-claude-hooks.sh`: could not run because `swiftc` is unavailable.
 - `cargo test` and `cargo test phone_link`: could not run because `cargo` is unavailable.
 - `npm run tauri dev`, `npm run build`, and `npm run pack` in `windows/`: could not run because Tauri's Cargo metadata/build step requires the missing Cargo toolchain.
@@ -80,7 +81,7 @@ Checks that did not complete:
 
 ## Remaining manual steps
 
-- **Linux:** install Rust/Cargo and the apt packages listed in `.github/workflows/linux.yml`; run `npm run tauri dev`, the full `npm test`, `cargo test` (including `cargo test phone_link`), and `npm run pack` for AppImage, deb, and rpm. Exercise an approval flow and the Claude Code installer using a temporary `HOME`.
+- **Linux:** run `npm run tauri dev`, `npm test`, and `npm run pack` for AppImage, deb, and rpm. Exercise an approval flow and the Claude Code installer using a temporary `HOME`.
 - **Windows:** run the Windows CI build and test workflow on a Windows host; inspect and exercise the packaged installer and hook relay.
 - **Android:** install JDK and Android SDK, build the debug APK, then run phone-link interop against a development desktop build and device.
 - **macOS/iPhone:** install Xcode and XcodeGen, regenerate the project from `JichoBot/project.yml`, build both macOS schemes unsigned and build the iPhone app. Set `APPLE_TEAM_ID` only for signing; create/configure the `iCloud.org.jichobot.JichoBot` CloudKit container and matching APNs topic before a signed phone/relay release.

@@ -183,6 +183,7 @@ test("paused, or the pill on screen: no badge", () => {
   handlePillEvent(host, { kind: "message", name: "Marie" }, 200_000);
   assert.equal(pill().state, "finished");
   assert.equal(pill().pillBadge ?? null, null);
+  emit("whatsapp-pill", { kind: "reset" });
 });
 
 test("the gateway down twice: the small red dot, gone when it answers", () => {

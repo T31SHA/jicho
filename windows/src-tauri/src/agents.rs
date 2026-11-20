@@ -1321,7 +1321,7 @@ mod tests {
             // The relay itself, at this machine's path, as a string literal: no
             // shell, no macOS path.
             assert!(main.contains(r#""/home/me/.local/share/jichobot/bin/jichobot-hook""#), "{agent:?}");
-            assert!(!main.contains("/bin/sh") && !main.contains("jichobot-hook"), "{agent:?}");
+            assert!(!main.contains("/bin/sh") && !main.contains("Library/Application Support"), "{agent:?}");
             assert!(main.contains(&format!("'--agent', '{}'", agent.id())), "{agent:?}");
             // Never a verdict for the agent.
             assert!(!main.contains("action: 'allow'") && !main.contains("register_approval_transport"));

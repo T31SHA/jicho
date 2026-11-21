@@ -12,7 +12,7 @@ import org.junit.Test
  * the app requirements require, which must stay reachable and visible.
  */
 class ScreenLayoutTest {
-    private fun src(name: String) = File("src/main/kotlin/com/jichobot/android/$name").readText()
+    private fun src(name: String) = File("src/main/kotlin/org/jichobot/android/$name").readText()
     private val main get() = src("MainActivity.kt")
     private val settings get() = src("ui/SettingsScreens.kt")
     private val homePanel get() = src("ui/HomePanel.kt")
@@ -29,7 +29,7 @@ class ScreenLayoutTest {
         assertTrue(xml.contains("JichoBot for Android."))
         assertTrue(xml.contains("github.com/T31SHA/jicho"))
         assertTrue(xml.contains("Kito is JichoBot"))
-        assertTrue(xml.contains("MIT License"))
+        assertTrue(xml.contains("""name="licences_title">Licences</string>"""))
     }
 
     @Test fun theHeroNeverShowsTheRawStatusText() {

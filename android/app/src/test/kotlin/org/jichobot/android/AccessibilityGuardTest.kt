@@ -9,7 +9,7 @@ import org.junit.Test
 
 /** TalkBack, touch size and large text: guards on the Compose sources, which cannot run on a JVM. */
 class AccessibilityGuardTest {
-    private val ui = File("src/main/kotlin/com/jichobot/android/ui")
+    private val ui = File("src/main/kotlin/org/jichobot/android/ui")
     private fun src(name: String) = File(ui, name).readText()
 
     @Test fun theMinimumTouchTargetIs48dp() = assertEquals(48, Spacing.MIN_TOUCH)

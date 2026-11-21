@@ -56,7 +56,7 @@ class PairingVerifierTest {
     }
 
     @Test fun appModelVerifiesBeforeReplacingExistingPairing() {
-        val modelSrc = File("src/main/kotlin/com/jichobot/android/app/AppModel.kt").readText()
+        val modelSrc = File("src/main/kotlin/org/jichobot/android/app/AppModel.kt").readText()
         val pairFn = modelSrc.substringAfter("fun pair(text: String): Boolean {").substringBefore("private fun connect(")
         val pairedBranch = pairFn.substringAfter("val gen = ++verifyGeneration")
         assertTrue(pairedBranch.contains("PairingVerifier.verify("))

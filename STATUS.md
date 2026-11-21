@@ -55,11 +55,14 @@
 
 ### Android
 
-- **Verified by running:** `node android/scripts/gen-strings.mjs --check` (459 strings, 6 plurals, 16 translations); generated icon and sound asset checks.
-- **Built but not exercised:** none.
-- **Not built:** debug APK and desktop-to-phone interop. Android SDK/JDK tooling is unavailable.
+- **Verified by running:** `node scripts/gen-strings.mjs --check`; `./gradlew test assembleDebug lint --console=plain` completed successfully with JDK 17.0.21 and Android SDK 35 staged under `/tmp`.
+- **Build outputs:** debug APK `android/app/build/outputs/apk/debug/app-debug.apk` (29 MiB); unsigned minified release APK `android/app/build/outputs/apk/release/app-release-unsigned.apk` (4.6 MiB). `aapt` reports package `org.jichobot.android`, version `0.1.0`, min SDK 30, target SDK 35, compile SDK 35.
+- **Tests and lint:** debug and release each report 1,041 unit tests, 0 failures, and 31 skipped; all 15 Node development-desktop interop tests pass in each variant. Lint has 0 errors, 71 warnings, and 2 informational findings. The release log-string check and CI ads/billing/analytics guard passed.
+- **Device check:** ADB started outside the sandbox and reported no attached devices. Device rendering and physical phone-to-desktop interop were not exercised. The Android SDK used for this run is staged in `/tmp` rather than a persistent SDK location.
 - **Build requirements read from `android/README.md`, `android/build.gradle.kts`, `android/app/build.gradle.kts`, and `.github/workflows/android.yml`:** JDK 17; compile SDK 35; Android Gradle Plugin 8.7.3 selects build-tools 35.0.0 by default; minimum SDK 30. The CI setup explicitly uses Temurin 17.
-- **2026-11-20 Android audit, item 1:** `java -version` and `javac -version` both returned `command not found`; `ANDROID_HOME` and `ANDROID_SDK_ROOT` are unset, and no JDK was found in the standard system or user install locations checked. The environment does not match the stated JDK-installed context. Required Ubuntu package: `openjdk-17-jdk`. Work stopped before SDK setup or Gradle commands because the required JDK is absent.
+- **2026-11-20 Android audit, item 1:** The initial check found no `java`/`javac`; JDK 17 is now installed.
+- **2026-11-20 Android audit, items 2–5:** Installed command-line SDK packages in `/tmp`, resolved the initial sandbox Gradle/network issue with an escalated Gradle run, and completed the CI build successfully. Fixed stale `com/jichobot/android` paths in 44 source-guard test files, updated outdated translation/license/widget-name assertions, and added state-colored radial glows and badges to static widget vectors. The test and lint results are recorded above. The dev-desktop mock interop suite passed; device visual inspection and physical phone-to-desktop interop remain unavailable because no device is attached.
+- **2026-11-20 Android audit, items 6–8:** Completed the renderer source audit, parity notes, findings, and Android CI workflow table in [`docs/ANDROID_RENDERER_AUDIT.md`](docs/ANDROID_RENDERER_AUDIT.md), including the successful build and device-check outcome.
 
 ### Relay
 
@@ -100,12 +103,13 @@ Successful checks:
 Checks that did not complete:
 
 - `bash scripts/test-claude-hooks.sh`: could not run because `swiftc` is unavailable.
-- Android Gradle build and Xcode builds: not run because the required SDK/toolchains are unavailable.
+- Physical Android device rendering and phone-to-desktop interop: not run because no Android device is attached.
+- Xcode builds: not run because Xcode is unavailable.
 
 ## Remaining manual steps
 
 - **Windows:** run the Windows CI build and test workflow on a Windows host; inspect and exercise the packaged installer and hook relay.
-- **Android:** install JDK and Android SDK, build the debug APK, then run phone-link interop against a development desktop build and device.
+- **Android:** install the debug APK on a connected Android device and verify renderer appearance and phone-link interop against a development desktop build.
 - **macOS/iPhone:** install Xcode and XcodeGen, regenerate the project from `JichoBot/project.yml`, build both macOS schemes unsigned and build the iPhone app. Set `APPLE_TEAM_ID` only for signing; create/configure the `iCloud.org.jichobot.JichoBot` CloudKit container and matching APNs topic before a signed phone/relay release.
 - **Relay:** install/deploy using the relay's Wrangler configuration, configure required secrets in the OS/service secret store, and set `RELAY_URL` to the deployed endpoint before enabling pairing outside local development.
 - **Legal/site:** replace the maintainer entity, mailing address, and support contact placeholders in the legal pages once those facts are known.

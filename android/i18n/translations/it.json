@@ -1,11 +1,11 @@
 {
   "strings": {
     "app_name": "JichoBot per Android",
-    "about_credit": "JichoBot for Android.",
+    "about_credit": "JichoBot per Android.",
     "about_repo": "github.com/T31SHA/jicho",
     "licences_title": "Licenze",
-    "licences_intro": "Kito is JichoBot's original mascot.",
-    "about_assets": "Kito is JichoBot's original mascot.",
+    "licences_intro": "Kito è la mascotte originale di JichoBot.",
+    "about_assets": "Kito è la mascotte originale di JichoBot.",
     "action_allow": "Consenti",
     "action_deny": "Nega",
     "action_close": "Chiudi",

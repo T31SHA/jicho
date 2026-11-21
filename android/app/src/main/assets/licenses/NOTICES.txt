@@ -4,11 +4,11 @@ JichoBot for Android includes contributions by Rhytam Biswas. It is free, has no
 
 1. JichoBot source code
 
-The upstream source code is Copyright (c) 2026 Louis Raillé and is released under the MIT License. The full text is below ("MIT License").
+The upstream source code is Copyright (c) 2026 Louis Raillé (https://github.com/T31SHA/jicho) and is released under the MIT License. The full text is below ("MIT License").
 
 2. Original JichoBot assets
 
-Original upstream character and media assets are Copyright (c) 2026 Louis Raillé. All rights reserved. Those assets are not included in JichoBot.
+Original upstream character and media assets are Copyright (c) 2026 Louis Raillé. All rights reserved. Those assets are not included in JichoBot and are not covered by the MIT License. The artwork and audio shipped with this Android app are original generated assets.
 
 3. ZXing
 

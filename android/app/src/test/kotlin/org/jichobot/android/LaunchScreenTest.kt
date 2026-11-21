@@ -48,7 +48,7 @@ class LaunchScreenTest {
     }
 
     @Test fun onlyTheKeyTravelsAndOnlyTheNonExportedActivityParsesIt() {
-        val main = "src/main/kotlin/com/jichobot/android/"
+        val main = "src/main/kotlin/org/jichobot/android/"
         val launch = File(main + "app/LaunchActivity.kt").readText()
         assertTrue(launch.contains("LaunchScreen.parse(intent.getStringExtra(EXTRA_SCREEN))"))
         val hub = File(main + "app/WidgetHub.kt").readText()

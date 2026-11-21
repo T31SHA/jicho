@@ -10,7 +10,7 @@ import org.junit.Test
  */
 class JvmNameClashTest {
     @Test fun noFunctionSharesTheNameOfAPropertySetter() {
-        val dir = File("src/main/kotlin/com/jichobot/android")
+        val dir = File("src/main/kotlin/org/jichobot/android")
         val bad = ArrayList<String>()
         for (f in dir.walkTopDown().filter { it.extension == "kt" }) {
             val text = f.readText()

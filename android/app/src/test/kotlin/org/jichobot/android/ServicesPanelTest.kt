@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ServicesPanelTest {
-    private fun src(name: String) = File("src/main/kotlin/com/jichobot/android/$name").readText()
+    private fun src(name: String) = File("src/main/kotlin/org/jichobot/android/$name").readText()
 
     @Test fun theCardsAreReadOnly() {
         val p = src("ui/ServicesPanel.kt")

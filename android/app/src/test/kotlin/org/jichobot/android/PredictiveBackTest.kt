@@ -29,12 +29,12 @@ class PredictiveBackTest {
 
     @Test fun everySheetClosesOnBack() {
         // The sheets that rise over a screen all go through one host, which owns the BackHandler.
-        val sheets = File(main + "kotlin/com/jichobot/android/ui/Sheets.kt").readText()
+        val sheets = File(main + "kotlin/org/jichobot/android/ui/Sheets.kt").readText()
         assertTrue(sheets.contains("BackHandler(onBack = onDismiss)"))
-        val ui = File(main + "kotlin/com/jichobot/android/ui")
+        val ui = File(main + "kotlin/org/jichobot/android/ui")
         for (name in listOf("DiffSheet.kt", "DiscoveryHint.kt", "PairingScreen.kt")) assertTrue(name, File(ui, name).readText().contains("BottomSheetHost"))
         // The activity owns the screen-level Back (no onBackPressed override: predictive back ignores it).
-        val activity = File(main + "kotlin/com/jichobot/android/MainActivity.kt").readText()
+        val activity = File(main + "kotlin/org/jichobot/android/MainActivity.kt").readText()
         assertTrue(activity.contains("BackHandler(enabled = Nav.back(screen) != null)"))
         assertTrue(!activity.contains("onBackPressed"))
     }

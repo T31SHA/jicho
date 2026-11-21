@@ -13,7 +13,7 @@ import org.junit.Test
 /** Settings > About > Licences: the texts that ship are the real ones, every library in the build is covered, and the screen is reachable. */
 class LicencesTest {
     private fun asset(name: String) = File("src/main/assets/licenses/$name").readText()
-    private fun src(name: String) = File("src/main/kotlin/com/jichobot/android/$name").readText()
+    private fun src(name: String) = File("src/main/kotlin/org/jichobot/android/$name").readText()
 
     @Test fun theMitTextIsTheRepositorysLicenceFileWord_for_word() {
         assertEquals(ReferenceFiles.file("LICENSE").readText(), asset("MIT.txt"))
@@ -36,9 +36,8 @@ class LicencesTest {
         assertTrue(n.contains("JichoBot for Android"))
         assertTrue(n.contains("https://github.com/T31SHA/jicho"))
         assertTrue(n.contains("released under the MIT License"))
-        assertTrue(n.contains("NOT covered by the MIT License"))
-        assertTrue(n.contains("LICENSE-ASSETS.md"))
-        assertTrue(n.contains("written permission"))
+        assertTrue(n.contains("not covered by the MIT License"))
+        assertTrue(n.contains("original generated assets"))
         assertTrue(n.contains("ZXing Core 3.5.3") && n.contains("Apache License, Version 2.0"))
         assertTrue(n.contains("Android Open Source Project") && n.contains("JetBrains"))
     }

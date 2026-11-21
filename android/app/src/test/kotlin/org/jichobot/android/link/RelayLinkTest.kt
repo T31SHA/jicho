@@ -86,7 +86,7 @@ class RelayLinkTest {
     }
 
     @Test fun theConfirmationShowsTheRelayHostBeforeAnythingIsStored() {
-        val dialog = java.io.File("src/main/kotlin/com/jichobot/android/ui/PairConfirm.kt").readText()
+        val dialog = java.io.File("src/main/kotlin/org/jichobot/android/ui/PairConfirm.kt").readText()
         assertTrue(dialog.contains("p.relay?.relayUrl()?.host"))
         assertTrue(dialog.contains("R.string.pair_confirm_relay"))
     }

@@ -62,7 +62,7 @@ class ApprovalAlertsTest {
     }
 
     @Test fun aRequestIsNeverMutedByTheseChoices() {
-        val src = File("src/main/kotlin/com/jichobot/android/app/Notifications.kt").readText()
+        val src = File("src/main/kotlin/org/jichobot/android/app/Notifications.kt").readText()
         // The channel is always high importance with Kito's sound; the choices only touch vibration and the wake.
         val block = src.substringAfter("fun applyApprovalSettings").substringBefore("private fun open(")
         assertTrue(block.contains("IMPORTANCE_HIGH"))
@@ -74,7 +74,7 @@ class ApprovalAlertsTest {
     }
 
     @Test fun settingsShowBothChoices() {
-        val ui = File("src/main/kotlin/com/jichobot/android/ui/SettingsScreens.kt").readText()
+        val ui = File("src/main/kotlin/org/jichobot/android/ui/SettingsScreens.kt").readText()
         assertTrue(ui.contains("R.string.settings_no_wake") && ui.contains("R.string.settings_vibration"))
         assertTrue(ui.contains("VibrationChoice.SHORT") && ui.contains("VibrationChoice.OFF"))
     }

@@ -9,7 +9,7 @@ import org.junit.Test
 
 /** Source-level guards for the Chat screen (Compose cannot be rendered in a JVM test). */
 class ChatScreenTest {
-    private fun src(name: String) = File("src/main/kotlin/com/jichobot/android/$name").readText()
+    private fun src(name: String) = File("src/main/kotlin/org/jichobot/android/$name").readText()
     private val strings get() = File("src/main/res/values/strings.xml").readText()
 
     @Test fun everyReasonCodeHasAnEnglishSentence() {

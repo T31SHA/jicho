@@ -9,10 +9,10 @@ import org.junit.Test
 class GlanceSurfacesTest {
     private fun read(path: String) = File(path).readText()
     private val manifest get() = read("src/main/AndroidManifest.xml")
-    private val widget get() = read("src/main/kotlin/com/jichobot/android/app/GlanceWidget.kt")
-    private val tile get() = read("src/main/kotlin/com/jichobot/android/app/GlanceTile.kt")
-    private val notifications get() = read("src/main/kotlin/com/jichobot/android/app/Notifications.kt")
-    private val model get() = read("src/main/kotlin/com/jichobot/android/app/AppModel.kt")
+    private val widget get() = read("src/main/kotlin/org/jichobot/android/app/GlanceWidget.kt")
+    private val tile get() = read("src/main/kotlin/org/jichobot/android/app/GlanceTile.kt")
+    private val notifications get() = read("src/main/kotlin/org/jichobot/android/app/Notifications.kt")
+    private val model get() = read("src/main/kotlin/org/jichobot/android/app/AppModel.kt")
 
     @Test fun theWidgetAndTheTileAreRegistered() {
         assertTrue(manifest.contains("""android:name=".app.GlanceWidget""""))

@@ -78,11 +78,11 @@ class ReduceMotionTest {
     }
 
     @Test fun settingsOffersTheChoice() {
-        val ui = File("src/main/kotlin/com/jichobot/android/ui/SettingsScreens.kt").readText()
+        val ui = File("src/main/kotlin/org/jichobot/android/ui/SettingsScreens.kt").readText()
         assertTrue(ui.contains("MotionChoice.REDUCE") && ui.contains("R.string.settings_motion"))
         // The island and the Kito view both ask the one policy.
-        assertTrue(File("src/main/kotlin/com/jichobot/android/ui/IslandOverlay.kt").readText().contains("MotionPolicy.reduced"))
-        assertTrue(File("src/main/kotlin/com/jichobot/android/ui/DesignSystem.kt").readText().contains("MotionPolicy.reduced"))
-        assertTrue(File("src/main/kotlin/com/jichobot/android/kito/KitoView.kt").readText().contains("engine.reduceMotion"))
+        assertTrue(File("src/main/kotlin/org/jichobot/android/ui/IslandOverlay.kt").readText().contains("MotionPolicy.reduced"))
+        assertTrue(File("src/main/kotlin/org/jichobot/android/ui/DesignSystem.kt").readText().contains("MotionPolicy.reduced"))
+        assertTrue(File("src/main/kotlin/org/jichobot/android/kito/KitoView.kt").readText().contains("engine.reduceMotion"))
     }
 }

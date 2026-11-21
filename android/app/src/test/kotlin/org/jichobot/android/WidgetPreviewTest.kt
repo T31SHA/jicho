@@ -173,31 +173,31 @@ class WidgetPreviewTest {
     private val states = mapOf("working" to WidgetTone.WORKING, "waiting" to WidgetTone.ATTENTION, "done" to WidgetTone.DONE, "idle" to WidgetTone.MUTED)
     private fun hex(t: WidgetTone) = t.argb.toUInt().toString(16).uppercase().padStart(8, '0').substring(2)
 
-    @Test fun everyStateHasAVectorFaceAGlowAndTheLayeredKito() {
+    @Test fun everyStateHasATintedVectorFaceAStateGlowAndTheLayeredKito() {
         for ((state, tone) in states) {
             val face = read("${res}drawable/preview_face_$state.xml")
             val glow = read("${res}drawable/preview_glow_$state.xml")
             val kito = read("${res}drawable/preview_kito_$state.xml")
             assertTrue(state, face.contains("<vector") && glow.contains("<vector"))
-            // The glow is in the state's colour and fades to nothing, and sits behind the face.
-            assertTrue("$state glow colour", glow.contains(hex(tone)))
-            assertTrue("$state glow fades out", glow.contains("""android:type="radial"""") && Regex("""android:color="#00${hex(tone)}"""").containsMatchIn(glow))
+            // A radial VectorDrawable glow uses a translucent centre and transparent edge in the state's colour.
+            val colour = hex(tone)
+            assertTrue("$state glow colour", glow.contains("android:startColor=\"#70$colour\"") && glow.contains("android:endColor=\"#00$colour\""))
+            assertTrue("$state glow fades out", glow.contains("""android:type="radial"""") && glow.contains("""android:gradientRadius="58"""))
             assertTrue(kito.indexOf("preview_glow_$state") in 0 until kito.indexOf("preview_face_$state"))
-            // The body, its light gradient, the pink cheeks and two dark eyes.
-            assertTrue(face.contains("#EDEDEF") && face.contains("#C4C5CA"))
-            assertTrue(face.contains("#59FF7896"))
-            assertTrue(state, Regex("""#1A1412""").findAll(face).count() >= 2)
-            for (d in listOf(face, glow)) {
-                assertTrue(d.contains("""android:viewportWidth="120"""") && d.contains("""android:viewportHeight="120""""))
-            }
+            // The static face keeps the shell and visor and uses the same state colour as the live renderer.
+            assertTrue(face.contains("""android:fillColor="#747D89""""))
+            assertTrue(face.contains("""android:fillColor="#1B2229""""))
+            assertTrue("$state eye colour", face.contains("android:fillColor=\"#$colour\" android:pathData=\"M43,51"))
+            assertTrue(face.contains("""android:viewportWidth="120"""") && face.contains("""android:viewportHeight="120""""))
+            assertTrue(glow.contains("""android:viewportWidth="120"""") && glow.contains("""android:viewportHeight="120""""))
         }
     }
 
     @Test fun theBadgesAreTheOnesOfTheStates() {
-        assertTrue("blue dots bubble", read(res + "drawable/preview_face_working.xml").let { it.contains("#3B9EFF") && Regex("""#FFFFFF" android:pathData="M25.5""").containsMatchIn(it) })
-        assertTrue("orange bang", read(res + "drawable/preview_face_waiting.xml").let { it.contains("#F5A524\" android:pathData=\"M25.7") && it.contains("#FFFFFF") })
+        assertTrue("blue dots bubble", read(res + "drawable/preview_face_working.xml").let { it.contains("#3B9EFF") && it.contains("#FFFFFF") && it.contains("M87,16") })
+        assertTrue("orange bang", read(res + "drawable/preview_face_waiting.xml").let { it.contains("#F5A524") && it.contains("#FFFFFF") && it.contains("M94,10 L94,18") })
         assertTrue("green check", read(res + "drawable/preview_face_done.xml").let { it.contains("#34D499") && it.contains("""android:strokeColor="#FFFFFF"""") })
-        assertFalse("calm: no badge", read(res + "drawable/preview_face_idle.xml").contains("""android:fillColor="#000000""""))
+        assertEquals("calm: no badge", 3, Regex("""<path\b""").findAll(read(res + "drawable/preview_face_idle.xml")).count())
     }
 
     @Test fun theRingIsANormalTealArcAtSixtyEightPercent() {

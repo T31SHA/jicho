@@ -35,7 +35,7 @@ class WidgetAccessibilityTest {
 
     @Test fun everyTappedAreaIsDescribedByLayoutOrCode() {
         for (name in widgets) {
-            val src = File(main + "kotlin/com/jichobot/android/app/$name.kt").readText()
+            val src = File(main + "kotlin/org/jichobot/android/app/$name.kt").readText()
             val layoutText = layouts().joinToString("\n") { it.readText() }
             // Areas named in the code; those in a loop (the buttons) are described in the layout, which the first test covers.
             val tapped = Regex("""setOnClickPendingIntent\(\s*R\.id\.(\w+),""").findAll(src).map { it.groupValues[1] }.toSet()
@@ -57,7 +57,7 @@ class WidgetAccessibilityTest {
 
     @Test fun spokenTextIsWordsNotEngineKeys() {
         for (name in widgets) {
-            val src = File(main + "kotlin/com/jichobot/android/app/$name.kt").readText()
+            val src = File(main + "kotlin/org/jichobot/android/app/$name.kt").readText()
             assertFalse("$name speaks a raw key", Regex("""widget_kito_description,\s*[\w.]*mood\.key""").containsMatchIn(src))
             assertFalse("$name speaks a raw key", Regex("""widget_kito_description,\s*[\w.]*Mood\.key""").containsMatchIn(src))
         }
@@ -65,8 +65,8 @@ class WidgetAccessibilityTest {
 
     @Test fun theTappedCardsSpeakOneSentence() {
         for (name in listOf("SoloWidget", "ListWidget", "WaitingAlertWidget", "MoodWidget")) {
-            assertTrue(name, File(main + "kotlin/com/jichobot/android/app/$name.kt").readText().contains("WidgetSpoken."))
+            assertTrue(name, File(main + "kotlin/org/jichobot/android/app/$name.kt").readText().contains("WidgetSpoken."))
         }
-        assertEquals(1, Regex("WidgetSpoken\\.alert").findAll(File(main + "kotlin/com/jichobot/android/app/WaitingAlertWidget.kt").readText()).count())
+        assertEquals(1, Regex("WidgetSpoken\\.alert").findAll(File(main + "kotlin/org/jichobot/android/app/WaitingAlertWidget.kt").readText()).count())
     }
 }

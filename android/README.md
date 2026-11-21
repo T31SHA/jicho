@@ -17,8 +17,6 @@ The app targets the package `org.jichobot.android`. The generated Android string
 node scripts/gen-strings.mjs --check
 ```
 
-The home-screen widgets are **Kito at a glance**, **All your agents**, **Kito, big**, **One-line status**, **Approvals waiting**, **Plan usage**, **Finished today**, **Kito's mood**, and **Agents summary**.
-
 Pairing links use the `jichobot://` scheme and desktop discovery uses `_jichobot._tcp`. The Android companion retains its separate `LICENSE`; third-party licenses are listed under `app/src/main/assets/licenses/`.
 
 Build and device verification results are in [`../STATUS.md`](../STATUS.md). Relay deployment requires the account and secrets listed there.

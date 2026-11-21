@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ['android/**', 'docs/ANDROID_LINK.md', '.github/workflows/android.yml']
   push:
-    branches: [main]
+    branches: [main, master]
     paths: ['android/**']
 jobs:
   build:

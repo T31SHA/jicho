@@ -12,7 +12,7 @@ on:
       - 'docs/ANDROID_LINK.md'
       - '.github/workflows/phone-link.yml'
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - 'windows/src-tauri/src/phone_link/**'
       - 'android/app/src/**'

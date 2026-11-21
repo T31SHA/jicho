@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RadialGradientShader
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -18,8 +19,6 @@ import org.jichobot.android.kito.outfit.ComposeGfx
 import org.jichobot.android.kito.outfit.Ctx2D
 import org.jichobot.android.kito.outfit.Outfit
 import org.jichobot.android.kito.outfit.OutfitState
-import org.jichobot.android.kito.outfit.PUMPKIN_BODY
-import org.jichobot.android.kito.outfit.Css
 import org.jichobot.android.kito.outfit.drawOutfitBehind
 import org.jichobot.android.kito.outfit.drawOutfitFront
 import org.jichobot.android.kito.outfit.makeHead
@@ -32,17 +31,14 @@ import kotlin.math.pow
 import kotlin.math.sin
 
 /**
- * Compose Canvas port of KitoEngine.draw() in windows/src/kito/engine.ts.
- * Draws hands, body, blush, eyes, mouth, badge, particles and the outfits (kito/outfit, checked against the PC's drawing).
+ * Compose Canvas renderer for the original eye-robot in docs/KITO_DESIGN.md.
+ * Draws the hood, visor, shoulder shell, state eyes, mouth, badge, particles and outfits.
  */
 object KitoPainter {
-    private val INK = Color(255, 107, 92)
-    private val MINI_INK = Color(16, 19, 26)
+    private val CORE = Color(255, 227, 223)
 
     private fun Rgb.color(a: Double = 1.0) =
         Color(r.toFloat().coerceIn(0f, 1f), g.toFloat().coerceIn(0f, 1f), b.toFloat().coerceIn(0f, 1f), a.toFloat().coerceIn(0f, 1f))
-
-    private fun cssColor(s: String): Color = Css.parse(s).let { Color((it.r / 255).toFloat(), (it.g / 255).toFloat(), (it.b / 255).toFloat(), it.a.toFloat()) }
 
     private fun fillPaint(c: Color) = Paint().apply { color = c; isAntiAlias = true }
     private fun strokePaint(c: Color, w: Float) = Paint().apply {
@@ -57,7 +53,7 @@ object KitoPainter {
         }
     }
 
-    /** Draws Kito centred in this DrawScope. `nowSec` drives spirals, wave and badge pulses. */
+    /** Draws Kito centred in this DrawScope. `nowSec` drives lens motion, spirals and badge pulses. */
     fun DrawScope.drawKito(e: KitoEngine, nowSec: Double) {
         val w = size.width.toDouble()
         val h = size.height.toDouble()
@@ -91,23 +87,6 @@ object KitoPainter {
             val body = bodyPath(e, rx, ry, r)
             drawBody(c, e, body, r, rx, ry)
 
-            val blushVal = max(e.blush, e.tint * 0.5) * (1 - e.morph)
-            if (blushVal > 0.01) {
-                c.save()
-                c.clipPath(body)
-                val yOffset = sin(e.yaw) * rx * 0.8
-                val p = fillPaint(Color(255, 120, 150, (255 * 0.5 * blushVal).toInt().coerceIn(0, 255)))
-                for (sd in intArrayOf(-1, 1)) {
-                    c.drawOval(
-                        Rect(
-                            (sd * rx * 0.55 + yOffset - r * 0.17).toFloat(), (ry * 0.2 - r * 0.1).toFloat(),
-                            (sd * rx * 0.55 + yOffset + r * 0.17).toFloat(), (ry * 0.2 + r * 0.1).toFloat(),
-                        ), p,
-                    )
-                }
-                c.restore()
-            }
-
             drawShellAndVisor(c, e, body, r)
             drawEyes(c, e, nowSec, body, r, rx, ry)
             if (e.morph > 0.05) drawMouth(c, e, body, r)
@@ -123,15 +102,23 @@ object KitoPainter {
     }
 
     private fun drawShellAndVisor(c: Canvas, e: KitoEngine, body: Path, r: Double) {
-        if (e.isMini) return
-        c.drawPath(body, strokePaint(Color(52, 59, 69), (r * 0.055).toFloat()))
+        c.drawPath(body, strokePaint(Color(52, 59, 69), (r * 0.045).toFloat()))
         if (e.morph < 0.95) {
             val a = (255 * (1 - e.morph)).toInt().coerceIn(0, 255)
-            val rect = android.graphics.RectF((-r * .64).toFloat(), (-r * .42).toFloat(), (r * .64).toFloat(), (r * .24).toFloat())
-            val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb(a, 27, 34, 41) }
-            val line = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb(a, 166, 176, 184); style = android.graphics.Paint.Style.STROKE; strokeWidth = (r * .035).toFloat() }
+            val rim = Path().apply { addOval(Rect((-r * .83).toFloat(), (-r * .85).toFloat(), (r * .83).toFloat(), (r * .61).toFloat())) }
+            c.drawPath(rim, fillPaint(Color(115, 120, 129, a)))
+            c.drawPath(rim, strokePaint(Color(167, 170, 176, a), (r * .035).toFloat()))
+            val rect = android.graphics.RectF((-r * .62).toFloat(), (-r * .36).toFloat(), (r * .62).toFloat(), (r * .22).toFloat())
+            val fill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                shader = android.graphics.LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
+                    intArrayOf(android.graphics.Color.rgb(35, 37, 43), android.graphics.Color.rgb(11, 12, 15)), null, android.graphics.Shader.TileMode.CLAMP)
+                alpha = a
+            }
+            val line = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb((a * .62).toInt(), 194, 205, 211); style = android.graphics.Paint.Style.STROKE; strokeWidth = (r * .027).toFloat() }
             c.nativeCanvas.drawRoundRect(rect, (r * .25).toFloat(), (r * .25).toFloat(), fill)
             c.nativeCanvas.drawRoundRect(rect, (r * .25).toFloat(), (r * .25).toFloat(), line)
+            val glint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.argb((a * .09).toInt(), 255, 255, 255) }
+            c.nativeCanvas.drawOval((-r * .49).toFloat(), (-r * .33).toFloat(), (-r * .15).toFloat(), (-r * .24).toFloat(), glint)
         }
     }
 
@@ -150,20 +137,23 @@ object KitoPainter {
             c.drawPath(body, p)
         }
 
-        // The pumpkin's orange comes and goes with the outfit; a flat-coloured body only gets the shading while it is a pumpkin.
-        val pumpkin = if (e.isMini || e.outfit != Outfit.PUMPKIN) 0.0 else min(1.0, e.outfitPresence * 2.5) * (1 - e.morph)
         var tail = 1f
-        if (pumpkin > 0.001) {
-            val pg = Paint().apply {
-                isAntiAlias = true
-                alpha = pumpkin.toFloat().coerceIn(0f, 1f)
-                shader = LinearGradientShader(
-                    Offset((rx * 0.7).toFloat(), (-ry * 0.85).toFloat()), Offset((-rx * 0.8).toFloat(), (ry * 0.9).toFloat()),
-                    listOf(cssColor(PUMPKIN_BODY.first), cssColor(PUMPKIN_BODY.second)),
-                )
+
+        if (!e.isMini) {
+            c.save()
+            c.clipPath(body)
+            val shoulder = Path().apply {
+                moveTo((-rx * .8).toFloat(), (ry * .98).toFloat())
+                cubicTo((-rx * .78).toFloat(), (ry * .62).toFloat(), (-rx * .55).toFloat(), (ry * .43).toFloat(), (-r * .28).toFloat(), (r * .43).toFloat())
+                lineTo((r * .28).toFloat(), (r * .43).toFloat())
+                cubicTo((rx * .55).toFloat(), (ry * .43).toFloat(), (rx * .78).toFloat(), (ry * .62).toFloat(), (rx * .8).toFloat(), (ry * .98).toFloat())
+                close()
             }
-            c.drawPath(body, pg)
-            if (bodyColor != null) tail = pumpkin.toFloat().coerceIn(0f, 1f)
+            val bust = Paint().apply { isAntiAlias = true; shader = LinearGradientShader(Offset(0f, (r * .4).toFloat()), Offset(0f, r.toFloat()), listOf(Color(133, 137, 144), Color(100, 105, 112))) }
+            c.drawPath(shoulder, bust)
+            val seam = strokePaint(Color(232, 185, 160), max(1.0, r * .035).toFloat())
+            for (side in intArrayOf(-1, 1)) c.drawLine(Offset((side * r * .31).toFloat(), (r * .45).toFloat()), Offset((side * r * .29).toFloat(), (r * .61).toFloat()), seam)
+            c.restore()
         }
 
         val effectiveTint = e.tint * (1 - e.morph)
@@ -210,7 +200,8 @@ object KitoPainter {
         }
         c.save()
         c.clipPath(body)
-        val ink = if (e.isMini) MINI_INK else INK
+        val ink = e.col.color()
+        val stateAge = e.stateAge
 
         for (sd in intArrayOf(-1, 1)) {
             val eyeYaw = sd * KitoConst.EYE_SP + e.yaw
@@ -227,11 +218,19 @@ object KitoPainter {
             val mult = if (e.isMini) 1.9 else 1.0
             val ew = r * KitoConst.EYE_W * e.es * mult
             val eh = r * KitoConst.EYE_H * e.es * mult
+            var eyeShape = shape
+            if (e.eyeOverride == null) eyeShape = when (e.state) {
+                BotState.THINKING -> if (sd < 0) EyeShape.DOT else EyeShape.PILL
+                BotState.QUESTION -> if (sd < 0) EyeShape.PILL else if (stateAge < .72) EyeShape.SPIRAL else EyeShape.DOT
+                BotState.ERROR -> if (stateAge < .21) { if (sd < 0) EyeShape.FLAT else EyeShape.LINE } else if (stateAge < .42) { if (sd < 0) EyeShape.LINE else EyeShape.FLAT } else EyeShape.FLAT
+                BotState.FINISHED -> if (sd < 0 || stateAge >= .32) EyeShape.HAPPY else EyeShape.PILL
+                else -> shape
+            }
 
             c.save()
             c.translate(ex.toFloat(), ey.toFloat())
             c.scale(fx.toFloat(), fy.toFloat())
-            drawEyeShape(c, e, nowSec, shape, ew, eh, sd, ink)
+            drawEyeShape(c, e, nowSec, eyeShape, ew, eh, sd, ink)
             c.restore()
         }
         c.restore()
@@ -272,23 +271,48 @@ object KitoPainter {
     }
 
     private fun drawEyeShape(c: Canvas, e: KitoEngine, nowSec: Double, shape: EyeShape, w: Double, h: Double, sd: Int, ink: Color) {
-        val fill = fillPaint(ink)
+        val core = CORE
+        val bloom = 0.82 + e.blush * .45 + (if (e.state == BotState.IDLE) 0.08 * (0.5 + 0.5 * sin(nowSec * 1.7)) else 0.0)
+        val native = c.nativeCanvas
+        fun capsule(width: Double, height: Double, coreX: Double = 0.0) {
+            val hh = max(height * e.open, width * .42)
+            val rect = android.graphics.RectF((-width / 2).toFloat(), (-hh / 2).toFloat(), (width / 2).toFloat(), (hh / 2).toFloat())
+            val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = ink.toArgb(); setShadowLayer((width * bloom).toFloat(), 0f, 0f, ink.toArgb()) }
+            native.drawRoundRect(rect, min(width / 2, hh / 2).toFloat(), min(width / 2, hh / 2).toFloat(), p)
+            p.clearShadowLayer(); p.color = core.toArgb()
+            val inner = android.graphics.RectF((coreX - width * .19).toFloat(), (-hh * .29).toFloat(), (coreX + width * .19).toFloat(), (hh * .29).toFloat())
+            native.drawRoundRect(inner, (width * .19).toFloat(), (width * .19).toFloat(), p)
+        }
+        val t = nowSec
+        val workPhase = e.stateAge % 1.5
+        val workDrift = when {
+            workPhase < .55 -> lerpD(-.24 * w, .24 * w, workPhase / .55)
+            workPhase < .75 -> .24 * w
+            workPhase < 1.30 -> lerpD(.24 * w, -.24 * w, (workPhase - .75) / .55)
+            else -> -.24 * w
+        }
+        val scanPhase = e.stateAge % 1.7
+        val scanDrift = when {
+            scanPhase < 1.05 -> sd * lerpD(-.25 * w, .25 * w, scanPhase / 1.05)
+            scanPhase < 1.2 -> sd * .25 * w
+            else -> 0.0
+        }
+        val drift = when (e.state) {
+            BotState.WORKING -> workDrift
+            BotState.SEARCHING -> scanDrift
+            BotState.THINKING -> if (sd < 0 || e.stateAge >= .24) w * .12 else 0.0
+            else -> 0.0
+        }
         when (shape) {
-            EyeShape.WIDE -> drawEyeShape(c, e, nowSec, EyeShape.PILL, w * 1.16, h * 1.12, sd, ink)
-            EyeShape.PILL -> {
-                val hh = max(h * e.open, w * 0.3)
-                roundRect(c, -w / 2, -hh / 2, w, hh, min(w / 2, hh / 2), fill)
-            }
-            EyeShape.DOT -> c.drawCircle(Offset.Zero, (w * 0.45).toFloat(), fill)
+            EyeShape.WIDE -> capsule(w * 1.12, h * 1.16, drift)
+            EyeShape.PILL -> capsule(w, h, drift)
+            EyeShape.DOT -> { val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = ink.toArgb(); setShadowLayer((w * bloom).toFloat(), 0f, 0f, ink.toArgb()) }; native.drawCircle(0f, 0f, (w * .48).toFloat(), p); p.clearShadowLayer(); p.color = core.toArgb(); native.drawCircle(drift.toFloat(), 0f, (w * .18).toFloat(), p) }
             EyeShape.LINE -> {
-                c.save()
-                c.rotate((-sd * 0.2 * 180 / PI).toFloat())
-                roundRect(c, -w * 0.78, -w * 0.21, w * 1.56, w * 0.42, w * 0.21, fill)
-                c.restore()
+                c.save(); c.rotate((-sd * .12 * 180 / PI).toFloat()); capsule(w * 1.5, h * .58, drift); c.restore()
             }
-            EyeShape.FLAT -> roundRect(c, -w * 0.72, -w * 0.2, w * 1.44, w * 0.4, w * 0.2, fill)
-            EyeShape.HAPPY -> arcStroke(c, 0.0, h * 0.18, w * 0.82, PI * 1.12, PI * 1.88, strokePaint(ink, (w * 0.5).toFloat()))
-            EyeShape.CLOSED -> arcStroke(c, 0.0, -h * 0.08, w * 0.78, PI * 0.15, PI * 0.85, strokePaint(ink, (w * 0.36).toFloat()))
+            EyeShape.FLAT -> { c.save(); c.rotate((sd * .1 * 180 / PI).toFloat()); capsule(w * 1.35, h * .4); c.restore() }
+            EyeShape.HAPPY -> { val p = strokePaint(ink, (w * .32).toFloat()); p.asFrameworkPaint().setShadowLayer((w * bloom).toFloat(), 0f, 0f, ink.toArgb()); arcStroke(c, 0.0, h * .15, w * .7, PI * 1.13, PI * 1.87, p); arcStroke(c, 0.0, h * .15, w * .7, PI * 1.28, PI * 1.72, strokePaint(core, (w * .11).toFloat())) }
+            EyeShape.CLOSED -> { val p = Path().apply { moveTo((-w * .48).toFloat(), 0f); quadraticBezierTo(0f, (h * .12).toFloat(), (w * .48).toFloat(), 0f) }; c.drawPath(p, strokePaint(ink, (w * .3).toFloat())); c.drawLine(Offset((-w * .25).toFloat(), (h * .01).toFloat()), Offset((w * .25).toFloat(), (h * .01).toFloat()), strokePaint(core, (w * .1).toFloat())) }
             EyeShape.SPIRAL -> {
                 val path = Path()
                 var a = 0.0
@@ -301,21 +325,21 @@ object KitoPainter {
                     if (first) { path.moveTo(px, py); first = false } else path.lineTo(px, py)
                     a += 0.2
                 }
-                c.drawPath(path, strokePaint(ink, (w * 0.22).toFloat()))
+                c.drawPath(path, strokePaint(ink, (w * 0.14).toFloat()))
             }
-            EyeShape.HEART -> c.drawPath(heartPath(w * 1.2), fillPaint(Color(0xFF, 0x4D, 0x6D)))
+            EyeShape.HEART -> { c.drawPath(heartPath(w * 1.08), fillPaint(Color(255, 107, 136))); c.drawCircle(Offset((-w * .12).toFloat(), (-w * .18).toFloat()), (w * .11).toFloat(), fillPaint(core)) }
             EyeShape.STAR -> {
                 c.save()
-                c.rotate((nowSec * 1.5 * sd * 180 / PI).toFloat())
-                c.drawPath(starPath(w * 1.05, w * 0.46), fillPaint(Color(0xF7, 0xB3, 0x2B)))
+                c.rotate((nowSec * .65 * sd * 180 / PI).toFloat())
+                c.drawPath(starPath(w * .88, w * .48), fillPaint(ink)); c.drawCircle(Offset.Zero, (w * .13).toFloat(), fillPaint(core))
                 c.restore()
             }
             EyeShape.TIRED -> {
-                roundRect(c, -w / 2, -h * 0.02, w, h * 0.38, w / 2, fill)
-                roundRect(c, -w * 0.62, -h * 0.1, w * 1.24, w * 0.22, w * 0.11, fill)
+                capsule(w, h * .55)
+                roundRect(c, -w * .62, -h * .52 + min(1.0, e.stateAge / .42) * h * .22, w * 1.24, h * .48, w * .2, fillPaint(Color(11, 12, 15)))
             }
             EyeShape.WINK -> if (sd < 0) {
-                val hh = max(h * e.open, w * 0.3)
+                val hh = max(h * e.open, w * 0.42)
                 roundRect(c, -w / 2, -hh / 2, w, hh, min(w / 2, hh / 2), fill)
             } else {
                 arcStroke(c, 0.0, h * 0.18, w * 0.82, PI * 1.12, PI * 1.88, strokePaint(ink, (w * 0.5).toFloat()))
@@ -333,7 +357,7 @@ object KitoPainter {
                     quadraticBezierTo((-w / 2).toFloat(), (hh / 2).toFloat(), (-w / 2).toFloat(), (hh / 2 - cr).toFloat())
                     close()
                 }
-                c.drawPath(path, fill)
+                c.drawPath(path, fillPaint(ink)); roundRect(c, -w * .14, hh * .06, w * .28, hh * .43, w * .13, fillPaint(core))
             }
         }
     }

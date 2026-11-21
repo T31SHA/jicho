@@ -1,6 +1,6 @@
 // The launch "jichobot" (greeting v2) — port of GreetingCanvasView.swift.
-// Kito drops into the island, bounces, slides to the side and waves hello with
-// a quick little hand, then comes back and settles in the compact island.
+// Kito wakes the visor in sequence, answers with a lens salute and settles
+// into the compact island. The greeting has no hand wave or lateral parade.
 // Everything is laid out in the same 640×150 reference space as on macOS.
 
 import { closeCurve } from "../core/anim";
@@ -10,19 +10,12 @@ import { COMPACT_W, NOTCH_H, NOTCH_W } from "../core/layout";
 // ── Timing (GT in the Swift file) ─────────────────────────────────────────────
 
 const T = {
-  pop0: 1.3,
-  pop1: 1.45,
-  content0: 2.4,
-  tuck0: 2.45,
-  tuck1: 2.7,
-  badge: 2.72,
-  down0: 2.85,
-  down1: 3.45,
-  blink2: 3.7,
-  tint0: 3.85,
-  tint1: 4.15,
-  end: 4.6,
-  autoLeave: 4.9,
+  badge: 1.18,
+  blink2: 3.42,
+  tint0: 1.5,
+  tint1: 2.18,
+  end: 4.05,
+  autoLeave: 4.35,
   COLLAPSE: 0.34,
 };
 
@@ -37,7 +30,7 @@ export const GREETING_W = 640;
 export const GREETING_H = 150;
 const C0 = { x: 320, y: 90 };
 const HB = 58;
-export const ASP = 1.34;
+export const ASP = 1.06;
 const EAR_X = 40;
 const EAR_HB = 17;
 const CARD = { x: 10, y: 36, w: 620, h: 104 };
@@ -72,13 +65,12 @@ const seg = (t: number, a: number, b: number) => clamp((t - a) / (b - a), 0, 1);
 
 // ── Pose ──────────────────────────────────────────────────────────────────────
 
-type EyeType = "dot" | "happy" | "content";
+type EyeType = "dot" | "happy" | "content" | "pill" | "wide" | "wink" | "closed";
 
 export interface Pose {
   hb: number; x: number; y: number; sx: number; sy: number; tilt: number;
   eye: EyeType; open: number; eyeRoll: number;
   lookX: number; lookY: number;
-  handL: number; handR: number; wave: number;
   badge: number; tint: number; halo: number; haloBlue: number; minis: number; fx: number;
   header: number; card: number;
   iw: number; ih: number;
@@ -98,100 +90,50 @@ function greetPose(t: number): Pose {
 
   // Landmarks, in multiples of the body height
   const landY = cy + 0.12 * HB;
-  const peakY = cy - 0.15 * HB;
-  const dipY = cy + 0.36 * HB;
-  const springY = cy - 0.1 * HB;
-  const sinkY = cy + 0.3 * HB;
-  const drift1 = cx - 0.16 * HB;
-  const drift2 = cx - 0.45 * HB;
-  const drift3 = cx - 0.57 * HB;
-  const drift4 = cx - 0.85 * HB;
-
-  // Lateral travel: slides to the side, waves there, comes back.
-  let x: number;
-  if (t < 0.85) x = cx;
-  else if (t < 1.2) x = lerp(cx, drift1, E.inOut(seg(t, 0.85, 1.2)));
-  else if (t < 1.3) x = lerp(drift1, drift2, E.easeIn(seg(t, 1.2, 1.3)));
-  else if (t < 1.45) x = lerp(drift2, drift3, E.inOut(seg(t, 1.3, 1.45)));
-  else if (t < 2.4) x = lerp(drift3, drift4, E.inOut(seg(t, 1.45, 2.4)));
-  else if (t < 2.85) x = drift4;
-  else x = lerp(drift4, cx, E.inOut(seg(t, 2.85, 3.45)));
-
-  // Vertical travel: drop in, bounce, plunge and spring for the wave, sink to tuck.
+  const peakY = cy - 0.12 * HB;
+  const dipY = cy + 0.18 * HB;
   let y: number;
   if (t < 0.2) y = COMPACT.botCenterY;
   else if (t < 0.6) y = lerp(COMPACT.botCenterY, landY, E.easeIn(seg(t, 0.2, 0.6)));
-  else if (t < 0.73) y = lerp(landY, peakY, E.out(seg(t, 0.6, 0.73)));
-  else if (t < 0.9) y = lerp(peakY, cy, E.inOut(seg(t, 0.73, 0.9)));
-  else if (t < 1.2) y = cy;
-  else if (t < 1.3) y = lerp(cy, dipY, E.easeIn(seg(t, 1.2, 1.3)));
-  else if (t < 1.45) y = lerp(dipY, springY, E.out(seg(t, 1.3, 1.45)));
-  else if (t < 1.6) y = lerp(springY, cy, E.inOut(seg(t, 1.45, 1.6)));
-  else if (t < 2.4) y = cy;
-  else if (t < 2.7) y = lerp(cy, sinkY, E.inOut(seg(t, 2.4, 2.7)));
-  else if (t < 2.85) y = sinkY;
-  else y = lerp(sinkY, cy, E.inOut(seg(t, 2.85, 3.45)));
-
-  // Body bob in phase with the waving hand
-  if (t >= T.pop1 && t < T.tuck0) {
-    const w = t - T.pop1;
-    y += Math.sin(w * 2 * Math.PI * 5) * 0.02 * HB * clamp(w / 0.08, 0, 1);
-  }
+  else if (t < 0.82) y = lerp(landY, peakY, E.out(seg(t, 0.6, 0.82)));
+  else if (t < 1.08) y = lerp(peakY, cy, E.back(seg(t, 0.82, 1.08)));
+  else if (t < 2.28) y = cy + Math.sin((t - 1.08) * Math.PI * 1.7) * HB * 0.012;
+  else if (t < 2.46) y = lerp(cy, dipY, E.easeIn(seg(t, 2.28, 2.46)));
+  else if (t < 2.74) y = lerp(dipY, peakY * 0 + cy, E.out(seg(t, 2.46, 2.74)));
+  else y = lerp(cy, COMPACT.botCenterY, E.inOut(seg(t, 3.55, 4.05)));
 
   // Squash and stretch
-  const landSqK = t >= 0.52 && t < 0.68 ? Math.sin(Math.PI * seg(t, 0.52, 0.68)) : 0;
-  const bounceK = t >= 0.62 && t < 0.84 ? Math.sin(Math.PI * seg(t, 0.62, 0.84)) : 0;
-  let sx = 1 + 0.14 * landSqK - 0.1 * bounceK;
-  let sy = 1 - 0.14 * landSqK + 0.18 * bounceK;
-  const plungeK = t >= 1.18 && t < 1.42 ? Math.sin(Math.PI * seg(t, 1.18, 1.42)) : 0;
-  const springK = t >= 1.3 && t < 1.46 ? Math.sin(Math.PI * seg(t, 1.3, 1.46)) : 0;
-  sx += 0.12 * plungeK - 0.18 * springK;
-  sy -= 0.12 * plungeK - 0.25 * springK;
-  let sinkK = 0;
-  if (t >= 2.38 && t < 2.7) sinkK = E.inOut(seg(t, 2.38, 2.7));
-  else if (t >= 2.7 && t < 2.85) sinkK = 1 - E.inOut(seg(t, 2.7, 2.85));
-  sx += 0.18 * sinkK;
-  sy -= 0.14 * sinkK;
-  const microK = t >= 3.7 && t < 3.82 ? Math.sin(Math.PI * seg(t, 3.7, 3.82)) : 0;
-  sx += 0.08 * microK;
-  sy -= 0.07 * microK;
+  const landSqK = t >= 0.52 && t < 0.7 ? Math.sin(Math.PI * seg(t, 0.52, 0.7)) : 0;
+  const saluteK = t >= 1.12 && t < 1.52 ? Math.sin(Math.PI * seg(t, 1.12, 1.52)) : 0;
+  const nodK = t >= 2.25 && t < 2.72 ? Math.sin(Math.PI * seg(t, 2.25, 2.72)) : 0;
+  const sx = 1 + 0.16 * landSqK - 0.045 * saluteK + 0.06 * nodK;
+  const sy = 1 - 0.16 * landSqK + 0.08 * saluteK - 0.055 * nodK;
 
   // Eyes
-  let eye: EyeType = "dot";
-  if (t >= 0.55 && t < 0.8) eye = "happy";
-  if (t >= T.content0 && t < T.tuck1) eye = "content";
+  let eye: EyeType = "closed";
+  if (t >= 0.72 && t < 1.04) eye = "wide";
+  else if (t >= 1.04 && t < 1.36) eye = "pill";
+  else if (t >= 1.36 && t < 1.72) eye = "wink";
+  else if (t >= 1.72 && t < 2.5) eye = "happy";
+  else if (t >= 2.5) eye = "pill";
   const blink = (tb: number) => {
     const k = seg(t, tb, tb + 0.12);
     return k > 0 && k < 1 ? 1 - Math.sin(Math.PI * k) * 0.94 : 1;
   };
-  const open = Math.min(blink(1.95), blink(3.05), blink(T.blink2));
+  const open = Math.min(blink(2.92), blink(T.blink2));
 
   // Look
   let lookX = 0;
   let lookY = 0;
-  if (t >= T.pop1 && t < T.content0) { lookX = 0.55; lookY = -0.45; }
-  else if (t >= T.content0 && t < T.down0) { lookX = -0.3; lookY = 0.6; }
-  else if (t >= T.down0 && t < T.down1) { lookX = 0.3; lookY = 0.6; }
-  else if (t >= T.down1) {
-    const k = E.inOut(seg(t, T.down1, T.down1 + 0.35));
-    lookX = lerp(0.3, 0, k);
-    lookY = lerp(0.6, 0, k);
-  }
-
-  // Hands
-  const handL = t < T.tuck0
-    ? E.back(seg(t, T.pop0, T.pop0 + 0.14))
-    : 1 - E.easeIn(seg(t, T.tuck0, T.tuck1 - 0.03));
-  const handR = t < T.tuck0
-    ? E.back(seg(t, T.pop0 + 0.04, T.pop0 + 0.18))
-    : 1 - E.easeIn(seg(t, T.tuck0 + 0.03, T.tuck1));
-  const wave = t >= T.pop1 && t < T.tuck0 ? t - T.pop1 : -1;
+  if (t >= 0.72 && t < 1.36) { lookX = -0.25; lookY = -0.12; }
+  else if (t >= 1.36 && t < 1.72) { lookX = 0.3; lookY = -0.1; }
+  else if (t >= 1.72 && t < 2.5) { lookX = 0; lookY = 0.05; }
+  else if (t >= 2.5) { const k = E.inOut(seg(t, 2.5, 2.95)); lookX = lerp(0, 0.08, k); lookY = lerp(0.05, 0, k); }
 
   return {
-    hb, x, y, sx, sy, tilt: 0,
+    hb, x: cx, y, sx, sy, tilt: t >= 2.28 && t < 2.74 ? 0.045 * nodK : 0,
     eye, open, eyeRoll: 0,
     lookX, lookY,
-    handL, handR, wave,
     badge: E.back(seg(t, T.badge, T.badge + 0.28)),
     tint: 0.6 * E.inOut(seg(t, T.tint0, T.tint1)),
     halo: E.out(seg(t, 0.3, 0.7)),
@@ -212,7 +154,6 @@ function smallPose(): Pose {
     sx: 1, sy: 1, tilt: 0,
     eye: "dot", open: 1, eyeRoll: 0,
     lookX: 0, lookY: 0,
-    handL: 0, handR: 0, wave: -1,
     badge: 1, tint: 0.6, halo: 0.6, haloBlue: 1,
     minis: 1, fx: 1,
     header: 0, card: 0,
@@ -242,8 +183,6 @@ export function greetingPose(t: number, tc = Number.POSITIVE_INFINITY): Pose {
   p.haloBlue = lerp(a.haloBlue, b.haloBlue, e);
   p.header = a.header * (1 - seg(t, tc, tc + 0.1));
   p.card = a.card * (1 - seg(t, tc, tc + 0.18));
-  p.handL = a.handL * (1 - seg(t, tc, tc + 0.15));
-  p.handR = a.handR * (1 - seg(t, tc, tc + 0.15));
   p.tilt = a.tilt * (1 - e);
   p.sx = lerp(a.sx, 1, e);
   p.sy = lerp(a.sy, 1, e);
@@ -258,40 +197,8 @@ export function greetingPose(t: number, tc = Number.POSITIVE_INFINITY): Pose {
   return p;
 }
 
-/** Where the waving (left, round) hand is, in body space before the body's scale. */
-function handLPos(hw: number, hh: number, p: Pose) {
-  const k = p.handL;
-  const hb = hh * 2;
-  const r = hb * 0.15 * k;
-  const x = lerp(-hw * 0.35, -hw - hb * 0.22, k);
-  let y = lerp(hh * 0.85, hh * 0.62, k);
-  if (p.wave >= 0) {
-    // ramp in 0.08 s after pop1, ramp out over the tuck
-    const w = p.wave;
-    const rampIn = clamp(w / 0.08, 0, 1);
-    const rampOut = 1 - clamp((w - (T.tuck0 - T.pop1)) / (T.tuck1 - T.tuck0), 0, 1);
-    y += Math.sin(w * 2 * Math.PI * 5) * hb * 0.14 * rampIn * rampOut;
-  }
-  return { x, y, r };
-}
-
-/** The resting (right, capsule) hand. */
-function handRPos(hw: number, hh: number, p: Pose) {
-  const k = p.handR;
-  const hb = hh * 2;
-  return {
-    x: lerp(hw * 0.35, hw + hb * 0.2, k),
-    y: lerp(hh * 0.85, hh * 0.2, k),
-    L: hb * 0.4 * k,
-    T: hb * 0.22 * k,
-    // breathing rotation ±0.04 rad at 2.5 Hz while the other hand waves
-    ang: p.wave >= 0 ? -0.61 + Math.sin(p.wave * 2 * Math.PI * 2.5) * 0.04 : -0.61,
-  };
-}
-
 /**
- * Bounding box of Kito's body and hands in the 640×150 space — what must stay
- * inside the island so nothing of him is cut off.
+ * Bounding box of Kito's hood and shoulder shell in the 640×150 space.
  */
 export function kitoBounds(p: Pose): { left: number; right: number; top: number; bottom: number } | null {
   const hh = p.hb / 2;
@@ -301,19 +208,6 @@ export function kitoBounds(p: Pose): { left: number; right: number; top: number;
   let right = hw;
   let top = -hh;
   let bottom = hh;
-  if (p.handL > 0.01) {
-    const l = handLPos(hw, hh, p);
-    left = Math.min(left, l.x - l.r);
-    top = Math.min(top, l.y - l.r);
-    bottom = Math.max(bottom, l.y + l.r);
-  }
-  if (p.handR > 0.01) {
-    const r = handRPos(hw, hh, p);
-    const ext = r.L / 2 + r.T / 2;
-    right = Math.max(right, r.x + ext);
-    top = Math.min(top, r.y - ext);
-    bottom = Math.max(bottom, r.y + ext);
-  }
   return {
     left: p.x + left * p.sx,
     right: p.x + right * p.sx,
@@ -382,48 +276,16 @@ function kitoPath(hw: number, hh: number): Path2D {
   return p;
 }
 
-/** White body gradient. A canvas gradient pads past its ends, so the corners are never left unpainted. */
+/** Slate hood gradient from the legacy eye mascot. */
 function whiteFill(
   x: CanvasRenderingContext2D, path: Path2D,
   x0: number, y0: number, x1: number, y1: number,
 ) {
   const g = x.createLinearGradient(x0, y0, x1, y1);
-  g.addColorStop(0, "rgb(251,251,252)");
-  g.addColorStop(1, "rgb(231,233,236)");
+  g.addColorStop(0, "#A7AAB0");
+  g.addColorStop(1, "#777A81");
   x.fillStyle = g;
   x.fill(path);
-}
-
-function drawHandL(x: CanvasRenderingContext2D, hw: number, hh: number, p: Pose) {
-  if (p.handL <= 0.01) return;
-  const { x: hx, y: hy, r } = handLPos(hw, hh, p);
-  x.save();
-  x.translate(hx, hy);
-  const circ = new Path2D();
-  circ.ellipse(0, 0, r, r, 0, 0, Math.PI * 2);
-  whiteFill(x, circ, r, -r, -r, r);
-  x.strokeStyle = "rgba(0,0,0,0.08)";
-  x.lineWidth = 0.8;
-  x.stroke(circ);
-  x.restore();
-}
-
-function drawHandR(x: CanvasRenderingContext2D, hw: number, hh: number, p: Pose) {
-  if (p.handR <= 0.01) return;
-  const h = handRPos(hw, hh, p);
-  x.save();
-  x.translate(h.x, h.y);
-  x.rotate(h.ang);
-  rr(x, -h.L / 2, -h.T / 2, h.L, h.T, h.T / 2);
-  const g = x.createLinearGradient(h.L / 2, -h.T / 2, -h.L / 2, h.T / 2);
-  g.addColorStop(0, "rgb(251,251,252)");
-  g.addColorStop(1, "rgb(231,233,236)");
-  x.fillStyle = g;
-  x.fill();
-  x.strokeStyle = "rgba(0,0,0,0.08)";
-  x.lineWidth = 0.8;
-  x.stroke();
-  x.restore();
 }
 
 function drawKito(x: CanvasRenderingContext2D, p: Pose) {
@@ -453,49 +315,65 @@ function drawKito(x: CanvasRenderingContext2D, p: Pose) {
   x.rotate(p.tilt);
   x.scale(p.sx, p.sy);
 
-  drawHandL(x, hw, hh, p);
-  drawHandR(x, hw, hh, p);
-
   const body = kitoPath(hw, hh);
   whiteFill(x, body, hw * 0.6, -hh, -hw * 0.6, hh);
+  x.strokeStyle = "#343B45"; x.lineWidth = Math.max(1.5, hh * 0.045); x.stroke(body);
 
-  if (p.tint > 0) {
-    const g = x.createLinearGradient(0, hh, 0, -hh * 0.1);
-    g.addColorStop(0, `rgba(127,180,234,${p.tint})`);
-    g.addColorStop(1, "rgba(127,180,234,0)");
-    x.fillStyle = g;
-    x.fill(body);
-  }
+  x.save(); x.clip(body);
+  x.beginPath(); x.moveTo(-hw * 0.78, hh * 0.98);
+  x.bezierCurveTo(-hw * 0.74, hh * 0.62, -hw * 0.5, hh * 0.43, -hw * 0.28, hh * 0.43);
+  x.lineTo(hw * 0.28, hh * 0.43);
+  x.bezierCurveTo(hw * 0.5, hh * 0.43, hw * 0.74, hh * 0.62, hw * 0.78, hh * 0.98);
+  x.closePath();
+  const bust = x.createLinearGradient(0, hh * 0.42, 0, hh);
+  bust.addColorStop(0, "#858990"); bust.addColorStop(1, "#646970");
+  x.fillStyle = bust; x.fill();
+  x.strokeStyle = "#E8B9A0"; x.lineWidth = Math.max(1, hh * 0.035); x.lineCap = "round";
+  for (const side of [-1, 1]) { x.beginPath(); x.moveTo(side * hh * 0.31, hh * 0.45); x.lineTo(side * hh * 0.29, hh * 0.61); x.stroke(); }
+  x.restore();
+
+  x.beginPath(); x.ellipse(0, -hh * 0.12, hw * 0.78, hh * 0.72, 0, 0, Math.PI * 2);
+  const shell = x.createLinearGradient(0, -hh, 0, hh * 0.58);
+  shell.addColorStop(0, "#737881"); shell.addColorStop(1, "#555A62");
+  x.fillStyle = shell; x.fill(); x.strokeStyle = "#A7AAB0"; x.lineWidth = Math.max(1, hh * 0.035); x.stroke();
+  rr(x, -hw * 0.59, -hh * 0.35, hw * 1.18, hh * 0.55, hh * 0.23);
+  const glass = x.createLinearGradient(-hw * .38, -hh * .35, hw * .38, hh * .2);
+  glass.addColorStop(0, "#23252B"); glass.addColorStop(1, "#0B0C0F");
+  x.fillStyle = glass; x.fill(); x.strokeStyle = "rgba(194,205,211,.62)"; x.lineWidth = Math.max(.8, hh * .027); x.stroke();
+  x.beginPath(); x.ellipse(-hw * .3, -hh * .28, hw * .15, hh * .04, -.12, 0, Math.PI * 2); x.fillStyle = "rgba(255,255,255,.09)"; x.fill();
 
   // Eyes
   x.save();
   x.clip(body);
-  x.fillStyle = "#16171A";
-  x.strokeStyle = "#16171A";
-  const er = p.hb * 0.06;
-  const sp = p.hb * 0.19;
+  const lens = "#FF8A80";
+  const core = "#FFE3DF";
+  x.fillStyle = lens;
+  x.strokeStyle = lens;
+  const er = p.hb * 0.075;
+  const sp = p.hb * 0.17;
   const lx = p.lookX * hw * 0.42;
   const ly = p.lookY * hh * 0.28 + hh * 0.12 + p.eyeRoll * hh * 1.25;
   for (const sd of [-1, 1]) {
     x.save();
     x.translate(sd * sp + lx, ly);
-    if (p.eye === "happy") {
-      x.lineWidth = er * 0.95;
+    if (p.eye === "happy" || p.eye === "content") {
+      x.lineWidth = er * 0.62;
       x.lineCap = "round";
       x.beginPath();
-      x.arc(0, er * 0.6, er * 1.25, Math.PI * 1.15, Math.PI * 1.85);
+      x.arc(0, er * 0.15, er * 0.76, Math.PI * 1.13, Math.PI * 1.87);
       x.stroke();
-    } else if (p.eye === "content") {
-      x.lineWidth = er * 0.95;
-      x.lineCap = "round";
-      x.beginPath();
-      x.arc(0, -er * 0.5, er * 1.25, Math.PI * 0.15, Math.PI * 0.85);
-      x.stroke();
+      x.strokeStyle = core; x.lineWidth = er * .2; x.beginPath(); x.arc(0, er * .15, er * .76, Math.PI * 1.3, Math.PI * 1.7); x.stroke(); x.strokeStyle = lens;
+    } else if (p.eye === "closed") {
+      x.lineWidth = er * .45; x.lineCap = "round"; x.beginPath(); x.moveTo(-er * .7, 0); x.quadraticCurveTo(0, er * .18, er * .7, 0); x.stroke();
+    } else if (p.eye === "wink" && sd > 0) {
+      x.lineWidth = er * .45; x.lineCap = "round"; x.beginPath(); x.moveTo(-er * .7, er * .12); x.quadraticCurveTo(0, -er * .45, er * .7, er * .12); x.stroke();
     } else {
-      x.scale(1, Math.max(0.12, p.open));
-      x.beginPath();
-      x.arc(0, 0, er, 0, Math.PI * 2);
-      x.fill();
+      const ew = p.eye === "wide" ? er * 1.2 : er;
+      const eh = p.eye === "wide" ? er * 1.42 : er * 1.2;
+      const open = Math.max(.22, p.open);
+      rr(x, -ew * .5, -eh * open * .5, ew, eh * open, ew * .5);
+      x.shadowColor = lens; x.shadowBlur = er * .7; x.fill(); x.shadowBlur = 0;
+      rr(x, -ew * .18, -eh * open * .26, ew * .36, eh * open * .52, ew * .18); x.fillStyle = core; x.fill(); x.fillStyle = lens;
     }
     x.restore();
   }

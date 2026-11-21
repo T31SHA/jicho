@@ -77,90 +77,90 @@ enum BadgeType {
 // MARK: - Kito track constants (from PISTES.kito)
 
 enum KitoConst {
-    static let eyeW: CGFloat  = 0.25
-    static let eyeH: CGFloat  = 0.27
-    static let eyeSp: CGFloat = 0.37
-    static let eyeP: CGFloat  = -0.12
-    static let baseTop    = CGColor(red: 0.45, green: 0.48, blue: 0.53, alpha: 1)  // slate shell top
-    static let baseBottom = CGColor(red: 0.21, green: 0.23, blue: 0.27, alpha: 1)  // slate shell underside
-    static let ink        = CGColor(red: 1, green: 0.42, blue: 0.36, alpha: 1)  // coral lenses
-    static let miniInk    = CGColor(red: 0.063, green: 0.075, blue: 0.102, alpha: 1)  // #10131A
+    static let eyeW: CGFloat  = 0.18
+    static let eyeH: CGFloat  = 0.34
+    static let eyeSp: CGFloat = 0.30
+    static let eyeP: CGFloat  = -0.05
+    static let baseTop    = CGColor(red: 0.655, green: 0.667, blue: 0.69, alpha: 1)  // legacy hood top
+    static let baseBottom = CGColor(red: 0.467, green: 0.478, blue: 0.506, alpha: 1)  // shaded shell
+    static let ink        = CGColor(red: 1, green: 0.541, blue: 0.502, alpha: 1)  // coral lenses
+    static let miniInk    = CGColor(red: 1, green: 0.541, blue: 0.502, alpha: 1)
 }
 
 // MARK: - Bot state configs
 
 let BotStates: [BotState: BotStateCfg] = [
     .idle: BotStateCfg(
-        color: CGColor(red:0.902,green:0.914,blue:0.933,alpha:1), tint:0,
+        color: CGColor(red:1,green:0.541,blue:0.502,alpha:1), tint:0,
         eye:.pill, badge:nil,
         badgeColor: .white, glow: CGColor(red:1,green:1,blue:1,alpha:0.35), glowOpacity:0.25,
         bounces:false, scans:false, breathes:false, zz:false, sweat:false,
         look:nil, tilt:0, sound:nil),
     .working: BotStateCfg(
-        color: CGColor(red:0.231,green:0.620,blue:1,alpha:1), tint:0.72,
-        eye:.pill, badge:.dots(CGColor(red:0.231,green:0.620,blue:1,alpha:1)),
-        badgeColor: CGColor(red:0.231,green:0.620,blue:1,alpha:1),
-        glow: CGColor(red:0.231,green:0.620,blue:1,alpha:1), glowOpacity:0.55,
+        color: CGColor(red:0.373,green:0.839,blue:1,alpha:1), tint:0,
+        eye:.wide, badge:.dots(CGColor(red:0.373,green:0.839,blue:1,alpha:1)),
+        badgeColor: CGColor(red:0.373,green:0.839,blue:1,alpha:1),
+        glow: CGColor(red:0.373,green:0.839,blue:1,alpha:1), glowOpacity:0.55,
         bounces:false, scans:false, breathes:false, zz:false, sweat:false,
         look:nil, tilt:0, sound:"work"),
     .thinking: BotStateCfg(
-        color: CGColor(red:0.545,green:0.361,blue:0.965,alpha:1), tint:0.72,
-        eye:.pill, badge:.dots(CGColor(red:0.545,green:0.361,blue:0.965,alpha:1)),
+        color: CGColor(red:0.545,green:0.361,blue:0.965,alpha:1), tint:0,
+        eye:.dot, badge:.dots(CGColor(red:0.545,green:0.361,blue:0.965,alpha:1)),
         badgeColor: CGColor(red:0.545,green:0.361,blue:0.965,alpha:1),
         glow: CGColor(red:0.545,green:0.361,blue:0.965,alpha:1), glowOpacity:0.5,
         bounces:false, scans:false, breathes:false, zz:false, sweat:false,
-        look: CGPoint(x:0.55, y:0.55), tilt:0, sound:"think"),
+        look: CGPoint(x:0.42, y:-0.38), tilt:0, sound:"think"),
     .searching: BotStateCfg(
-        color: CGColor(red:0.388,green:0.396,blue:0.949,alpha:1), tint:0.72,
-        eye:.pill, badge:.dots(CGColor(red:0.388,green:0.396,blue:0.949,alpha:1)),
+        color: CGColor(red:0.388,green:0.396,blue:0.949,alpha:1), tint:0,
+        eye:.line, badge:.dots(CGColor(red:0.388,green:0.396,blue:0.949,alpha:1)),
         badgeColor: CGColor(red:0.388,green:0.396,blue:0.949,alpha:1),
         glow: CGColor(red:0.388,green:0.396,blue:0.949,alpha:1), glowOpacity:0.55,
         bounces:false, scans:true, breathes:false, zz:false, sweat:false,
         look:nil, tilt:0, sound:"search"),
     .approval: BotStateCfg(
-        color: CGColor(red:0.961,green:0.647,blue:0.141,alpha:1), tint:0.78,
-        eye:.wide, badge:.bang(CGColor(red:0.961,green:0.647,blue:0.141,alpha:1)),
-        badgeColor: CGColor(red:0.961,green:0.647,blue:0.141,alpha:1),
-        glow: CGColor(red:0.961,green:0.647,blue:0.141,alpha:1), glowOpacity:0.6,
-        bounces:true, scans:false, breathes:false, zz:false, sweat:false,
+        color: CGColor(red:1,green:0.694,blue:0.231,alpha:1), tint:0,
+        eye:.wide, badge:.bang(CGColor(red:1,green:0.694,blue:0.231,alpha:1)),
+        badgeColor: CGColor(red:1,green:0.694,blue:0.231,alpha:1),
+        glow: CGColor(red:1,green:0.694,blue:0.231,alpha:1), glowOpacity:0.6,
+        bounces:false, scans:false, breathes:false, zz:false, sweat:false,
         look:nil, tilt:0, sound:"approval"),
     .question: BotStateCfg(
-        color: CGColor(red:0.133,green:0.827,blue:0.933,alpha:1), tint:0.75,
-        eye:.pill, badge:.question(CGColor(red:0.133,green:0.827,blue:0.933,alpha:1)),
+        color: CGColor(red:0.133,green:0.827,blue:0.933,alpha:1), tint:0,
+        eye:.cup, badge:.question(CGColor(red:0.133,green:0.827,blue:0.933,alpha:1)),
         badgeColor: CGColor(red:0.133,green:0.827,blue:0.933,alpha:1),
         glow: CGColor(red:0.133,green:0.827,blue:0.933,alpha:1), glowOpacity:0.55,
         bounces:false, scans:false, breathes:false, zz:false, sweat:false,
-        look:nil, tilt:0.17, sound:"question"),
+        look:nil, tilt:0, sound:"question"),
     .error: BotStateCfg(
-        color: CGColor(red:0.957,green:0.314,blue:0.369,alpha:1), tint:0.78,
+        color: CGColor(red:0.957,green:0.314,blue:0.369,alpha:1), tint:0,
         eye:.flat, badge:.dot(CGColor(red:0.957,green:0.314,blue:0.369,alpha:1)),
         badgeColor: CGColor(red:0.957,green:0.314,blue:0.369,alpha:1),
         glow: CGColor(red:0.957,green:0.314,blue:0.369,alpha:1), glowOpacity:0.55,
         bounces:false, scans:false, breathes:false, zz:false, sweat:false,
         look:nil, tilt:0, sound:"error"),
     .finished: BotStateCfg(
-        color: CGColor(red:0.204,green:0.831,blue:0.600,alpha:1), tint:0.35,
-        eye:.happy, badge:.dot(CGColor(red:0.204,green:0.831,blue:0.600,alpha:1)),
-        badgeColor: CGColor(red:0.204,green:0.831,blue:0.600,alpha:1),
-        glow: CGColor(red:0.204,green:0.831,blue:0.600,alpha:1), glowOpacity:0.5,
+        color: CGColor(red:0.310,green:0.878,blue:0.627,alpha:1), tint:0,
+        eye:.happy, badge:.dot(CGColor(red:0.310,green:0.878,blue:0.627,alpha:1)),
+        badgeColor: CGColor(red:0.310,green:0.878,blue:0.627,alpha:1),
+        glow: CGColor(red:0.310,green:0.878,blue:0.627,alpha:1), glowOpacity:0.5,
         bounces:false, scans:false, breathes:false, zz:false, sweat:false,
         look:nil, tilt:0, sound:"finish"),
     .ratelimit: BotStateCfg(
-        color: CGColor(red:0.984,green:0.573,blue:0.235,alpha:1), tint:0.72,
+        color: CGColor(red:0.984,green:0.573,blue:0.235,alpha:1), tint:0,
         eye:.tired, badge:.dot(CGColor(red:0.984,green:0.573,blue:0.235,alpha:1)),
         badgeColor: CGColor(red:0.984,green:0.573,blue:0.235,alpha:1),
         glow: CGColor(red:0.984,green:0.573,blue:0.235,alpha:1), glowOpacity:0.45,
         bounces:false, scans:false, breathes:false, zz:false, sweat:true,
         look:nil, tilt:0, sound:"rate"),
     .sleeping: BotStateCfg(
-        color: CGColor(red:0.580,green:0.635,blue:0.722,alpha:1), tint:0.32,
+        color: CGColor(red:0.478,green:0.498,blue:0.529,alpha:1), tint:0,
         eye:.closed, badge:nil,
         badgeColor: .white,
-        glow: CGColor(red:0.580,green:0.635,blue:0.722,alpha:1), glowOpacity:0.2,
+        glow: CGColor(red:0.478,green:0.498,blue:0.529,alpha:1), glowOpacity:0.2,
         bounces:false, scans:false, breathes:true, zz:true, sweat:false,
         look:nil, tilt:0, sound:"sleep"),
     .dizzy: BotStateCfg(
-        color: CGColor(red:0.957,green:0.447,blue:0.714,alpha:1), tint:0.7,
+        color: CGColor(red:0.957,green:0.447,blue:0.714,alpha:1), tint:0,
         eye:.spiral, badge:nil,
         badgeColor: .white,
         glow: CGColor(red:0.957,green:0.447,blue:0.714,alpha:1), glowOpacity:0.55,
@@ -228,11 +228,12 @@ final class BotEngine: ObservableObject {
     var isChewing: Bool = false       // true for ~800ms after gulp swallow
 
     // Color (animated)
-    var col:  (CGFloat, CGFloat, CGFloat) = (0.902, 0.914, 0.933)  // idle
-    var colT: (CGFloat, CGFloat, CGFloat) = (0.902, 0.914, 0.933)
+    var col:  (CGFloat, CGFloat, CGFloat) = (1, 0.541, 0.502)  // idle coral
+    var colT: (CGFloat, CGFloat, CGFloat) = (1, 0.541, 0.502)
 
     // State
     var state: BotState = .idle
+    private var stateSince: Double = CACurrentMediaTime()
     var cfg: BotStateCfg = BotStates[.idle]!
 
     // Eye override (emote)
@@ -266,6 +267,7 @@ final class BotEngine: ObservableObject {
     var nextBlink: Double = CACurrentMediaTime() + 1.5 + Double.random(in: 0...2)
     var waveUntil: Double = 0
     var waveStart: Double = 0     // CACurrentMediaTime() when wave animation began
+    private var greetUntil: Double = 0
     var greetToken: Int = 0       // incremented to invalidate stale greet closures
     var lastAmbient: Double = 0
 
@@ -312,6 +314,7 @@ final class BotEngine: ObservableObject {
         guard state != newState || force else { return }
         let prev = state
         state = newState
+        stateSince = CACurrentMediaTime()
         cfg = BotStates[newState]!
         colT = cgColorToTuple(cfg.color)
         setTarget(key: "tint", value: cfg.tint)
@@ -319,28 +322,35 @@ final class BotEngine: ObservableObject {
         setBadge(updateHint && (newState == .idle || newState == .sleeping) ? .arrow(Self.updateBlue) : cfg.badge)
 
         switch newState {
+        case .working:
+            anim("es", keys: [TweenKey(target: 0.88, duration: 130, ease: Ease.out), TweenKey(target: 1.14, duration: 170, ease: Ease.inOut), TweenKey(target: 0.96, duration: 120, ease: Ease.out), TweenKey(target: 1, duration: 210, ease: Ease.inOut)])
+        case .thinking:
+            anim("yaw", keys: [TweenKey(target: -0.18, duration: 220, ease: Ease.out), TweenKey(target: 0.11, duration: 310, ease: Ease.inOut), TweenKey(target: -0.04, duration: 170, ease: Ease.out), TweenKey(target: 0, duration: 200, ease: Ease.inOut)])
+        case .searching:
+            anim("tilt", keys: [TweenKey(target: 0.11, duration: 190, ease: Ease.out), TweenKey(target: -0.09, duration: 300, ease: Ease.inOut), TweenKey(target: 0.035, duration: 170, ease: Ease.out), TweenKey(target: 0, duration: 210, ease: Ease.inOut)])
+        case .question:
+            anim("tilt", keys: [TweenKey(target: 0.16, duration: 160, ease: Ease.out), TweenKey(target: -0.05, duration: 230, ease: Ease.inOut), TweenKey(target: 0.02, duration: 120, ease: Ease.out), TweenKey(target: 0, duration: 240, ease: Ease.inOut)])
         case .finished:
-            doRoll(duration: 950, turns: 1)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                self?.emit(.spark, count: 5)
-            }
+            anim("sy", keys: [TweenKey(target: 0.89, duration: 120, ease: Ease.out), TweenKey(target: 1.1, duration: 170, ease: Ease.back), TweenKey(target: 0.97, duration: 100, ease: Ease.inOut), TweenKey(target: 1, duration: 240, ease: Ease.out)])
+            anim("es", keys: [TweenKey(target: 0.82, duration: 110, ease: Ease.inOut), TweenKey(target: 1.24, duration: 150, ease: Ease.out), TweenKey(target: 1, duration: 260, ease: Ease.inOut)])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) { [weak self] in self?.emit(.spark, count: 3) }
         case .error:
             anim("ox", keys: [
-                TweenKey(target: 0.08,  duration: 50,  ease: Ease.out),
-                TweenKey(target: -0.08, duration: 70,  ease: Ease.inOut),
-                TweenKey(target: 0.05,  duration: 70,  ease: Ease.inOut),
-                TweenKey(target: 0,     duration: 90,  ease: Ease.out),
+                TweenKey(target: -0.12, duration: 95, ease: Ease.out),
+                TweenKey(target: 0.06, duration: 100, ease: Ease.inOut),
+                TweenKey(target: -0.02, duration: 115, ease: Ease.inOut),
+                TweenKey(target: 0, duration: 230, ease: Ease.out),
             ])
+            anim("tilt", keys: [TweenKey(target: 0.16, duration: 115, ease: Ease.out), TweenKey(target: -0.1, duration: 170, ease: Ease.inOut), TweenKey(target: 0.03, duration: 120, ease: Ease.out), TweenKey(target: 0, duration: 230, ease: Ease.inOut)])
         case .approval:
-            anim("oy", keys: [
-                TweenKey(target: -0.2, duration: 150, ease: Ease.out),
-                TweenKey(target: 0,    duration: 300, ease: Ease.back),
-            ])
+            anim("es", keys: [TweenKey(target: 1.04, duration: 90, ease: Ease.out), TweenKey(target: 1.3, duration: 110, ease: Ease.back), TweenKey(target: 0.88, duration: 100, ease: Ease.inOut), TweenKey(target: 1.22, duration: 90, ease: Ease.out), TweenKey(target: 1, duration: 240, ease: Ease.inOut)])
+            anim("oy", keys: [TweenKey(target: -0.16, duration: 160, ease: Ease.out), TweenKey(target: 0.04, duration: 150, ease: Ease.inOut), TweenKey(target: 0, duration: 230, ease: Ease.out)])
         case .dizzy:
-            doRoll(duration: 1300, turns: 2)
-        case .question:
-            blink()
+            anim("yaw", keys: [TweenKey(target: 0.28, duration: 150, ease: Ease.out), TweenKey(target: -0.31, duration: 170, ease: Ease.inOut), TweenKey(target: 0.18, duration: 150, ease: Ease.inOut), TweenKey(target: -0.06, duration: 170, ease: Ease.inOut), TweenKey(target: 0, duration: 210, ease: Ease.out)])
+            anim("tilt", keys: [TweenKey(target: -0.18, duration: 150, ease: Ease.out), TweenKey(target: 0.13, duration: 180, ease: Ease.inOut), TweenKey(target: -0.08, duration: 160, ease: Ease.out), TweenKey(target: 0, duration: 240, ease: Ease.inOut)])
         case .ratelimit:
+            anim("sy", keys: [TweenKey(target: 0.94, duration: 130, ease: Ease.out), TweenKey(target: 1.08, duration: 240, ease: Ease.inOut), TweenKey(target: 0.99, duration: 180, ease: Ease.out), TweenKey(target: 1, duration: 250, ease: Ease.inOut)])
+            anim("es", keys: [TweenKey(target: 1.16, duration: 130, ease: Ease.out), TweenKey(target: 0.88, duration: 180, ease: Ease.inOut), TweenKey(target: 1, duration: 240, ease: Ease.out)])
             emit(.sweat, count: 1)
         default:
             if prev != .idle || newState != .idle { blink() }
@@ -462,21 +472,21 @@ final class BotEngine: ObservableObject {
                 return
             }
             anim("oy", keys: [
-                TweenKey(target: -0.30, duration: 120, ease: Ease.out),
-                TweenKey(target:  0.03, duration: 200, ease: Ease.inOut),
-                TweenKey(target:  0,    duration: 160, ease: Ease.back),
+                TweenKey(target: -0.18, duration: 100, ease: Ease.out),
+                TweenKey(target:  0.04, duration: 150, ease: Ease.inOut),
+                TweenKey(target:  0,    duration: 220, ease: Ease.back),
             ])
             anim("sy", keys: [
-                TweenKey(target: 0.82, duration: 80,  ease: Ease.out),
-                TweenKey(target: 1.18, duration: 130, ease: Ease.out),
-                TweenKey(target: 0.88, duration: 160, ease: Ease.inOut),
-                TweenKey(target: 1,    duration: 200, ease: Ease.back),
+                TweenKey(target: 0.94, duration: 80,  ease: Ease.out),
+                TweenKey(target: 1.22, duration: 140, ease: Ease.out),
+                TweenKey(target: 0.92, duration: 150, ease: Ease.inOut),
+                TweenKey(target: 1,    duration: 210, ease: Ease.back),
             ])
             anim("sx", keys: [
-                TweenKey(target: 1.15, duration: 80,  ease: Ease.out),
-                TweenKey(target: 0.88, duration: 130, ease: Ease.out),
-                TweenKey(target: 1.06, duration: 160, ease: Ease.inOut),
-                TweenKey(target: 1,    duration: 200, ease: Ease.back),
+                TweenKey(target: 1.2,  duration: 80,  ease: Ease.out),
+                TweenKey(target: 0.91, duration: 140, ease: Ease.out),
+                TweenKey(target: 1.04, duration: 150, ease: Ease.inOut),
+                TweenKey(target: 1,    duration: 210, ease: Ease.back),
             ])
             miniNextBehavior = CACurrentMediaTime() + 2.2 + Double.random(in: 0...1.2)
 
@@ -487,12 +497,11 @@ final class BotEngine: ObservableObject {
                 return
             }
             anim("yaw", keys: [
-                TweenKey(target: -0.65, duration: 50,  ease: Ease.out),
-                TweenKey(target:  0.65, duration: 90,  ease: Ease.inOut),
-                TweenKey(target: -0.5,  duration: 80,  ease: Ease.inOut),
-                TweenKey(target:  0.4,  duration: 75,  ease: Ease.inOut),
-                TweenKey(target: -0.2,  duration: 70,  ease: Ease.inOut),
-                TweenKey(target:  0,    duration: 140, ease: Ease.out),
+                TweenKey(target:  0.42, duration: 80,  ease: Ease.out),
+                TweenKey(target: -0.5,  duration: 120, ease: Ease.inOut),
+                TweenKey(target:  0.32, duration: 100, ease: Ease.inOut),
+                TweenKey(target: -0.18, duration: 120, ease: Ease.inOut),
+                TweenKey(target:  0,    duration: 190, ease: Ease.out),
             ])
             miniNextBehavior = CACurrentMediaTime() + 3.0 + Double.random(in: 0...2.5)
 
@@ -500,11 +509,11 @@ final class BotEngine: ObservableObject {
             // Brief wink: eye closes, head tilts slightly
             let now2 = CACurrentMediaTime()
             eyeOverride = .wink
-            eyeOverrideUntil = now2 + 0.55
+            eyeOverrideUntil = now2 + 0.46
             anim("tilt", keys: [
-                TweenKey(target:  0.13, duration: 100, ease: Ease.out),
-                TweenKey(target:  0.13, duration: 320, ease: Ease.lin),
-                TweenKey(target:  0,    duration: 200, ease: Ease.inOut),
+                TweenKey(target: -0.17, duration: 140, ease: Ease.out),
+                TweenKey(target: -0.17, duration: 240, ease: Ease.lin),
+                TweenKey(target:  0,    duration: 260, ease: Ease.inOut),
             ])
             miniNextBehavior = CACurrentMediaTime() + 2.2 + Double.random(in: 0...2.0)
 
@@ -512,9 +521,9 @@ final class BotEngine: ObservableObject {
             // Emit hearts + gentle sway
             emit(.heart, count: 2)
             anim("tilt", keys: [
-                TweenKey(target: -0.1, duration: 180, ease: Ease.out),
-                TweenKey(target:  0.1, duration: 340, ease: Ease.inOut),
-                TweenKey(target:  0,   duration: 220, ease: Ease.inOut),
+                TweenKey(target: -0.16, duration: 140, ease: Ease.out),
+                TweenKey(target:  0.1,  duration: 300, ease: Ease.inOut),
+                TweenKey(target:  0,    duration: 260, ease: Ease.inOut),
             ])
             miniNextBehavior = CACurrentMediaTime() + 2.6 + Double.random(in: 0...1.5)
 
@@ -568,66 +577,44 @@ final class BotEngine: ObservableObject {
         let now = CACurrentMediaTime()
         greetToken += 1
         let tok = greetToken
-        waveStart = now + 0.45   // wave begins at 0.45s
-        waveUntil = now + 1.55   // wave ends at 1.55s
-        physVx += 0.2
-
-        // 0s: happy eyes for full greeting (2s — no gap, no flicker)
-        eyeOverride = .happy
-        eyeOverrideUntil = now + 2.0
-        anim("oy", keys: [
-            TweenKey(target: -0.06, duration: 220, ease: Ease.out),
-            TweenKey(target:  0.0,  duration: 220, ease: Ease.back),
-        ])
-
-        // 0.25s: hands out + body squash + sound
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            guard let self, self.greetToken == tok else { return }
-            self.anim("hands", keys: [TweenKey(target: 1, duration: 280, ease: Ease.out)])
-            self.anim("sy", keys: [
-                TweenKey(target: 0.95, duration: 100, ease: Ease.out),
-                TweenKey(target: 1.0,  duration: 260, ease: Ease.back),
-            ])
-            self.anim("sx", keys: [
-                TweenKey(target: 1.04, duration: 100, ease: Ease.out),
-                TweenKey(target: 1.0,  duration: 260, ease: Ease.back),
-            ])
-            SoundEngine.shared.play("greet")
+        waveStart = 0
+        waveUntil = 0
+        greetUntil = now + 1.45
+        hands = 0
+        eyeOverride = .closed
+        eyeOverrideUntil = now + 0.18
+        anim("yaw", keys: [TweenKey(target: -0.19, duration: 160, ease: Ease.out), TweenKey(target: 0.09, duration: 210, ease: Ease.inOut), TweenKey(target: 0, duration: 240, ease: Ease.out)])
+        anim("tilt", keys: [TweenKey(target: 0.12, duration: 140, ease: Ease.out), TweenKey(target: -0.04, duration: 210, ease: Ease.inOut), TweenKey(target: 0, duration: 190, ease: Ease.out)])
+        anim("es", keys: [TweenKey(target: 0.64, duration: 100, ease: Ease.inOut), TweenKey(target: 1.24, duration: 150, ease: Ease.out), TweenKey(target: 0.92, duration: 130, ease: Ease.inOut), TweenKey(target: 1, duration: 220, ease: Ease.out)])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) { [weak self] in
+            guard let self, self.greetToken == tok else { return }; self.eyeOverride = .wide; self.eyeOverrideUntil = CACurrentMediaTime() + 0.19
         }
-
-        // 0.55s: first blink
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { [weak self] in
-            guard let self, self.greetToken == tok else { return }
-            self.blink()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.33) { [weak self] in
+            guard let self, self.greetToken == tok else { return }; self.eyeOverride = .pill; self.eyeOverrideUntil = CACurrentMediaTime() + 0.28
         }
-
-        // 1.50s: second blink
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.50) { [weak self] in
-            guard let self, self.greetToken == tok else { return }
-            self.blink()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.61) { [weak self] in
+            guard let self, self.greetToken == tok else { return }; self.eyeOverride = .wink; self.eyeOverrideUntil = CACurrentMediaTime() + 0.26
         }
-
-        // 1.55s: retract hands
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.55) { [weak self] in
-            guard let self, self.greetToken == tok else { return }
-            self.waveUntil = 0
-            self.anim("hands", keys: [TweenKey(target: 0, duration: 200, ease: Ease.inOut)])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self, self.greetToken == tok else { return }; SoundEngine.shared.play("greet")
         }
-
-        // 1.75s: brief happy eyes then back to normal
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.75) { [weak self] in
-            guard let self, self.greetToken == tok else { return }
-            self.eyeOverride = .happy
-            self.eyeOverrideUntil = CACurrentMediaTime() + 0.30
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.91) { [weak self] in
+            guard let self, self.greetToken == tok else { return }; self.eyeOverride = .happy; self.eyeOverrideUntil = CACurrentMediaTime() + 0.24
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.45) { [weak self] in
+            guard let self, self.greetToken == tok else { return }; self.waveUntil = 0; self.greetUntil = 0
         }
     }
 
-    /// Immediately interrupts an in-progress greeting (hands retract in 150 ms).
+    /// Immediately interrupts an in-progress eye salute.
     func interruptGreet() {
-        guard hands > 0.01 || CACurrentMediaTime() < waveUntil else { return }
+        guard hands > 0.01 || CACurrentMediaTime() < waveUntil || CACurrentMediaTime() < greetUntil else { return }
         greetToken += 1   // invalidate any pending closures
         waveUntil = 0
         waveStart = 0
+        greetUntil = 0
+        eyeOverride = permanentEye
+        eyeOverrideUntil = permanentEye == nil ? 0 : .greatestFiniteMagnitude
         anim("hands", keys: [TweenKey(target: 0, duration: 150, ease: Ease.inOut)])
     }
 
@@ -785,71 +772,42 @@ final class BotEngine: ObservableObject {
 
     func triggerEmote(_ emote: BotEmote, duration: Double = 1.8, silent: Bool = false) {
         let now = CACurrentMediaTime()
+        let hold = max(80.0, (duration - 0.62) * 1000)
         eyeOverride = emoteEyeShape(emote)
         eyeOverrideUntil = now + duration
 
         switch emote {
         case .love:
             anim("blush", keys: [
-                TweenKey(target: 1, duration: 300, ease: Ease.out),
-                TweenKey(target: 1, duration: CGFloat((duration - 0.6) * 1000), ease: Ease.lin),
-                TweenKey(target: 0, duration: 300, ease: Ease.inOut),
+                TweenKey(target: 0.7, duration: 120, ease: Ease.out),
+                TweenKey(target: 1.1, duration: 260, ease: Ease.inOut),
+                TweenKey(target: 0.4, duration: CGFloat(hold), ease: Ease.lin),
+                TweenKey(target: 0, duration: 280, ease: Ease.inOut),
             ])
-            emit(.heart, count: 4)
-            anim("oy", keys: [
-                TweenKey(target: -0.1, duration: 160, ease: Ease.out),
-                TweenKey(target: 0,    duration: 300, ease: Ease.back),
-            ])
+            emit(.heart, count: 2)
+            anim("es", keys: [TweenKey(target: 0.75, duration: 100, ease: Ease.out), TweenKey(target: 1.2, duration: 140, ease: Ease.back), TweenKey(target: 1, duration: 240, ease: Ease.inOut)])
+            anim("tilt", keys: [TweenKey(target: -0.12, duration: 180, ease: Ease.out), TweenKey(target: 0.06, duration: 260, ease: Ease.inOut), TweenKey(target: 0, duration: 220, ease: Ease.out)])
         case .surprised:
-            anim("oy", keys: [
-                TweenKey(target: -0.3, duration: 140, ease: Ease.out),
-                TweenKey(target: 0,    duration: 380, ease: Ease.back),
-            ])
-            anim("es", keys: [
-                TweenKey(target: 1.25, duration: 120, ease: Ease.out),
-                TweenKey(target: 1,    duration: 500, ease: Ease.inOut),
-            ])
+            anim("oy", keys: [TweenKey(target: 0.12, duration: 90, ease: Ease.out), TweenKey(target: -0.04, duration: 150, ease: Ease.inOut), TweenKey(target: 0, duration: 220, ease: Ease.out)])
+            anim("es", keys: [TweenKey(target: 0.72, duration: 80, ease: Ease.inOut), TweenKey(target: 1.35, duration: 110, ease: Ease.out), TweenKey(target: 0.96, duration: 140, ease: Ease.inOut), TweenKey(target: 1, duration: 260, ease: Ease.out)])
         case .proud:
-            squash()
-            emit(.star, count: 5)
-            anim("tilt", keys: [
-                TweenKey(target: -0.14, duration: 220, ease: Ease.out),
-                TweenKey(target: -0.14, duration: CGFloat((duration - 0.5) * 1000), ease: Ease.lin),
-                TweenKey(target: 0,     duration: 280, ease: Ease.inOut),
-            ])
-            anim("blush", keys: [
-                TweenKey(target: 0.7, duration: 250, ease: Ease.out),
-                TweenKey(target: 0.7, duration: CGFloat((duration - 0.5) * 1000), ease: Ease.lin),
-                TweenKey(target: 0,   duration: 300, ease: Ease.inOut),
-            ])
+            emit(.star, count: 2)
+            anim("sy", keys: [TweenKey(target: 0.92, duration: 120, ease: Ease.out), TweenKey(target: 1.09, duration: 200, ease: Ease.back), TweenKey(target: 1, duration: 200, ease: Ease.inOut)])
+            anim("tilt", keys: [TweenKey(target: 0.14, duration: 180, ease: Ease.out), TweenKey(target: 0.14, duration: CGFloat(hold), ease: Ease.lin), TweenKey(target: 0, duration: 280, ease: Ease.inOut)])
         case .wink:
-            anim("tilt", keys: [
-                TweenKey(target: 0.12, duration: 160, ease: Ease.out),
-                TweenKey(target: 0.12, duration: CGFloat((duration - 0.4) * 1000), ease: Ease.lin),
-                TweenKey(target: 0,    duration: 240, ease: Ease.inOut),
-            ])
+            anim("yaw", keys: [TweenKey(target: -0.14, duration: 160, ease: Ease.out), TweenKey(target: 0.06, duration: 230, ease: Ease.inOut), TweenKey(target: 0, duration: 260, ease: Ease.out)])
         case .yawn:
-            anim("sy", keys: [
-                TweenKey(target: 1.12, duration: 500, ease: Ease.inOut),
-                TweenKey(target: 1,    duration: 500, ease: Ease.inOut),
-            ])
-            anim("sx", keys: [
-                TweenKey(target: 0.94, duration: 500, ease: Ease.inOut),
-                TweenKey(target: 1,    duration: 500, ease: Ease.inOut),
-            ])
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
-                self?.eyeOverride = .closed
-                self?.emit(.z, count: 2)
-            }
+            anim("sy", keys: [TweenKey(target: 1.1, duration: 250, ease: Ease.out), TweenKey(target: 0.91, duration: 350, ease: Ease.inOut), TweenKey(target: 0.96, duration: 180, ease: Ease.out), TweenKey(target: 1, duration: 320, ease: Ease.inOut)])
+            anim("es", keys: [TweenKey(target: 0.64, duration: 240, ease: Ease.inOut), TweenKey(target: 0.78, duration: 200, ease: Ease.out), TweenKey(target: 1.1, duration: 180, ease: Ease.out), TweenKey(target: 1, duration: 300, ease: Ease.inOut)])
+            DispatchQueue.main.asyncAfter(deadline: .now() + min(0.5, duration * 0.35)) { [weak self] in self?.emit(.z, count: 1) }
         case .happy:
-            anim("blush", keys: [
-                TweenKey(target: 0.6, duration: 200, ease: Ease.out),
-                TweenKey(target: 0,   duration: 600, ease: Ease.inOut),
-            ])
+            anim("oy", keys: [TweenKey(target: -0.11, duration: 110, ease: Ease.out), TweenKey(target: 0.03, duration: 180, ease: Ease.inOut), TweenKey(target: 0, duration: 210, ease: Ease.out)])
+            anim("sx", keys: [TweenKey(target: 1.12, duration: 140, ease: Ease.out), TweenKey(target: 0.95, duration: 180, ease: Ease.inOut), TweenKey(target: 1, duration: 220, ease: Ease.out)])
+            anim("es", keys: [TweenKey(target: 1.1, duration: 100, ease: Ease.out), TweenKey(target: 1, duration: 220, ease: Ease.inOut)])
         case .annoyed:
-            eyeOverride = .line
-            eyeOverrideUntil = now + 0.8
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+            anim("tilt", keys: [TweenKey(target: -0.16, duration: 100, ease: Ease.out), TweenKey(target: 0.12, duration: 160, ease: Ease.inOut), TweenKey(target: -0.05, duration: 120, ease: Ease.out), TweenKey(target: 0, duration: 250, ease: Ease.inOut)])
+            anim("ox", keys: [TweenKey(target: 0.05, duration: 90, ease: Ease.out), TweenKey(target: -0.02, duration: 110, ease: Ease.inOut), TweenKey(target: 0, duration: 190, ease: Ease.out)])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.09) {
                 SoundEngine.shared.play("annoyed")
             }
         case .listening:
@@ -1009,9 +967,10 @@ final class BotEngine: ObservableObject {
         if !locks.contains("oy") { oy += (bounce - oy) * CGFloat(1 - pow(0.0008, dt)) }
 
         if cfg.breathes {
-            let amp: CGFloat = isMini ? 0.07 : 0.035
-            tgSy = 1 + sin(t * 1.8) * amp
-            tgSx = 1 - sin(t * 1.8) * amp * 0.57
+            let amp: CGFloat = isMini ? 0.07 : 0.025
+            let breath = sin(t * 1.1)
+            tgSy = 1 + breath * amp
+            tgSx = 1 - breath * amp * 0.5
         } else if isMini {
             // Subtle idle pulse (unique phase per engine via t0)
             tgSy = 1 + sin(t * 2.2) * 0.04
@@ -1145,17 +1104,10 @@ final class BotEngine: ObservableObject {
         let bodyPath = kitoPath(rx: rx, ry: ry, morph: morph, R: R)
 
         // Body fill
-        drawBody(ctx: &ctx, path: bodyPath, R: R, rx: rx, ry: ry,
-                 pumpkinColors: outfit == .pumpkin && !isMini)
+        drawBody(ctx: &ctx, path: bodyPath, R: R, rx: rx, ry: ry)
 
         // A warm Mac flushes him (KitoMood.swift).
         drawMoodTint(ctx: &ctx, path: bodyPath, rx: rx, ry: ry)
-
-        // Blush — always shows a floor proportional to tint (prototype behaviour)
-        let blushVal = max(blush, tint * 0.5, moodHot * 0.85) * (1 - morph)
-        if blushVal > 0.01 {
-            drawBlush(ctx: &ctx, path: bodyPath, rx: rx, ry: ry, R: R, blush: blushVal)
-        }
 
         drawShellAndVisor(ctx: &ctx, path: bodyPath, R: R)
 
@@ -1451,79 +1403,56 @@ final class BotEngine: ObservableObject {
         return CGPoint(x: kx * W, y: ky * H)
     }
 
-    private func drawBody(ctx: inout GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat,
-                          pumpkinColors: Bool = false) {
-        if let bc = bodyColor, !pumpkinColors {
-            // Mini bots: flat solid fill — no gradient, no reflection, no highlight
+    private func drawBody(ctx: inout GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
+        if let bc = bodyColor {
             ctx.fill(path, with: .color(Color(cgColor: bc)))
         } else {
-            // Main bot: linear gradient body
-            let top: Color = pumpkinColors ? Color(hex: "#FFA94D") : Color(red: 0.929, green: 0.929, blue: 0.937)
-            let bot: Color = pumpkinColors ? Color(hex: "#E8590C") : Color(red: 0.769, green: 0.773, blue: 0.792)
             ctx.fill(path, with: .linearGradient(
-                Gradient(colors: [top, bot]),
-                startPoint: CGPoint(x: rx*0.7, y: -ry*0.85),
-                endPoint: CGPoint(x: -rx*0.8, y: ry*0.9)
-            ))
-            // State tint — fades out as morph increases (mailbox has no tint)
+                Gradient(colors: [Color(cgColor: KitoConst.baseTop), Color(cgColor: KitoConst.baseBottom)]),
+                startPoint: CGPoint(x: rx * 0.7, y: -ry * 0.85), endPoint: CGPoint(x: -rx * 0.8, y: ry * 0.9)))
             let effectiveTint = tint * (1 - morph)
             if effectiveTint > 0.01 {
                 let tc = colorFromTuple(col)
                 ctx.fill(path, with: .linearGradient(
-                    Gradient(stops: [
-                        .init(color: tc.opacity(Double(0.72 * effectiveTint)), location: 0),
-                        .init(color: tc.opacity(0), location: 1)
-                    ]),
-                    startPoint: CGPoint(x: 0, y: ry),
-                    endPoint: CGPoint(x: 0, y: -ry)
-                ))
+                    Gradient(stops: [.init(color: tc.opacity(Double(0.25 * effectiveTint)), location: 0), .init(color: tc.opacity(0), location: 1)]),
+                    startPoint: CGPoint(x: 0, y: ry), endPoint: CGPoint(x: 0, y: -ry)))
             }
-            // Shadow rim
             ctx.fill(path, with: .radialGradient(
-                Gradient(stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .clear, location: 0.6),
-                    .init(color: Color.black.opacity(0.2), location: 1)
-                ]),
-                center: .zero, startRadius: R*0.15, endRadius: R*1.25
-            ))
-            // Highlight
-            ctx.fill(path, with: .radialGradient(
-                Gradient(stops: [
-                    .init(color: Color.white.opacity(0.55), location: 0),
-                    .init(color: .clear, location: 1)
-                ]),
-                center: CGPoint(x: rx*0.34, y: -ry*0.46),
-                startRadius: 0,
-                endRadius: R*0.42
-            ))
+                Gradient(stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 0.6), .init(color: Color.black.opacity(0.13), location: 1)]),
+                center: .zero, startRadius: R * 0.15, endRadius: R * 1.25))
+        }
+        if !isMini {
+            var shoulderCtx = ctx
+            shoulderCtx.clip(to: path)
+            var shoulder = Path()
+            shoulder.move(to: CGPoint(x: -R * 0.84, y: R * 0.97))
+            shoulder.addCurve(to: CGPoint(x: -R * 0.28, y: R * 0.43), control1: CGPoint(x: -R * 0.82, y: R * 0.64), control2: CGPoint(x: -R * 0.58, y: R * 0.45))
+            shoulder.addLine(to: CGPoint(x: R * 0.28, y: R * 0.43))
+            shoulder.addCurve(to: CGPoint(x: R * 0.84, y: R * 0.97), control1: CGPoint(x: R * 0.58, y: R * 0.45), control2: CGPoint(x: R * 0.82, y: R * 0.64))
+            shoulder.closeSubpath()
+            shoulderCtx.fill(shoulder, with: .linearGradient(Gradient(colors: [Color(hex: "#858990"), Color(hex: "#646970")]), startPoint: CGPoint(x: 0, y: R * 0.4), endPoint: CGPoint(x: 0, y: R)))
+            shoulderCtx.stroke(shoulder, with: .color(Color(hex: "#232830").opacity(0.42)), lineWidth: R * 0.018)
+            for side: CGFloat in [-1, 1] {
+                var seam = Path(); seam.move(to: CGPoint(x: side * R * 0.31, y: R * 0.45)); seam.addLine(to: CGPoint(x: side * R * 0.29, y: R * 0.61))
+                shoulderCtx.stroke(seam, with: .color(Color(hex: "#E8B9A0")), style: StrokeStyle(lineWidth: max(1, R * 0.035), lineCap: .round))
+            }
         }
     }
 
     private func drawShellAndVisor(ctx: inout GraphicsContext, path: Path, R: CGFloat) {
-        if !isMini {
-            ctx.stroke(path, with: .color(Color(hex: "#343B45")), lineWidth: R * 0.055)
-            if morph < 0.95 {
-                var face = ctx
-                face.opacity = 1 - Double(morph)
-                let rect = CGRect(x: -R * 0.64, y: -R * 0.42, width: R * 1.28, height: R * 0.66)
-                let visor = Path(roundedRect: rect, cornerRadius: R * 0.25)
-                face.fill(visor, with: .color(Color(hex: "#1B2229")))
-                face.stroke(visor, with: .color(Color(hex: "#A6B0B8").opacity(0.7)), lineWidth: R * 0.035)
-            }
-        }
-    }
-
-    private func drawBlush(ctx: inout GraphicsContext, path: Path, rx: CGFloat, ry: CGFloat, R: CGFloat, blush: CGFloat) {
-        ctx.clip(to: path)
-        let yOffset = sin(yaw) * rx * 0.8
-        for sd in [-1.0, 1.0] {
-            let bx = CGFloat(sd) * rx * 0.55 + yOffset
-            let by = ry * 0.2
-            var ellipse = Path()
-            ellipse.addEllipse(in: CGRect(x: bx - R*0.17, y: by - R*0.1, width: R*0.34, height: R*0.2))
-            ctx.fill(ellipse, with: .color(Color(red: 1, green: 0.471, blue: 0.588, opacity: Double(0.5 * blush))))
-        }
+        ctx.stroke(path, with: .color(Color(hex: "#343B45")), lineWidth: R * 0.045)
+        guard morph < 0.95 else { return }
+        var shellCtx = ctx
+        shellCtx.opacity = 1 - Double(morph)
+        let rim = Path(ellipseIn: CGRect(x: -R * 0.83, y: -R * 0.85, width: R * 1.66, height: R * 1.46))
+        shellCtx.fill(rim, with: .linearGradient(Gradient(colors: [Color(hex: "#737881"), Color(hex: "#555A62")]), startPoint: CGPoint(x: 0, y: -R * 0.84), endPoint: CGPoint(x: 0, y: R * 0.58)))
+        shellCtx.stroke(rim, with: .color(Color(hex: "#A7AAB0")), lineWidth: R * 0.035)
+        let rect = CGRect(x: -R * 0.62, y: -R * 0.36, width: R * 1.24, height: R * 0.58)
+        let visor = Path(roundedRect: rect, cornerRadius: R * 0.24)
+        shellCtx.fill(visor, with: .linearGradient(Gradient(colors: [Color(hex: "#23252B"), Color(hex: "#0B0C0F")]), startPoint: CGPoint(x: -R * 0.4, y: -R * 0.36), endPoint: CGPoint(x: R * 0.42, y: R * 0.24)))
+        shellCtx.stroke(visor, with: .color(Color(hex: "#C2CDD3").opacity(0.62)), lineWidth: R * 0.027)
+        var glint = Path(); glint.addEllipse(in: CGRect(x: -R * 0.49, y: -R * 0.33, width: R * 0.34, height: R * 0.086))
+        shellCtx.fill(glint, with: .color(Color.white.opacity(0.09)))
     }
 
     private func drawEyes(ctx: inout GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
@@ -1543,6 +1472,7 @@ final class BotEngine: ObservableObject {
         // When an outfit is rigidly rotating, the whole body turns — eyes do NOT add roll
         let rigidRoll = outfit != .none && outfitPresence > 0.05
         let mH = KitoH(R: R, yaw: yaw, pitch: pitch)
+        let stateAge = CACurrentMediaTime() - stateSince
         for f in mEyeFrames(mH) {
             // Re-derive pitch with roll for the roll-through effect (illusion, outfit=none only)
             var eyePitch = KitoConst.eyeP + pitch + (rigidRoll ? 0 : roll)
@@ -1565,117 +1495,97 @@ final class BotEngine: ObservableObject {
             var eyeCtx = ctx
             eyeCtx.translateBy(x: f.x + stressTremble.x * R, y: ey + stressTremble.y * R)
             eyeCtx.scaleBy(x: fx, y: fy)
-            drawEyeShape(ctx: &eyeCtx, shape: shape, w: ew, h: eh, open: open, sd: f.sd, R: R)
+            var eyeShape = shape
+            if eyeOverride == nil {
+                switch state {
+                case .thinking: eyeShape = f.sd < 0 ? .dot : .pill
+                case .question: eyeShape = f.sd < 0 ? .pill : (stateAge < 0.72 ? .spiral : .dot)
+                case .error: eyeShape = stateAge < 0.21 ? (f.sd < 0 ? .flat : .line) : stateAge < 0.42 ? (f.sd < 0 ? .line : .flat) : .flat
+                case .finished: eyeShape = f.sd < 0 || stateAge >= 0.32 ? .happy : .pill
+                default: break
+                }
+            }
+            drawEyeShape(ctx: &eyeCtx, shape: eyeShape, w: ew, h: eh, open: open, sd: f.sd, R: R, stateAge: stateAge)
         }
     }
 
-    private func drawEyeShape(ctx: inout GraphicsContext, shape: EyeShape, w: CGFloat, h: CGFloat, open: CGFloat, sd: CGFloat, R: CGFloat) {
-        let ink = isMini ? Color(cgColor: KitoConst.miniInk) : Color(cgColor: KitoConst.ink)
+    private func drawLensCapsule(ctx: inout GraphicsContext, w: CGFloat, h: CGFloat, open: CGFloat, ink: Color, coreX: CGFloat = 0) {
+        let hh = max(h * open, w * 0.42)
+        let rect = CGRect(x: -w / 2, y: -hh / 2, width: w, height: hh)
+        let capsule = Path(roundedRect: rect, cornerRadius: min(w / 2, hh / 2))
+        let breathe = state == .idle ? 0.08 * (0.5 + 0.5 * sin(CACurrentMediaTime() * 1.7)) : 0
+        var glow = ctx; glow.opacity = 0.18 + breathe
+        glow.stroke(capsule, with: .color(ink), lineWidth: w * 0.72)
+        ctx.fill(capsule, with: .color(ink))
+        let core = Path(roundedRect: CGRect(x: coreX - w * 0.19, y: -hh * 0.29, width: w * 0.38, height: hh * 0.58), cornerRadius: w * 0.19)
+        ctx.fill(core, with: .color(Color(hex: "#FFE3DF").opacity(0.9)))
+    }
+
+    private func drawEyeShape(ctx: inout GraphicsContext, shape: EyeShape, w: CGFloat, h: CGFloat, open: CGFloat, sd: CGFloat, R: CGFloat, stateAge: Double) {
+        let ink = colorFromTuple(col)
+        let core = Color(hex: "#FFE3DF")
         let now = CGFloat(CACurrentMediaTime())
+        let workPhase = stateAge.truncatingRemainder(dividingBy: 1.5)
+        let workDrift: CGFloat
+        if workPhase < 0.55 { workDrift = lerp(-0.24 * w, 0.24 * w, CGFloat(workPhase / 0.55)) }
+        else if workPhase < 0.75 { workDrift = 0.24 * w }
+        else if workPhase < 1.30 { workDrift = lerp(0.24 * w, -0.24 * w, CGFloat((workPhase - 0.75) / 0.55)) }
+        else { workDrift = -0.24 * w }
+        let scanPhase = stateAge.truncatingRemainder(dividingBy: 1.7)
+        let scanDrift: CGFloat
+        if scanPhase < 1.05 { scanDrift = sd * lerp(-0.25 * w, 0.25 * w, CGFloat(scanPhase / 1.05)) }
+        else if scanPhase < 1.2 { scanDrift = sd * 0.25 * w }
+        else { scanDrift = 0 }
+        let drift: CGFloat = state == .working ? workDrift : state == .searching ? scanDrift : state == .thinking ? (sd < 0 || stateAge >= 0.24 ? w * 0.12 : 0) : 0
 
         switch shape {
         case .wide:
-            drawEyeShape(ctx: &ctx, shape: .pill, w: w*1.16, h: h*1.12, open: open, sd: sd, R: R)
-
+            drawLensCapsule(ctx: &ctx, w: w * 1.12, h: h * 1.16, open: open, ink: ink, coreX: drift)
         case .pill:
-            let hh = max(h * open, w * 0.3)
-            var p = Path()
-            p.addRoundedRect(in: CGRect(x: -w/2, y: -hh/2, width: w, height: hh),
-                             cornerSize: CGSize(width: min(w/2, hh/2), height: min(w/2, hh/2)))
-            ctx.fill(p, with: .color(ink))
-
+            drawLensCapsule(ctx: &ctx, w: w, h: h, open: open, ink: ink, coreX: drift)
         case .dot:
-            var p = Path()
-            p.addEllipse(in: CGRect(x: -w*0.45, y: -w*0.45, width: w*0.9, height: w*0.9))
+            var p = Path(); let pulse = 0.92 + 0.08 * sin(now * 2.4)
+            p.addEllipse(in: CGRect(x: -w * 0.48 * pulse, y: -w * 0.48 * pulse, width: w * 0.96 * pulse, height: w * 0.96 * pulse))
+            var glow = ctx; glow.opacity = 0.2; glow.stroke(p, with: .color(ink), lineWidth: w * 0.55)
             ctx.fill(p, with: .color(ink))
-
+            var c = Path(); c.addEllipse(in: CGRect(x: drift - w * 0.18, y: -w * 0.18, width: w * 0.36, height: w * 0.36)); ctx.fill(c, with: .color(core))
         case .line:
-            ctx.rotate(by: .radians(-sd * 0.2))
-            var p = Path()
-            p.addRoundedRect(in: CGRect(x: -w*0.78, y: -w*0.21, width: w*1.56, height: w*0.42),
-                             cornerSize: CGSize(width: w*0.21, height: w*0.21))
-            ctx.fill(p, with: .color(ink))
-
+            ctx.rotate(by: .radians(-sd * 0.12))
+            drawLensCapsule(ctx: &ctx, w: w * 1.5, h: h * 0.58, open: open, ink: ink, coreX: drift)
         case .flat:
-            var p = Path()
-            p.addRoundedRect(in: CGRect(x: -w*0.72, y: -w*0.2, width: w*1.44, height: w*0.4),
-                             cornerSize: CGSize(width: w*0.2, height: w*0.2))
-            ctx.fill(p, with: .color(ink))
-
+            ctx.rotate(by: .radians(sd * 0.1))
+            drawLensCapsule(ctx: &ctx, w: w * 1.35, h: h * 0.4, open: open, ink: ink)
         case .happy:
-            var p = Path()
-            p.addArc(center: CGPoint(x: 0, y: h*0.18), radius: w*0.82,
-                     startAngle: .degrees(180 + 12), endAngle: .degrees(180 - 12), clockwise: true)
-            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w*0.5, lineCap: .round))
-
+            var p = Path(); p.addArc(center: CGPoint(x: 0, y: h * 0.15), radius: w * 0.7, startAngle: .degrees(203.4), endAngle: .degrees(336.6), clockwise: false)
+            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w * 0.32, lineCap: .round))
+            var c = Path(); c.addArc(center: CGPoint(x: 0, y: h * 0.15), radius: w * 0.7, startAngle: .degrees(230.4), endAngle: .degrees(309.6), clockwise: false)
+            ctx.stroke(c, with: .color(core), style: StrokeStyle(lineWidth: w * 0.11, lineCap: .round))
         case .closed:
-            var p = Path()
-            p.addArc(center: CGPoint(x: 0, y: -h*0.08), radius: w*0.78,
-                     startAngle: .degrees(15), endAngle: .degrees(165), clockwise: false)
-            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w*0.36, lineCap: .round))
-
+            var p = Path(); p.move(to: CGPoint(x: -w * 0.48, y: 0)); p.addQuadCurve(to: CGPoint(x: w * 0.48, y: 0), control: CGPoint(x: 0, y: h * 0.12))
+            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w * 0.3, lineCap: .round))
+            var c = Path(); c.move(to: CGPoint(x: -w * 0.25, y: h * 0.01)); c.addLine(to: CGPoint(x: w * 0.25, y: h * 0.01)); ctx.stroke(c, with: .color(core), lineWidth: w * 0.1)
         case .spiral:
-            var p = Path()
-            var a: CGFloat = 0
-            while a < 4.4 * .pi {
-                let r  = w * 0.06 + a * w * 0.058
-                let aa = a + now * 9 * sd
-                let px = cos(aa) * r
-                let py = sin(aa) * r
-                if a == 0 { p.move(to: CGPoint(x: px, y: py)) }
-                else { p.addLine(to: CGPoint(x: px, y: py)) }
-                a += 0.2
-            }
-            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w*0.22, lineCap: .round))
-
+            var p = Path(); var a: CGFloat = 0
+            while a < 1.62 * .pi { let angle = a + now * 1.7; let radius = w * 0.46 * a / (1.62 * .pi); let pt = CGPoint(x: cos(angle) * radius, y: sin(angle) * radius); if a == 0 { p.move(to: pt) } else { p.addLine(to: pt) }; a += 0.12 }
+            ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w * 0.14, lineCap: .round))
+            let angle = now * 2.2 + sd * .pi; var c = Path(); c.addEllipse(in: CGRect(x: cos(angle) * w * .42 - w * .12, y: sin(angle) * w * .42 - w * .12, width: w * .24, height: w * .24)); ctx.fill(c, with: .color(core))
         case .heart:
-            let heartPath = heartShape(size: w * 1.2)
-            ctx.fill(heartPath, with: .color(Color(hex: "#FF4D6D")))
-
+            let heart = heartShape(size: w * 1.08); ctx.fill(heart, with: .color(Color(hex: "#FF6B88")))
+            var shine = Path(); shine.addEllipse(in: CGRect(x: -w * .23, y: -w * .29, width: w * .22, height: w * .22)); ctx.fill(shine, with: .color(core))
         case .star:
-            ctx.rotate(by: .radians(now * 1.5 * sd))
-            let starPath = starShape(outer: w * 1.05, inner: w * 0.46)
-            ctx.fill(starPath, with: .color(Color(hex: "#F7B32B")))
-
+            ctx.rotate(by: .radians(now * 0.65 * sd)); let star = starShape(outer: w * 0.88, inner: w * 0.48); ctx.fill(star, with: .color(ink))
+            var c = Path(); c.addEllipse(in: CGRect(x: -w * .13, y: -w * .13, width: w * .26, height: w * .26)); ctx.fill(c, with: .color(core))
         case .tired:
-            var p1 = Path()
-            p1.addRoundedRect(in: CGRect(x: -w/2, y: -h*0.02, width: w, height: h*0.38),
-                              cornerSize: CGSize(width: w/2, height: w/2))
-            ctx.fill(p1, with: .color(ink))
-            var p2 = Path()
-            p2.addRoundedRect(in: CGRect(x: -w*0.62, y: -h*0.1, width: w*1.24, height: w*0.22),
-                              cornerSize: CGSize(width: w*0.11, height: w*0.11))
-            ctx.fill(p2, with: .color(ink))
-
+            drawLensCapsule(ctx: &ctx, w: w, h: h * 0.55, open: open, ink: ink)
+            let lid = Path(roundedRect: CGRect(x: -w * 0.62, y: -h * 0.52 + min(1, CGFloat(stateAge / 0.42)) * h * 0.22, width: w * 1.24, height: h * 0.48), cornerRadius: w * 0.2)
+            ctx.fill(lid, with: .color(Color(hex: "#0B0C0F")))
         case .wink:
-            if sd < 0 {
-                let hh = max(h * open, w * 0.3)
-                var p = Path()
-                p.addRoundedRect(in: CGRect(x: -w/2, y: -hh/2, width: w, height: hh),
-                                 cornerSize: CGSize(width: min(w/2,hh/2), height: min(w/2,hh/2)))
-                ctx.fill(p, with: .color(ink))
-            } else {
-                var p = Path()
-                p.addArc(center: CGPoint(x: 0, y: h*0.18), radius: w*0.82,
-                         startAngle: .degrees(180+12), endAngle: .degrees(180-12), clockwise: true)
-                ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w*0.5, lineCap: .round))
-            }
-
+            if sd < 0 { drawLensCapsule(ctx: &ctx, w: w, h: h, open: open, ink: ink, coreX: drift) }
+            else { var p = Path(); p.move(to: CGPoint(x: -w * 0.5, y: h * 0.06)); p.addQuadCurve(to: CGPoint(x: w * 0.5, y: h * 0.06), control: CGPoint(x: 0, y: -h * 0.4)); ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w * 0.3, lineCap: .round)) }
         case .cup:
-            // Flat top, rounded bottom corners (like a cup / U-shape)
-            let hh = max(h * open, w * 0.3)
-            let cr = min(w / 2, hh / 2)  // bottom corner radius
-            var p = Path()
-            p.move(to: CGPoint(x: -w/2, y: -hh/2))
-            p.addLine(to: CGPoint(x: w/2, y: -hh/2))
-            p.addLine(to: CGPoint(x: w/2, y: hh/2 - cr))
-            p.addQuadCurve(to: CGPoint(x: w/2 - cr, y: hh/2),
-                           control: CGPoint(x: w/2, y: hh/2))
-            p.addLine(to: CGPoint(x: -w/2 + cr, y: hh/2))
-            p.addQuadCurve(to: CGPoint(x: -w/2, y: hh/2 - cr),
-                           control: CGPoint(x: -w/2, y: hh/2))
-            p.closeSubpath()
-            ctx.fill(p, with: .color(ink))
+            let hh = max(h * open, w * 0.42); let cr = min(w / 2, hh / 2)
+            var p = Path(); p.move(to: CGPoint(x: -w / 2, y: -hh / 2)); p.addLine(to: CGPoint(x: w / 2, y: -hh / 2)); p.addLine(to: CGPoint(x: w / 2, y: hh / 2 - cr)); p.addQuadCurve(to: CGPoint(x: w / 2 - cr, y: hh / 2), control: CGPoint(x: w / 2, y: hh / 2)); p.addLine(to: CGPoint(x: -w / 2 + cr, y: hh / 2)); p.addQuadCurve(to: CGPoint(x: -w / 2, y: hh / 2 - cr), control: CGPoint(x: -w / 2, y: hh / 2)); p.closeSubpath()
+            ctx.fill(p, with: .color(ink)); let c = Path(roundedRect: CGRect(x: -w * .14, y: hh * .06, width: w * .28, height: hh * .43), cornerRadius: w * .13); ctx.fill(c, with: .color(core))
         }
     }
 
@@ -1903,12 +1813,12 @@ private func badgeString(_ b: BadgeType?) -> String {
 private func emoteEyeShape(_ e: BotEmote) -> EyeShape {
     switch e {
     case .love:      return .heart
-    case .surprised: return .dot
+    case .surprised: return .wide
     case .proud:     return .star
     case .wink:      return .wink
-    case .yawn:      return .tired
+    case .yawn:      return .cup
     case .happy:     return .happy
-    case .annoyed:   return .line
+    case .annoyed:   return .flat
     case .listening: return .wide
     }
 }

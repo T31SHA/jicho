@@ -5,7 +5,7 @@
 // R = 16, the enter/leave transitions, bunny ears).
 //
 // Coordinates are BotEngine's body space: origin at the body centre, y down,
-// R = W × 0.3, rx = 1.14 R, ry = 0.88 R. The head is a superellipsoid whose
+// R = W × 0.3, rx = 1.06 R, ry = 1.0 R. The head is a superellipsoid whose
 // horizontal radius at height y (y up, −1…1) is (1 − |y|^2.7)^(1/2.7), so its
 // silhouette matches Kito's body at yaw = pitch = 0. Accessories are seen
 // slightly from above and follow the head pitch only partly, so a hat never
@@ -18,10 +18,10 @@ import { SCRIPT_FONTS } from "../core/fonts";
 const EXP = 2.7;
 const VIEW_TILT = -0.3;
 const ACC_PITCH = 0.4;
-const EYE_W = 0.25;
-const EYE_H = 0.27;
-const EYE_SP = 0.37;
-const EYE_P = -0.12;
+const EYE_W = 0.18;
+const EYE_H = 0.34;
+const EYE_SP = 0.30;
+const EYE_P = -0.05;
 
 /** Below this radius the small details (ribs, dots, gems) are left out. */
 const SIMPLIFY_BELOW_R = 16;
@@ -43,7 +43,7 @@ export interface Head {
 }
 
 export function makeHead(R: number, yaw = 0, pitch = 0, physDx = 0, physDy = 0): Head {
-  return { R, rx: R * 1.14, ry: R * 0.88, yaw, pitch, physDx, physDy };
+  return { R, rx: R * 1.06, ry: R * 1.0, yaw, pitch, physDx, physDy };
 }
 
 // ── 3D helpers ────────────────────────────────────────────────────────────────
@@ -813,8 +813,6 @@ function scarf(ctx: Ctx, H: Head) {
 
 // ── Pumpkin (the body colours come from the engine) ───────────────────────────
 
-export const PUMPKIN_BODY: readonly [string, string] = ["#FFA94D", "#E8590C"];
-
 function pumpkin(ctx: Ctx, H: Head, body: Path2D, simple: boolean) {
   if (!simple) {
     ctx.save();
@@ -1073,8 +1071,6 @@ export function drawOutfitFront(ctx: Ctx, outfit: Outfit, H: Head, st: OutfitSta
 
 // ── Wardrobe icons ────────────────────────────────────────────────────────────
 
-const INK = "rgb(26,20,18)";
-
 /** A little Kito wearing `outfit`, centred in a `size`×`size` icon. */
 function iconKito(ctx: Ctx, size: number, outfit: Outfit) {
   const R = 10;
@@ -1086,27 +1082,37 @@ function iconKito(ctx: Ctx, size: number, outfit: Outfit) {
   ctx.translate(cx, cy);
   drawOutfitBehind(ctx, outfit, H, st);
   const body = bodyOutline(H.rx, H.ry);
-  const [top, bottom] = outfit === "pumpkin" ? PUMPKIN_BODY : ["rgb(237,237,239)", "rgb(196,197,202)"];
+  const [top, bottom] = ["#A7AAB0", "#777A81"];
   ctx.fillStyle = lin(ctx, H.rx * 0.7, -H.ry * 0.85, -H.rx * 0.8, H.ry * 0.9, [[0, top], [1, bottom]]);
   ctx.fill(body);
-  ctx.fillStyle = rad(ctx, 0, 0, R * 0.15, R * 1.25, [[0, "rgba(0,0,0,0)"], [0.6, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.2)"]]);
+  ctx.save(); ctx.clip(body);
+  const bust = new Path2D();
+  bust.moveTo(-R * 0.84, R * 0.97); bust.bezierCurveTo(-R * 0.82, R * 0.64, -R * 0.58, R * 0.45, -R * 0.28, R * 0.43);
+  bust.lineTo(R * 0.28, R * 0.43); bust.bezierCurveTo(R * 0.58, R * 0.45, R * 0.82, R * 0.64, R * 0.84, R * 0.97); bust.closePath();
+  ctx.fillStyle = "#646970"; ctx.fill(bust);
+  ctx.strokeStyle = "#E8B9A0"; ctx.lineWidth = 0.7;
+  for (const side of [-1, 1]) { ctx.beginPath(); ctx.moveTo(side * R * 0.31, R * 0.45); ctx.lineTo(side * R * 0.29, R * 0.61); ctx.stroke(); }
+  ctx.restore();
+  const rim = new Path2D(); rim.ellipse(0, -R * 0.12, R * 0.83, R * 0.73, 0, 0, Math.PI * 2);
+  ctx.fillStyle = lin(ctx, 0, -R * 0.84, 0, R * 0.58, [[0, "#737881"], [1, "#555A62"]]); ctx.fill(rim);
+  ctx.strokeStyle = "#A7AAB0"; ctx.lineWidth = 0.7; ctx.stroke(rim);
+  roundRect(ctx, -R * 0.62, -R * 0.36, R * 1.24, R * 0.58, R * 0.24);
+  ctx.fillStyle = lin(ctx, -R * 0.4, -R * 0.36, R * 0.42, R * 0.24, [[0, "#23252B"], [1, "#0B0C0F"]]); ctx.fill();
+  ctx.strokeStyle = "rgba(194,205,211,.62)"; ctx.lineWidth = 0.55; ctx.stroke();
+  ctx.fillStyle = rad(ctx, 0, 0, R * 0.15, R * 1.25, [[0, "rgba(0,0,0,0)"], [0.6, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0.13)"]]);
   ctx.fill(body);
-  ctx.fillStyle = rad(ctx, H.rx * 0.34, -H.ry * 0.46, 0, R * 0.42, [[0, "rgba(255,255,255,0.55)"], [1, "rgba(255,255,255,0)"]]);
-  ctx.fill(body);
-  ctx.save();
-  ctx.clip(body);
-  ctx.fillStyle = INK;
   for (const e of eyeFrames(H)) {
     if (!e.visible) continue;
     ctx.save();
     ctx.translate(e.x, e.y);
     ctx.scale(e.fx, e.fy);
-    const hh = Math.max(e.h, e.w * 0.3);
+    const hh = Math.max(e.h, e.w * 0.42);
+    ctx.fillStyle = "#FF8A80"; ctx.shadowColor = "#FF8A80"; ctx.shadowBlur = 2.4;
     roundRect(ctx, -e.w / 2, -hh / 2, e.w, hh, Math.min(e.w / 2, hh / 2));
-    ctx.fill();
+    ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = "#FFE3DF";
+    roundRect(ctx, -e.w * .19, -hh * .29, e.w * .38, hh * .58, e.w * .19); ctx.fill();
     ctx.restore();
   }
-  ctx.restore();
   drawOutfitFront(ctx, outfit, H, st);
   ctx.restore();
 }

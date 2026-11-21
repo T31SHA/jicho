@@ -1,13 +1,10 @@
-// Kito — direct port of JichoBot/Sources/App/BotEngine.swift to Canvas 2D.
-// Same constants, same tweens, same easings, same particles. The only intentional
-// difference is the `happy`/`wink` eye arc, which follows the prototype
-// (design/prototype/notch-buddy.html, the visual source of truth) — the Swift
-// arc angles produce a different shape.
+// Kito's Canvas renderer. Its shell, lens expressions, state choreography and
+// outfit anchors follow docs/KITO_DESIGN.md; the public engine API stays stable.
 
 import { Ease, lerp, type EaseFn } from "../core/anim";
 import { Sound } from "../core/sound";
 import type { BotEmoteName, BotStateName } from "../core/layout";
-import { PUMPKIN_BODY, drawOutfitBehind, drawOutfitFront, makeHead } from "./outfits";
+import { drawOutfitBehind, drawOutfitFront, makeHead } from "./outfits";
 import type { Outfit } from "./wardrobe";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -63,26 +60,24 @@ interface Particle {
 
 // ── Constants (KitoConst / PISTES.kito) ─────────────────────────────────────
 
-const EYE_W = 0.25;
-const EYE_H = 0.27;
-const EYE_SP = 0.37;
-const EYE_P = -0.12;
-const BASE_TOP: RGB = [0.45, 0.48, 0.53]; // slate shell top
-const BASE_BOTTOM: RGB = [0.21, 0.23, 0.27]; // slate shell underside
-const INK = "rgb(255,107,92)"; // coral lenses
-const MINI_INK = "rgb(16,19,26)"; // #10131A
+const EYE_W = 0.18;
+const EYE_H = 0.34;
+const EYE_SP = 0.30;
+const EYE_P = -0.05;
+const BASE_TOP: RGB = [0.655, 0.667, 0.69]; // slate shell top
+const BASE_BOTTOM: RGB = [0.467, 0.478, 0.506]; // slate shell underside
 
 const C = {
-  idle: [0.902, 0.914, 0.933] as RGB,
-  working: [0.231, 0.62, 1] as RGB,
+  idle: [1, 0.541, 0.502] as RGB,
+  working: [0.373, 0.839, 1] as RGB,
   thinking: [0.545, 0.361, 0.965] as RGB,
   searching: [0.388, 0.396, 0.949] as RGB,
-  approval: [0.961, 0.647, 0.141] as RGB,
+  approval: [1, 0.694, 0.231] as RGB,
   question: [0.133, 0.827, 0.933] as RGB,
   error: [0.957, 0.314, 0.369] as RGB,
-  finished: [0.204, 0.831, 0.6] as RGB,
+  finished: [0.31, 0.878, 0.627] as RGB,
   ratelimit: [0.984, 0.573, 0.235] as RGB,
-  sleeping: [0.58, 0.635, 0.722] as RGB,
+  sleeping: [0.478, 0.498, 0.529] as RGB,
   dizzy: [0.957, 0.447, 0.714] as RGB,
 };
 
@@ -93,16 +88,16 @@ const base = {
 
 export const BOT_STATES: Record<BotStateName, BotStateCfg> = {
   idle: { ...base, color: C.idle, tint: 0, eye: "pill", badge: null },
-  working: { ...base, color: C.working, tint: 0.72, eye: "pill", badge: { kind: "dots", color: C.working } },
-  thinking: { ...base, color: C.thinking, tint: 0.72, eye: "pill", badge: { kind: "dots", color: C.thinking }, look: [0.55, 0.55] },
-  searching: { ...base, color: C.searching, tint: 0.72, eye: "pill", badge: { kind: "dots", color: C.searching }, scans: true },
-  approval: { ...base, color: C.approval, tint: 0.78, eye: "wide", badge: { kind: "bang", color: C.approval }, bounces: true },
-  question: { ...base, color: C.question, tint: 0.75, eye: "pill", badge: { kind: "question", color: C.question }, tilt: 0.17 },
-  error: { ...base, color: C.error, tint: 0.78, eye: "flat", badge: { kind: "dot", color: C.error } },
-  finished: { ...base, color: C.finished, tint: 0.35, eye: "happy", badge: { kind: "dot", color: C.finished } },
-  ratelimit: { ...base, color: C.ratelimit, tint: 0.72, eye: "tired", badge: { kind: "dot", color: C.ratelimit }, sweat: true },
-  sleeping: { ...base, color: C.sleeping, tint: 0.32, eye: "closed", badge: null, breathes: true, zz: true },
-  dizzy: { ...base, color: C.dizzy, tint: 0.7, eye: "spiral", badge: null },
+  working: { ...base, color: C.working, tint: 0, eye: "wide", badge: { kind: "dots", color: C.working } },
+  thinking: { ...base, color: C.thinking, tint: 0, eye: "dot", badge: { kind: "dots", color: C.thinking }, look: [0.42, -0.38] },
+  searching: { ...base, color: C.searching, tint: 0, eye: "line", badge: { kind: "dots", color: C.searching }, scans: true },
+  approval: { ...base, color: C.approval, tint: 0, eye: "wide", badge: { kind: "bang", color: C.approval } },
+  question: { ...base, color: C.question, tint: 0, eye: "cup", badge: { kind: "question", color: C.question } },
+  error: { ...base, color: C.error, tint: 0, eye: "flat", badge: { kind: "dot", color: C.error } },
+  finished: { ...base, color: C.finished, tint: 0, eye: "happy", badge: { kind: "dot", color: C.finished } },
+  ratelimit: { ...base, color: C.ratelimit, tint: 0, eye: "tired", badge: { kind: "dot", color: C.ratelimit }, sweat: true },
+  sleeping: { ...base, color: C.sleeping, tint: 0, eye: "closed", badge: null, breathes: true, zz: true },
+  dizzy: { ...base, color: C.dizzy, tint: 0, eye: "spiral", badge: null },
 };
 
 /** State → sound, as in BotStateCfg.sound. */
@@ -113,8 +108,8 @@ export const STATE_SOUND: Partial<Record<BotStateName, string>> = {
 };
 
 const EMOTE_EYE: Record<BotEmoteName, EyeShape> = {
-  love: "heart", surprised: "dot", proud: "star", wink: "wink",
-  yawn: "tired", happy: "happy", annoyed: "line",
+  love: "heart", surprised: "wide", proud: "star", wink: "wink",
+  yawn: "cup", happy: "happy", annoyed: "flat",
 };
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
@@ -243,6 +238,7 @@ export class BotEngine {
 
   state: BotStateName = "idle";
   cfg: BotStateCfg = BOT_STATES.idle;
+  private stateSince = now();
 
   eyeOverride: EyeShape | null = null;
   eyeOverrideUntil = 0;
@@ -268,6 +264,7 @@ export class BotEngine {
   waveStart = 0;
   private greetToken = 0;
   private lastAmbient = 0;
+  private greetUntil = 0;
   private slapTimes: number[] = [];
   private miniLookTarget = { x: 0, y: 0 };
   private miniLookNextTime = 0;
@@ -281,6 +278,7 @@ export class BotEngine {
     if (this.state === next && !force) return;
     const prev = this.state;
     this.state = next;
+    this.stateSince = now();
     this.cfg = BOT_STATES[next];
     this.colT = this.cfg.color;
     if (!this.locks.has("tint")) this.tint = this.cfg.tint;
@@ -288,27 +286,41 @@ export class BotEngine {
     this.setBadge(this.stateBadge());
 
     switch (next) {
+      case "working":
+        this.anim("es", [[0.88, 130, Ease.out], [1.14, 170, Ease.inOut], [0.96, 120, Ease.out], [1, 210, Ease.inOut]]);
+        break;
+      case "thinking":
+        this.anim("yaw", [[-0.18, 220, Ease.out], [0.11, 310, Ease.inOut], [-0.04, 170, Ease.out], [0, 200, Ease.inOut]]);
+        break;
+      case "searching":
+        this.anim("tilt", [[0.11, 190, Ease.out], [-0.09, 300, Ease.inOut], [0.035, 170, Ease.out], [0, 210, Ease.inOut]]);
+        break;
+      case "approval":
+        this.anim("es", [[1.04, 90, Ease.out], [1.3, 110, Ease.back], [0.88, 100, Ease.inOut], [1.22, 90, Ease.out], [1, 240, Ease.inOut]]);
+        this.anim("oy", [[-0.16, 160, Ease.out], [0.04, 150, Ease.inOut], [0, 230, Ease.out]]);
+        break;
+      case "question":
+        this.anim("tilt", [[0.16, 160, Ease.out], [-0.05, 230, Ease.inOut], [0.02, 120, Ease.out], [0, 240, Ease.inOut]]);
+        break;
       case "finished":
-        this.doRoll(950, 1);
-        setTimeout(() => this.emit("spark", 5), 500);
+        this.anim("sy", [[0.89, 120, Ease.out], [1.1, 170, Ease.back], [0.97, 100, Ease.inOut], [1, 240, Ease.out]]);
+        this.anim("es", [[0.82, 110, Ease.inOut], [1.24, 150, Ease.out], [1, 260, Ease.inOut]]);
+        setTimeout(() => this.emit("spark", 3), 340);
         break;
       case "error":
         this.anim("ox", [
-          [0.08, 50, Ease.out], [-0.08, 70, Ease.inOut],
-          [0.05, 70, Ease.inOut], [0, 90, Ease.out],
+          [-0.12, 95, Ease.out], [0.06, 100, Ease.inOut], [-0.02, 115, Ease.inOut], [0, 230, Ease.out],
         ]);
-        break;
-      case "approval":
-        this.anim("oy", [[-0.2, 150, Ease.out], [0, 300, Ease.back]]);
-        break;
-      case "dizzy":
-        this.doRoll(1300, 2);
-        break;
-      case "question":
-        this.blink();
+        this.anim("tilt", [[0.16, 115, Ease.out], [-0.1, 170, Ease.inOut], [0.03, 120, Ease.out], [0, 230, Ease.inOut]]);
         break;
       case "ratelimit":
+        this.anim("sy", [[0.94, 130, Ease.out], [1.08, 240, Ease.inOut], [0.99, 180, Ease.out], [1, 250, Ease.inOut]]);
+        this.anim("es", [[1.16, 130, Ease.out], [0.88, 180, Ease.inOut], [1, 240, Ease.out]]);
         this.emit("sweat", 1);
+        break;
+      case "dizzy":
+        this.anim("yaw", [[0.28, 150, Ease.out], [-0.31, 170, Ease.inOut], [0.18, 150, Ease.inOut], [-0.06, 170, Ease.inOut], [0, 210, Ease.out]]);
+        this.anim("tilt", [[-0.18, 150, Ease.out], [0.13, 180, Ease.inOut], [-0.08, 160, Ease.out], [0, 240, Ease.inOut]]);
         break;
       default:
         if (prev !== "idle" || next !== "idle") this.blink();
@@ -396,45 +408,39 @@ export class BotEngine {
     this.anim("roll", [[Math.PI * 2 * turns, durationMs, Ease.inOut]], () => { this.roll = 0; });
   }
 
-  /** Peek wave — the "jichobot". Timings from BotEngine.greet(). */
+  /** Eye salute: left core wakes, right answers, both glance and the visor nods. */
   greet() {
     const t = now();
     const tok = ++this.greetToken;
-    this.waveStart = t + 0.45;
-    this.waveUntil = t + 1.55;
-    this.physVx += 0.2;
-
-    this.eyeOverride = "happy";
-    this.eyeOverrideUntil = t + 2.0;
-    this.anim("oy", [[-0.06, 220, Ease.out], [0.0, 220, Ease.back]]);
-
-    setTimeout(() => {
-      if (this.greetToken !== tok) return;
-      this.anim("hands", [[1, 280, Ease.out]]);
-      this.anim("sy", [[0.95, 100, Ease.out], [1.0, 260, Ease.back]]);
-      this.anim("sx", [[1.04, 100, Ease.out], [1.0, 260, Ease.back]]);
-      Sound.play("greet");
-    }, 250);
-
-    setTimeout(() => { if (this.greetToken === tok) this.blink(); }, 550);
-    setTimeout(() => { if (this.greetToken === tok) this.blink(); }, 1500);
-    setTimeout(() => {
-      if (this.greetToken !== tok) return;
-      this.waveUntil = 0;
-      this.anim("hands", [[0, 200, Ease.inOut]]);
-    }, 1550);
+    this.waveStart = 0;
+    this.waveUntil = 0;
+    this.greetUntil = t + 1.45;
+    this.hands = 0;
+    this.eyeOverride = "closed";
+    this.eyeOverrideUntil = t + 0.18;
+    this.anim("yaw", [[-0.19, 160, Ease.out], [0.09, 210, Ease.inOut], [0, 240, Ease.out]]);
+    this.anim("tilt", [[0.12, 140, Ease.out], [-0.04, 210, Ease.inOut], [0, 190, Ease.out]]);
+    this.anim("es", [[0.64, 100, Ease.inOut], [1.24, 150, Ease.out], [0.92, 130, Ease.inOut], [1, 220, Ease.out]]);
+    setTimeout(() => { if (this.greetToken === tok) { this.eyeOverride = "wide"; this.eyeOverrideUntil = now() + 0.19; } }, 140);
+    setTimeout(() => { if (this.greetToken === tok) { this.eyeOverride = "pill"; this.eyeOverrideUntil = now() + 0.28; } }, 330);
+    setTimeout(() => { if (this.greetToken === tok) { this.eyeOverride = "wink"; this.eyeOverrideUntil = now() + 0.26; } }, 610);
+    setTimeout(() => { if (this.greetToken === tok) Sound.play("greet"); }, 80);
     setTimeout(() => {
       if (this.greetToken !== tok) return;
       this.eyeOverride = "happy";
-      this.eyeOverrideUntil = now() + 0.3;
-    }, 1750);
+      this.eyeOverrideUntil = now() + 0.24;
+    }, 910);
+    setTimeout(() => { if (this.greetToken === tok) this.greetUntil = 0; }, 1450);
   }
 
   interruptGreet() {
-    if (this.hands <= 0.01 && now() >= this.waveUntil) return;
+    if (this.hands <= 0.01 && now() >= this.waveUntil && now() >= this.greetUntil) return;
     this.greetToken++;
+    this.greetUntil = 0;
     this.waveUntil = 0;
     this.waveStart = 0;
+    this.eyeOverride = this.permanentEye;
+    this.eyeOverrideUntil = this.permanentEye ? Number.POSITIVE_INFINITY : 0;
     this.anim("hands", [[0, 150, Ease.inOut]]);
   }
 
@@ -457,47 +463,45 @@ export class BotEngine {
 
   triggerEmote(emote: BotEmoteName, duration = 1.8) {
     const t = now();
+    const hold = Math.max(80, (duration - 0.62) * 1000);
     this.eyeOverride = EMOTE_EYE[emote];
     this.eyeOverrideUntil = t + duration;
 
     switch (emote) {
       case "love":
         this.anim("blush", [
-          [1, 300, Ease.out], [1, (duration - 0.6) * 1000, Ease.lin], [0, 300, Ease.inOut],
+          [0.7, 120, Ease.out], [1.1, 260, Ease.inOut], [0.4, hold, Ease.lin], [0, 280, Ease.inOut],
         ]);
-        this.emit("heart", 4);
-        this.anim("oy", [[-0.1, 160, Ease.out], [0, 300, Ease.back]]);
+        this.emit("heart", 2);
+        this.anim("es", [[0.75, 100, Ease.out], [1.2, 140, Ease.back], [1, 240, Ease.inOut]]);
+        this.anim("tilt", [[-0.12, 180, Ease.out], [0.06, 260, Ease.inOut], [0, 220, Ease.out]]);
         break;
       case "surprised":
-        this.anim("oy", [[-0.3, 140, Ease.out], [0, 380, Ease.back]]);
-        this.anim("es", [[1.25, 120, Ease.out], [1, 500, Ease.inOut]]);
+        this.anim("oy", [[0.12, 90, Ease.out], [-0.04, 150, Ease.inOut], [0, 220, Ease.out]]);
+        this.anim("es", [[0.72, 80, Ease.inOut], [1.35, 110, Ease.out], [0.96, 140, Ease.inOut], [1, 260, Ease.out]]);
         break;
       case "proud":
-        this.emit("star", 5);
-        this.anim("tilt", [
-          [-0.14, 220, Ease.out], [-0.14, (duration - 0.5) * 1000, Ease.lin], [0, 280, Ease.inOut],
-        ]);
-        this.anim("blush", [
-          [0.7, 250, Ease.out], [0.7, (duration - 0.5) * 1000, Ease.lin], [0, 300, Ease.inOut],
-        ]);
+        this.emit("star", 2);
+        this.anim("sy", [[0.92, 120, Ease.out], [1.09, 200, Ease.back], [1, 200, Ease.inOut]]);
+        this.anim("tilt", [[0.14, 180, Ease.out], [0.14, hold, Ease.lin], [0, 280, Ease.inOut]]);
         break;
       case "wink":
-        this.anim("tilt", [
-          [0.12, 160, Ease.out], [0.12, (duration - 0.4) * 1000, Ease.lin], [0, 240, Ease.inOut],
-        ]);
+        this.anim("yaw", [[-0.14, 160, Ease.out], [0.06, 230, Ease.inOut], [0, 260, Ease.out]]);
         break;
       case "yawn":
-        this.anim("sy", [[1.12, 500, Ease.inOut], [1, 500, Ease.inOut]]);
-        this.anim("sx", [[0.94, 500, Ease.inOut], [1, 500, Ease.inOut]]);
-        setTimeout(() => { this.eyeOverride = "closed"; this.emit("z", 2); }, 700);
+        this.anim("sy", [[1.1, 250, Ease.out], [0.91, 350, Ease.inOut], [0.96, 180, Ease.out], [1, 320, Ease.inOut]]);
+        this.anim("es", [[0.64, 240, Ease.inOut], [0.78, 200, Ease.out], [1.1, 180, Ease.out], [1, 300, Ease.inOut]]);
+        setTimeout(() => { this.emit("z", 1); }, Math.min(500, duration * 350));
         break;
       case "happy":
-        this.anim("blush", [[0.6, 200, Ease.out], [0, 600, Ease.inOut]]);
+        this.anim("oy", [[-0.11, 110, Ease.out], [0.03, 180, Ease.inOut], [0, 210, Ease.out]]);
+        this.anim("sx", [[1.12, 140, Ease.out], [0.95, 180, Ease.inOut], [1, 220, Ease.out]]);
+        this.anim("es", [[1.1, 100, Ease.out], [1, 220, Ease.inOut]]);
         break;
       case "annoyed":
-        this.eyeOverride = "line";
-        this.eyeOverrideUntil = t + 0.8;
-        setTimeout(() => Sound.play("annoyed"), 60);
+        this.anim("tilt", [[-0.16, 100, Ease.out], [0.12, 160, Ease.inOut], [-0.05, 120, Ease.out], [0, 250, Ease.inOut]]);
+        this.anim("ox", [[0.05, 90, Ease.out], [-0.02, 110, Ease.inOut], [0, 190, Ease.out]]);
+        setTimeout(() => Sound.play("annoyed"), 90);
         break;
     }
   }
@@ -656,9 +660,10 @@ export class BotEngine {
     if (!this.locks.has("oy")) this.oy += (bounce - this.oy) * kGen;
 
     if (this.cfg.breathes) {
-      const amp = this.isMini ? 0.07 : 0.035;
-      this.tgSy = 1 + Math.sin(t * 1.8) * amp;
-      this.tgSx = 1 - Math.sin(t * 1.8) * amp * 0.57;
+      const amp = this.isMini ? 0.07 : 0.025;
+      const breath = Math.sin(t * 1.1);
+      this.tgSy = 1 + breath * amp;
+      this.tgSx = 1 - breath * amp * 0.5;
     } else if (this.isMini) {
       this.tgSy = 1 + Math.sin(t * 2.2) * 0.04;
       this.tgSx = 1 - Math.sin(t * 2.2) * 0.02;
@@ -737,28 +742,25 @@ export class BotEngine {
     switch (this.permanentEmote) {
       case "happy":
         if (this.locks.has("oy")) { this.miniNextBehavior = n + 0.4; return; }
-        this.anim("oy", [[-0.3, 120, Ease.out], [0.03, 200, Ease.inOut], [0, 160, Ease.back]]);
-        this.anim("sy", [[0.82, 80, Ease.out], [1.18, 130, Ease.out], [0.88, 160, Ease.inOut], [1, 200, Ease.back]]);
-        this.anim("sx", [[1.15, 80, Ease.out], [0.88, 130, Ease.out], [1.06, 160, Ease.inOut], [1, 200, Ease.back]]);
+        this.anim("oy", [[-0.18, 100, Ease.out], [0.04, 150, Ease.inOut], [0, 220, Ease.back]]);
+        this.anim("sy", [[0.94, 80, Ease.out], [1.22, 140, Ease.out], [0.92, 150, Ease.inOut], [1, 210, Ease.back]]);
+        this.anim("sx", [[1.2, 80, Ease.out], [0.91, 140, Ease.out], [1.04, 150, Ease.inOut], [1, 210, Ease.back]]);
         this.miniNextBehavior = n + 2.2 + Math.random() * 1.2;
         break;
       case "annoyed":
         if (this.locks.has("yaw")) { this.miniNextBehavior = n + 0.5; return; }
-        this.anim("yaw", [
-          [-0.65, 50, Ease.out], [0.65, 90, Ease.inOut], [-0.5, 80, Ease.inOut],
-          [0.4, 75, Ease.inOut], [-0.2, 70, Ease.inOut], [0, 140, Ease.out],
-        ]);
+        this.anim("yaw", [[0.42, 80, Ease.out], [-0.5, 120, Ease.inOut], [0.32, 100, Ease.inOut], [-0.18, 120, Ease.inOut], [0, 190, Ease.out]]);
         this.miniNextBehavior = n + 3.0 + Math.random() * 2.5;
         break;
       case "wink":
         this.eyeOverride = "wink";
-        this.eyeOverrideUntil = n + 0.55;
-        this.anim("tilt", [[0.13, 100, Ease.out], [0.13, 320, Ease.lin], [0, 200, Ease.inOut]]);
+        this.eyeOverrideUntil = n + 0.46;
+        this.anim("tilt", [[-0.17, 140, Ease.out], [-0.17, 240, Ease.lin], [0, 260, Ease.inOut]]);
         this.miniNextBehavior = n + 2.2 + Math.random() * 2.0;
         break;
       case "love":
         this.emit("heart", 2);
-        this.anim("tilt", [[-0.1, 180, Ease.out], [0.1, 340, Ease.inOut], [0, 220, Ease.inOut]]);
+        this.anim("tilt", [[-0.16, 140, Ease.out], [0.1, 300, Ease.inOut], [0, 260, Ease.inOut]]);
         this.miniNextBehavior = n + 2.6 + Math.random() * 1.5;
         break;
       default:
@@ -825,20 +827,6 @@ export class BotEngine {
     const body = this.bodyPath(rx, ry, R);
     this.drawBody(x, body, R, rx, ry);
 
-    const blushVal = Math.max(this.blush, this.tint * 0.5) * (1 - this.morph);
-    if (blushVal > 0.01) {
-      x.save();
-      x.clip(body);
-      const yOffset = Math.sin(this.yaw) * rx * 0.8;
-      x.fillStyle = `rgba(255,120,150,${0.5 * blushVal})`;
-      for (const sd of [-1, 1]) {
-        x.beginPath();
-        x.ellipse(sd * rx * 0.55 + yOffset, ry * 0.2, R * 0.17, R * 0.1, 0, 0, Math.PI * 2);
-        x.fill();
-      }
-      x.restore();
-    }
-
     this.drawShellAndVisor(x, body, R);
     this.drawEyes(x, body, R, rx, ry);
     if (this.morph > 0.05) this.drawMouth(x, body, R);
@@ -882,81 +870,67 @@ export class BotEngine {
     return p;
   }
 
-  /** How much of the pumpkin's orange shows on the body (it comes and goes with the outfit). */
-  private get pumpkinAlpha(): number {
-    if (this.isMini || this.outfit !== "pumpkin") return 0;
-    return Math.min(1, this.outfitPresence * 2.5) * (1 - this.morph);
-  }
-
   private drawShellAndVisor(x: CanvasRenderingContext2D, body: Path2D, R: number) {
-    if (this.isMini) return;
     x.save();
-    x.strokeStyle = "#343B45"; x.lineWidth = R * 0.055; x.stroke(body);
+    x.strokeStyle = "#343B45"; x.lineWidth = R * (this.isMini ? 0.035 : 0.045); x.stroke(body);
     if (this.morph < 0.95) {
       x.globalAlpha = 1 - this.morph;
-      const visor = new Path2D(); visor.roundRect(-R * 0.64, -R * 0.42, R * 1.28, R * 0.66, R * 0.25);
-      x.fillStyle = "#1B2229"; x.fill(visor);
-      x.strokeStyle = "rgba(166,176,184,.7)"; x.lineWidth = R * 0.035; x.stroke(visor);
+      const rim = new Path2D();
+      rim.ellipse(0, -R * 0.12, R * 0.83, R * 0.73, 0, 0, Math.PI * 2);
+      const ring = x.createLinearGradient(0, -R * 0.84, 0, R * 0.58);
+      ring.addColorStop(0, "#737881"); ring.addColorStop(1, "#555A62");
+      x.fillStyle = ring; x.fill(rim);
+      x.strokeStyle = "#A7AAB0"; x.lineWidth = R * 0.035; x.stroke(rim);
+
+      const visor = new Path2D(); visor.roundRect(-R * 0.62, -R * 0.36, R * 1.24, R * 0.58, R * 0.24);
+      const glass = x.createLinearGradient(-R * 0.4, -R * 0.36, R * 0.42, R * 0.24);
+      glass.addColorStop(0, "#23252B"); glass.addColorStop(1, "#0B0C0F");
+      x.fillStyle = glass; x.fill(visor);
+      x.strokeStyle = "rgba(194,205,211,.62)"; x.lineWidth = R * 0.027; x.stroke(visor);
+      x.beginPath(); x.ellipse(-R * 0.32, -R * 0.285, R * 0.17, R * 0.043, -0.12, 0, Math.PI * 2);
+      x.fillStyle = "rgba(255,255,255,.09)"; x.fill();
     }
     x.restore();
   }
 
   private drawBody(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
-    const pumpkin = this.pumpkinAlpha;
     if (this.bodyColor) {
-      // Mini bots: flat solid fill — no gradient, no reflection, no highlight
-      x.fillStyle = rgba(this.bodyColor, 1);
+      x.fillStyle = rgba(this.bodyColor);
       x.fill(body);
-      if (pumpkin <= 0.001) return;
     } else {
-      const g = x.createLinearGradient(rx * 0.7, -ry * 0.85, -rx * 0.8, ry * 0.9);
-      g.addColorStop(0, rgba(BASE_TOP));
-      g.addColorStop(1, rgba(BASE_BOTTOM));
-      x.fillStyle = g;
+      const shell = x.createLinearGradient(rx * 0.7, -ry * 0.85, -rx * 0.8, ry * 0.9);
+      shell.addColorStop(0, "#A7AAB0");
+      shell.addColorStop(1, "#777A81");
+      x.fillStyle = shell;
       x.fill(body);
     }
+    if (this.isMini) return;
+
     x.save();
-    if (pumpkin > 0.001) {
-      const pg = x.createLinearGradient(rx * 0.7, -ry * 0.85, -rx * 0.8, ry * 0.9);
-      pg.addColorStop(0, PUMPKIN_BODY[0]);
-      pg.addColorStop(1, PUMPKIN_BODY[1]);
-      x.globalAlpha = pumpkin;
-      x.fillStyle = pg;
-      x.fill(body);
-      // A flat-coloured body only gets the shading while it is a pumpkin.
-      x.globalAlpha = this.bodyColor ? pumpkin : 1;
+    x.clip(body);
+    const shoulder = new Path2D();
+    shoulder.moveTo(-R * 0.84, R * 0.97);
+    shoulder.bezierCurveTo(-R * 0.82, R * 0.64, -R * 0.58, R * 0.45, -R * 0.28, R * 0.43);
+    shoulder.lineTo(R * 0.28, R * 0.43);
+    shoulder.bezierCurveTo(R * 0.58, R * 0.45, R * 0.82, R * 0.64, R * 0.84, R * 0.97);
+    shoulder.closePath();
+    const bust = x.createLinearGradient(0, R * 0.4, 0, R);
+    bust.addColorStop(0, "#858990"); bust.addColorStop(1, "#646970");
+    x.fillStyle = bust; x.fill(shoulder);
+    x.strokeStyle = "rgba(35,40,48,.42)"; x.lineWidth = R * 0.018; x.stroke(shoulder);
+    x.strokeStyle = "#E8B9A0"; x.lineWidth = Math.max(1, R * 0.035); x.lineCap = "round";
+    for (const side of [-1, 1]) {
+      x.beginPath(); x.moveTo(side * R * 0.31, R * 0.45); x.lineTo(side * R * 0.29, R * 0.61); x.stroke();
     }
-
-    const effectiveTint = this.tint * (1 - this.morph);
-    if (effectiveTint > 0.01) {
-      const tg = x.createLinearGradient(0, ry, 0, -ry);
-      tg.addColorStop(0, rgba(this.col, 0.72 * effectiveTint));
-      tg.addColorStop(1, rgba(this.col, 0));
-      x.fillStyle = tg;
-      x.fill(body);
-    }
-
-    const sh = x.createRadialGradient(0, 0, R * 0.15, 0, 0, R * 1.25);
-    sh.addColorStop(0, "rgba(0,0,0,0)");
-    sh.addColorStop(0.6, "rgba(0,0,0,0)");
-    sh.addColorStop(1, "rgba(0,0,0,0.2)");
-    x.fillStyle = sh;
-    x.fill(body);
-
-    const hl = x.createRadialGradient(rx * 0.34, -ry * 0.46, 0, rx * 0.34, -ry * 0.46, R * 0.42);
-    hl.addColorStop(0, "rgba(255,255,255,0.55)");
-    hl.addColorStop(1, "rgba(255,255,255,0)");
-    x.fillStyle = hl;
-    x.fill(body);
+    const shade = x.createRadialGradient(0, 0, R * 0.3, 0, 0, R * 1.2);
+    shade.addColorStop(0, "rgba(0,0,0,0)"); shade.addColorStop(1, "rgba(0,0,0,.13)");
+    x.fillStyle = shade; x.fill(body);
     x.restore();
   }
 
   private drawEyes(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
     let shape: EyeShape = this.eyeOverride ?? this.cfg.eye;
-    // Dancing: happy eyes in the calm states.
-    if (this.isDancing && this.dancingLevel > 0.15 && !this.isMini && (this.state === "idle" || this.state === "finished")) {
-      shape = "happy";
-    }
+    if (this.isDancing && this.dancingLevel > 0.15 && !this.isMini && (this.state === "idle" || this.state === "finished")) shape = "happy";
     if (this.morph > 0.5) {
       if (this.isChewing) shape = "happy";
       else if (this.slotHTarget > 0.05 || this.slotH > 0.1) shape = "cup";
@@ -964,18 +938,14 @@ export class BotEngine {
 
     x.save();
     x.clip(body);
-    const ink = this.isMini ? MINI_INK : INK;
-    x.fillStyle = ink;
-    x.strokeStyle = ink;
-
+    const ink = rgba(this.col);
+    const stateAge = now() - this.stateSince;
     for (const sd of [-1, 1]) {
       const eyeYaw = sd * EYE_SP + this.yaw;
-      // Rolling with an outfit on, the whole body turns: the eyes must not roll again.
       let eyePitch = EYE_P + this.pitch + (this.rigidRoll ? 0 : this.roll);
       eyePitch = (((eyePitch + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
       const cp = Math.cos(eyePitch);
       if (Math.cos(eyeYaw) * cp <= 0.04) continue;
-
       const ex = Math.sin(eyeYaw) * cp * rx;
       const ey = -Math.sin(eyePitch) * ry + (this.morph > 0 ? ry * 0.14 * this.morph : 0);
       const fx = lerp(Math.max(0.18, Math.cos(eyeYaw)), 1, this.morph * 0.7);
@@ -983,119 +953,105 @@ export class BotEngine {
       const eyeMult = this.isMini ? 1.9 : 1.0;
       const ew = R * EYE_W * this.es * eyeMult;
       const eh = R * EYE_H * this.es * eyeMult;
-
-      x.save();
-      x.translate(ex, ey);
-      x.scale(fx, fy);
-      this.drawEyeShape(x, shape, ew, eh, sd, ink);
+      x.save(); x.translate(ex, ey); x.scale(fx, fy);
+      let eyeShape = shape;
+      if (this.eyeOverride == null) {
+        if (this.state === "thinking") eyeShape = sd < 0 ? "dot" : "pill";
+        else if (this.state === "question") eyeShape = sd < 0 ? "pill" : stateAge < 0.72 ? "spiral" : "dot";
+        else if (this.state === "error") eyeShape = stateAge < 0.21 ? (sd < 0 ? "flat" : "line") : stateAge < 0.42 ? (sd < 0 ? "line" : "flat") : "flat";
+        else if (this.state === "finished") eyeShape = sd < 0 ? "happy" : stateAge < 0.32 ? "pill" : "happy";
+      }
+      this.drawEyeShape(x, eyeShape, ew, eh, sd, ink);
       x.restore();
     }
     x.restore();
   }
 
-  private drawEyeShape(
-    x: CanvasRenderingContext2D, shape: EyeShape,
-    w: number, h: number, sd: number, ink: string,
-  ) {
+  private drawEyeShape(x: CanvasRenderingContext2D, shape: EyeShape, w: number, h: number, sd: number, ink: string) {
     const t = now();
+    const core = "#FFE3DF";
+    const bloom = 0.82 + this.blush * 0.45 + (this.state === "idle" ? 0.08 * (0.5 + 0.5 * Math.sin(t * 1.7)) : 0);
+    const capsule = (width: number, height: number, coreX = 0) => {
+      const hh = Math.max(height * this.open, width * 0.42);
+      x.save();
+      x.shadowColor = ink; x.shadowBlur = width * bloom;
+      roundRectPath(x, -width / 2, -hh / 2, width, hh, Math.min(width / 2, hh / 2));
+      x.fillStyle = ink; x.fill();
+      x.shadowBlur = 0;
+      roundRectPath(x, coreX - width * 0.19, -hh * 0.29, width * 0.38, hh * 0.58, width * 0.19);
+      x.fillStyle = core; x.globalAlpha = 0.9; x.fill();
+      x.restore();
+    };
+    const workPhase = stateAge % 1.5;
+    const workDrift = workPhase < 0.55 ? lerp(-0.24 * w, 0.24 * w, workPhase / 0.55)
+      : workPhase < 0.75 ? 0.24 * w
+      : workPhase < 1.30 ? lerp(0.24 * w, -0.24 * w, (workPhase - 0.75) / 0.55)
+      : -0.24 * w;
+    const scanPhase = stateAge % 1.7;
+    const scanDrift = scanPhase < 1.05 ? sd * lerp(-0.25 * w, 0.25 * w, scanPhase / 1.05)
+      : scanPhase < 1.2 ? sd * 0.25 * w : 0;
+    const coreDrift = this.state === "working" ? workDrift
+      : this.state === "searching" ? scanDrift
+      : this.state === "thinking" ? (sd < 0 || stateAge >= 0.24 ? w * 0.12 : 0) : 0;
+
     switch (shape) {
-      case "wide":
-        this.drawEyeShape(x, "pill", w * 1.16, h * 1.12, sd, ink);
-        break;
-      case "pill": {
-        const hh = Math.max(h * this.open, w * 0.3);
-        roundRectPath(x, -w / 2, -hh / 2, w, hh, Math.min(w / 2, hh / 2));
-        x.fill();
+      case "wide": capsule(w * 1.12, h * 1.16, coreDrift); break;
+      case "pill": capsule(w, h, coreDrift); break;
+      case "dot": {
+        const pulse = 0.92 + 0.08 * Math.sin(t * 2.4);
+        x.save(); x.shadowColor = ink; x.shadowBlur = w * bloom;
+        x.beginPath(); x.arc(0, 0, w * 0.48 * pulse, 0, Math.PI * 2); x.fillStyle = ink; x.fill();
+        x.shadowBlur = 0; x.beginPath(); x.arc(coreDrift, 0, w * 0.18, 0, Math.PI * 2); x.fillStyle = core; x.fill(); x.restore();
         break;
       }
-      case "dot":
-        x.beginPath();
-        x.arc(0, 0, w * 0.45, 0, Math.PI * 2);
-        x.fill();
-        break;
       case "line":
-        x.rotate(-sd * 0.2);
-        roundRectPath(x, -w * 0.78, -w * 0.21, w * 1.56, w * 0.42, w * 0.21);
-        x.fill();
+        x.save(); x.rotate(-sd * 0.12); capsule(w * 1.5, h * 0.58, coreDrift); x.restore();
         break;
       case "flat":
-        roundRectPath(x, -w * 0.72, -w * 0.2, w * 1.44, w * 0.4, w * 0.2);
-        x.fill();
+        x.save(); x.rotate(sd * 0.1); capsule(w * 1.35, h * 0.4); x.restore();
         break;
       case "happy":
-        x.lineWidth = w * 0.5;
-        x.lineCap = "round";
-        x.beginPath();
-        x.arc(0, h * 0.18, w * 0.82, Math.PI * 1.12, Math.PI * 1.88);
-        x.stroke();
+        x.save(); x.strokeStyle = ink; x.lineWidth = w * 0.32; x.lineCap = "round"; x.shadowColor = ink; x.shadowBlur = w * bloom;
+        x.beginPath(); x.arc(0, h * 0.15, w * 0.7, Math.PI * 1.13, Math.PI * 1.87); x.stroke();
+        x.shadowBlur = 0; x.strokeStyle = core; x.lineWidth = w * 0.11;
+        x.beginPath(); x.arc(0, h * 0.15, w * 0.7, Math.PI * 1.28, Math.PI * 1.72); x.stroke(); x.restore();
         break;
       case "closed":
-        x.lineWidth = w * 0.36;
-        x.lineCap = "round";
-        x.beginPath();
-        x.arc(0, -h * 0.08, w * 0.78, Math.PI * 0.15, Math.PI * 0.85);
-        x.stroke();
+        x.save(); x.strokeStyle = ink; x.lineWidth = w * 0.3; x.lineCap = "round";
+        x.beginPath(); x.moveTo(-w * 0.48, 0); x.quadraticCurveTo(0, h * 0.12, w * 0.48, 0); x.stroke();
+        x.strokeStyle = core; x.lineWidth = w * 0.1; x.beginPath(); x.moveTo(-w * 0.25, h * 0.01); x.lineTo(w * 0.25, h * 0.01); x.stroke(); x.restore();
         break;
       case "spiral": {
-        x.lineWidth = w * 0.22;
-        x.lineCap = "round";
-        x.beginPath();
-        for (let a = 0; a < 4.4 * Math.PI; a += 0.2) {
-          const r = w * 0.06 + a * w * 0.058;
-          const aa = a + t * 9 * sd;
-          const px = Math.cos(aa) * r;
-          const py = Math.sin(aa) * r;
-          if (a === 0) x.moveTo(px, py);
-          else x.lineTo(px, py);
-        }
-        x.stroke();
+        x.save(); x.strokeStyle = ink; x.lineWidth = w * 0.14;
+        x.beginPath(); x.arc(0, 0, w * 0.46, t * 1.7, t * 1.7 + Math.PI * 1.62); x.stroke();
+        const a = t * 2.2 + sd * Math.PI; x.beginPath(); x.arc(Math.cos(a) * w * 0.42, Math.sin(a) * w * 0.42, w * 0.12, 0, Math.PI * 2); x.fillStyle = core; x.fill(); x.restore();
         break;
       }
       case "heart":
-        x.fillStyle = "#FF4D6D";
-        heartPath(x, w * 1.2);
-        x.fill();
-        x.fillStyle = ink;
+        x.fillStyle = "#FF6B88"; heartPath(x, w * 1.08); x.fill();
+        x.beginPath(); x.arc(-w * 0.12, -w * 0.18, w * 0.11, 0, Math.PI * 2); x.fillStyle = core; x.fill();
         break;
       case "star":
-        x.fillStyle = "#F7B32B";
-        x.rotate(t * 1.5 * sd);
-        starPath(x, w * 1.05, w * 0.46);
-        x.fill();
-        x.fillStyle = ink;
+        x.save(); x.rotate(t * 0.65 * sd); x.shadowColor = ink; x.shadowBlur = w * bloom;
+        starPath(x, w * 0.88, w * 0.48); x.fillStyle = ink; x.fill();
+        x.shadowBlur = 0; x.beginPath(); x.arc(0, 0, w * 0.13, 0, Math.PI * 2); x.fillStyle = core; x.fill(); x.restore();
         break;
       case "tired":
-        roundRectPath(x, -w / 2, -h * 0.02, w, h * 0.38, w / 2);
-        x.fill();
-        roundRectPath(x, -w * 0.62, -h * 0.1, w * 1.24, w * 0.22, w * 0.11);
-        x.fill();
+        capsule(w, h * 0.55);
+        x.fillStyle = "#0B0C0F"; roundRectPath(x, -w * 0.62, -h * 0.52 + Math.min(1, stateAge / 0.42) * h * 0.22, w * 1.24, h * 0.48, w * 0.2); x.fill();
         break;
       case "wink":
-        if (sd < 0) {
-          const hh = Math.max(h * this.open, w * 0.3);
-          roundRectPath(x, -w / 2, -hh / 2, w, hh, Math.min(w / 2, hh / 2));
-          x.fill();
-        } else {
-          x.lineWidth = w * 0.5;
-          x.lineCap = "round";
-          x.beginPath();
-          x.arc(0, h * 0.18, w * 0.82, Math.PI * 1.12, Math.PI * 1.88);
-          x.stroke();
-        }
+        if (sd < 0) capsule(w, h, coreDrift);
+        else { x.strokeStyle = ink; x.lineWidth = w * 0.3; x.lineCap = "round"; x.beginPath(); x.moveTo(-w * 0.5, h * 0.06); x.quadraticCurveTo(0, -h * 0.4, w * 0.5, h * 0.06); x.stroke(); }
         break;
       case "cup": {
-        // Flat top, rounded bottom corners (U shape) — used while the box is open
-        const hh = Math.max(h * this.open, w * 0.3);
+        const hh = Math.max(h * this.open, w * 0.42);
         const cr = Math.min(w / 2, hh / 2);
-        x.beginPath();
-        x.moveTo(-w / 2, -hh / 2);
-        x.lineTo(w / 2, -hh / 2);
-        x.lineTo(w / 2, hh / 2 - cr);
-        x.quadraticCurveTo(w / 2, hh / 2, w / 2 - cr, hh / 2);
-        x.lineTo(-w / 2 + cr, hh / 2);
-        x.quadraticCurveTo(-w / 2, hh / 2, -w / 2, hh / 2 - cr);
-        x.closePath();
-        x.fill();
+        x.shadowColor = ink; x.shadowBlur = w * bloom;
+        x.beginPath(); x.moveTo(-w / 2, -hh / 2); x.lineTo(w / 2, -hh / 2); x.lineTo(w / 2, hh / 2 - cr);
+        x.quadraticCurveTo(w / 2, hh / 2, w / 2 - cr, hh / 2); x.lineTo(-w / 2 + cr, hh / 2);
+        x.quadraticCurveTo(-w / 2, hh / 2, -w / 2, hh / 2 - cr); x.closePath(); x.fillStyle = ink; x.fill();
+        x.shadowBlur = 0; roundRectPath(x, -w * 0.14, hh * 0.06, w * 0.28, hh * 0.43, w * 0.13); x.fillStyle = core; x.fill();
         break;
       }
     }

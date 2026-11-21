@@ -3,19 +3,12 @@ import SwiftUI
 // MARK: - Timing constants
 
 private enum GT {
-    static let pop0:     Double = 1.30
-    static let pop1:     Double = 1.45
-    static let content0: Double = 2.40
-    static let tuck0:    Double = 2.45
-    static let tuck1:    Double = 2.70
-    static let badge:    Double = 2.72
-    static let down0:    Double = 2.85
-    static let down1:    Double = 3.45
-    static let blink2:   Double = 3.70
-    static let tint0:    Double = 3.85
-    static let tint1:    Double = 4.15
-    static let end:      Double = 4.60
-    static let autoLeave:Double = 4.90
+    static let badge:    Double = 1.18
+    static let blink2:   Double = 3.42
+    static let tint0:    Double = 1.50
+    static let tint1:    Double = 2.18
+    static let end:      Double = 4.05
+    static let autoLeave:Double = 4.35
     static let COLLAPSE: Double = 0.34
 }
 
@@ -23,7 +16,7 @@ private enum GT {
 
 private let GC0     = CGPoint(x: 320, y: 90)
 private let GHB:    CGFloat = 58
-private let GASP:   CGFloat = 1.34
+private let GASP:   CGFloat = 1.06
 private let GEAR_X: CGFloat = 40
 private let GEAR_HB:CGFloat = 17
 private let GCARD   = CGRect(x: 10, y: 36, width: 620, height: 104)
@@ -50,13 +43,12 @@ private func gLerpF(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (
 
 // MARK: - Pose
 
-private enum GEyeType { case dot, happy, content }
+private enum GEyeType { case dot, happy, content, pill, wide, wink, closed }
 
 private struct GreetPose {
     var hb, x, y, sx, sy, tilt: Double
     var eye: GEyeType; var open, eyeRoll: Double
     var lookX, lookY: Double
-    var handL, handR, wave: Double
     var badge, tint, halo, haloBlue, minis, fx: Double
     var header, card: Double
     var iw, ih: Double
@@ -93,162 +85,65 @@ private let greetParticles: (warps: [GWarpStreak], ring: [GRingDot]) = {
 // MARK: - Pose computation
 
 private func greetPose(_ t: Double, compact: IslandRestingLayout) -> GreetPose {
-    // Island size (reference for clip / warp spread)
     let gx = gSeg(t, 0, 0.5)
-    let g  = sin(.pi*gx/2) + 0.04*sin(.pi*gx)*gx
+    let g = sin(.pi * gx / 2) + 0.04 * sin(.pi * gx) * gx
     let iw = gLerp(Double(compact.width - 160), 640, g)
     let ih = gLerp(Double(compact.height), 150, g)
 
-    let GH = Double(GHB)   // 58
-    let cx = Double(GC0.x) // 320
-    let cy = Double(GC0.y) // 90
-
-    // Body height: invisible before 0.20, grows 0.15→1.0 with back ease
+    let GH = Double(GHB)
+    let cx = Double(GC0.x)
+    let cy = Double(GC0.y)
     let hb: Double = t < 0.20 ? 0 : gLerp(GH * 0.15, GH, GE.back(gSeg(t, 0.20, 0.60)))
+    let landY = cy + 0.12 * GH
+    let peakY = cy - 0.12 * GH
+    let dipY = cy + 0.18 * GH
 
-    // Landmark y positions (absolute, GC0-relative in multiples of GH)
-    let restY   = cy
-    let landY   = cy + 0.12 * GH   // landing: y=+0.12
-    let peakY   = cy - 0.15 * GH   // bounce peak: y=−0.15
-    let dipY    = cy + 0.36 * GH   // plunge low: y=+0.36
-    let springY = cy - 0.10 * GH   // spring high: y=−0.10
-    let sinkY   = cy + 0.30 * GH   // sink for tuck: y=+0.30
-
-    // Landmark x positions
-    let restX   = cx
-    let drift1  = cx - 0.16 * GH
-    let drift2  = cx - 0.45 * GH
-    let drift3  = cx - 0.57 * GH
-    let drift4  = cx - 0.85 * GH
-
-    // --- X (lateral travel) ---
-    var x: Double
-    if t < 0.85 {
-        x = restX
-    } else if t < 1.20 {
-        x = gLerp(restX,  drift1, GE.inOut(gSeg(t, 0.85, 1.20)))
-    } else if t < 1.30 {
-        x = gLerp(drift1, drift2, GE.easeIn(gSeg(t, 1.20, 1.30)))
-    } else if t < 1.45 {
-        x = gLerp(drift2, drift3, GE.inOut(gSeg(t, 1.30, 1.45)))
-    } else if t < 2.40 {
-        x = gLerp(drift3, drift4, GE.inOut(gSeg(t, 1.45, 2.40)))
-    } else if t < 2.85 {
-        x = drift4
-    } else {
-        x = gLerp(drift4, restX,  GE.inOut(gSeg(t, 2.85, 3.45)))
-    }
-
-    // --- Y (vertical travel, base without bob) ---
     var y: Double
-    if t < 0.20 {
-        y = Double(compact.botCenterY)
-    } else if t < 0.60 {
-        y = gLerp(Double(compact.botCenterY), landY, GE.easeIn(gSeg(t, 0.20, 0.60)))
-    } else if t < 0.73 {
-        y = gLerp(landY,   peakY,   GE.out(gSeg(t, 0.60, 0.73)))
-    } else if t < 0.90 {
-        y = gLerp(peakY,   restY,   GE.inOut(gSeg(t, 0.73, 0.90)))
-    } else if t < 1.20 {
-        y = restY
-    } else if t < 1.30 {
-        y = gLerp(restY,   dipY,    GE.easeIn(gSeg(t, 1.20, 1.30)))
-    } else if t < 1.45 {
-        y = gLerp(dipY,    springY, GE.out(gSeg(t, 1.30, 1.45)))
-    } else if t < 1.60 {
-        y = gLerp(springY, restY,   GE.inOut(gSeg(t, 1.45, 1.60)))
-    } else if t < 2.40 {
-        y = restY
-    } else if t < 2.70 {
-        y = gLerp(restY,   sinkY,   GE.inOut(gSeg(t, 2.40, 2.70)))
-    } else if t < 2.85 {
-        y = sinkY
-    } else {
-        y = gLerp(sinkY,   restY,   GE.inOut(gSeg(t, 2.85, 3.45)))
-    }
+    if t < 0.20 { y = Double(compact.botCenterY) }
+    else if t < 0.60 { y = gLerp(Double(compact.botCenterY), landY, GE.easeIn(gSeg(t, 0.20, 0.60))) }
+    else if t < 0.82 { y = gLerp(landY, peakY, GE.out(gSeg(t, 0.60, 0.82))) }
+    else if t < 1.08 { y = gLerp(peakY, cy, GE.back(gSeg(t, 0.82, 1.08))) }
+    else if t < 2.28 { y = cy + sin((t - 1.08) * .pi * 1.7) * GH * 0.012 }
+    else if t < 2.46 { y = gLerp(cy, dipY, GE.easeIn(gSeg(t, 2.28, 2.46))) }
+    else if t < 2.74 { y = gLerp(dipY, cy, GE.out(gSeg(t, 2.46, 2.74))) }
+    else if t < 3.55 { y = cy }
+    else { y = gLerp(cy, Double(compact.botCenterY), GE.inOut(gSeg(t, 3.55, 4.05))) }
 
-    // Body bob: in phase with hand wave, active pop1 → tuck0, ramp-in 0.08 s
-    if t >= GT.pop1 && t < GT.tuck0 {
-        let w = t - GT.pop1
-        let rampIn = gClamp(w / 0.08, 0, 1)
-        y += sin(w * 2 * .pi * 5.0) * 0.02 * GH * rampIn
-    }
+    let landSqK = (t >= 0.52 && t < 0.70) ? sin(.pi * gSeg(t, 0.52, 0.70)) : 0
+    let saluteK = (t >= 1.12 && t < 1.52) ? sin(.pi * gSeg(t, 1.12, 1.52)) : 0
+    let nodK = (t >= 2.25 && t < 2.72) ? sin(.pi * gSeg(t, 2.25, 2.72)) : 0
+    let sx = 1 + 0.16 * landSqK - 0.045 * saluteK + 0.06 * nodK
+    let sy = 1 - 0.16 * landSqK + 0.08 * saluteK - 0.055 * nodK
 
-    // --- Scale ---
-    var sx = 1.0, sy = 1.0
-
-    // Landing squash (peak at 0.60, pulse 0.52→0.68)
-    let landSqK = (t >= 0.52 && t < 0.68) ? sin(.pi * gSeg(t, 0.52, 0.68)) : 0
-    // Bounce stretch (peak at 0.73, resolves 0.62→0.84)
-    let bounceK  = (t >= 0.62 && t < 0.84) ? sin(.pi * gSeg(t, 0.62, 0.84)) : 0
-    sx = 1.0 + 0.14 * landSqK - 0.10 * bounceK
-    sy = 1.0 - 0.14 * landSqK + 0.18 * bounceK
-
-    // Plunge squash (peaks at 1.30, pulse 1.18→1.42)
-    let plungeK = (t >= 1.18 && t < 1.42) ? sin(.pi * gSeg(t, 1.18, 1.42)) : 0
-    // Spring stretch (peak at 1.38, resolves 1.30→1.46)
-    let springK = (t >= 1.30 && t < 1.46) ? sin(.pi * gSeg(t, 1.30, 1.46)) : 0
-    sx += 0.12 * plungeK - 0.18 * springK
-    sy -= 0.12 * plungeK - 0.25 * springK
-
-    // Sink squash (peak at 2.70)
-    let sinkK: Double
-    if t >= 2.38 && t < 2.70 {
-        sinkK = GE.inOut(gSeg(t, 2.38, 2.70))
-    } else if t >= 2.70 && t < 2.85 {
-        sinkK = 1 - GE.inOut(gSeg(t, 2.70, 2.85))
-    } else {
-        sinkK = 0
-    }
-    sx += 0.18 * sinkK
-    sy -= 0.14 * sinkK
-
-    // Micro squash at 3.70 (with blink)
-    let microK = (t >= 3.70 && t < 3.82) ? sin(.pi * gSeg(t, 3.70, 3.82)) : 0
-    sx += 0.08 * microK
-    sy -= 0.07 * microK
-
-    // --- Eyes ---
-    var eye: GEyeType = .dot
-    if t >= 0.55  && t < 0.80      { eye = .happy   }
-    if t >= GT.content0 && t < GT.tuck1 { eye = .content }
-
+    var eye: GEyeType = .closed
+    if t >= 0.72 && t < 1.04 { eye = .wide }
+    else if t >= 1.04 && t < 1.36 { eye = .pill }
+    else if t >= 1.36 && t < 1.72 { eye = .wink }
+    else if t >= 1.72 && t < 2.50 { eye = .happy }
+    else if t >= 2.50 { eye = .pill }
     let blink: (Double) -> Double = { tb in
         let k = gSeg(t, tb, tb + 0.12)
         return (k > 0 && k < 1) ? 1 - sin(.pi * k) * 0.94 : 1
     }
-    let openVal = min(blink(1.95), min(blink(3.05), blink(GT.blink2)))
+    let openVal = min(blink(2.92), blink(GT.blink2))
 
-    // --- Look ---
     var lookX = 0.0, lookY = 0.0
-    if t >= GT.pop1 && t < GT.content0 {         // wave: up-right
-        lookX = 0.55; lookY = -0.45
-    } else if t >= GT.content0 && t < GT.down0 { // tuck: down-left
-        lookX = -0.3; lookY = 0.6
-    } else if t >= GT.down0 && t < GT.down1 {    // slide: down-right (returning)
-        lookX = 0.3;  lookY = 0.6
-    } else if t >= GT.down1 {
-        let k = GE.inOut(gSeg(t, GT.down1, GT.down1 + 0.35))
-        lookX = gLerp(0.3, 0, k); lookY = gLerp(0.6, 0, k)
+    if t >= 0.72 && t < 1.36 { lookX = -0.25; lookY = -0.12 }
+    else if t >= 1.36 && t < 1.72 { lookX = 0.3; lookY = -0.1 }
+    else if t >= 1.72 && t < 2.50 { lookY = 0.05 }
+    else if t >= 2.50 {
+        let k = GE.inOut(gSeg(t, 2.50, 2.95))
+        lookX = gLerp(0, 0.08, k); lookY = gLerp(0.05, 0, k)
     }
 
-    // --- Hands ---
-    let handL = t < GT.tuck0
-        ? GE.back(gSeg(t, GT.pop0, GT.pop0 + 0.14))
-        : 1 - GE.easeIn(gSeg(t, GT.tuck0, GT.tuck1 - 0.03))
-    let handR = t < GT.tuck0
-        ? GE.back(gSeg(t, GT.pop0 + 0.04, GT.pop0 + 0.18))
-        : 1 - GE.easeIn(gSeg(t, GT.tuck0 + 0.03, GT.tuck1))
-    let wave = (t >= GT.pop1 && t < GT.tuck0) ? t - GT.pop1 : -1.0
-
     return GreetPose(
-        hb: hb, x: x, y: y, sx: sx, sy: sy, tilt: 0,
+        hb: hb, x: cx, y: y, sx: sx, sy: sy,
+        tilt: (t >= 2.28 && t < 2.74) ? 0.045 * nodK : 0,
         eye: eye, open: openVal, eyeRoll: 0,
         lookX: lookX, lookY: lookY,
-        handL: handL, handR: handR, wave: wave,
-        badge:    GE.back(gSeg(t, GT.badge, GT.badge + 0.28)),
-        tint:     0.6 * GE.inOut(gSeg(t, GT.tint0, GT.tint1)),
-        halo:     GE.out(gSeg(t, 0.3, 0.7)),
+        badge: GE.back(gSeg(t, GT.badge, GT.badge + 0.28)),
+        tint: 0.6 * GE.inOut(gSeg(t, GT.tint0, GT.tint1)),
+        halo: GE.out(gSeg(t, 0.3, 0.7)),
         haloBlue: gSeg(t, GT.tint0, GT.tint1),
         minis: 0, fx: 1,
         header: gSeg(t, 0.35, 0.6), card: gSeg(t, 0.18, 0.45),
@@ -265,7 +160,6 @@ private func smallPose(_ compact: IslandRestingLayout) -> GreetPose {
         sx: 1, sy: 1, tilt: 0,
         eye: .dot, open: 1, eyeRoll: 0,
         lookX: 0, lookY: 0,
-        handL: 0, handR: 0, wave: -1,
         badge: 1, tint: 0.6, halo: 0.6, haloBlue: 1,
         minis: 1, fx: 1,
         header: 0, card: 0,
@@ -288,9 +182,6 @@ private func pose(_ t: Double, tc: Double, compact: IslandRestingLayout) -> Gree
     p.haloBlue = gLerp(a.haloBlue, b.haloBlue, e)
     p.header   = a.header * (1 - gSeg(t, tc, tc+0.1))
     p.card     = a.card   * (1 - gSeg(t, tc, tc+0.18))
-    p.handL    = a.handL  * (1 - gSeg(t, tc, tc+0.15))
-    p.handR    = a.handR  * (1 - gSeg(t, tc, tc+0.15))
-    p.wave     = a.wave >= 0 ? a.wave : -1
     p.tilt     = a.tilt * (1 - e)
     p.sx       = gLerp(a.sx, 1, e); p.sy = gLerp(a.sy, 1, e)
     p.eyeRoll  = a.eyeRoll * (1 - e)
@@ -342,65 +233,14 @@ private func kitoPath(hw: CGFloat, hh: CGFloat) -> CGPath {
 private func whiteFill(_ ctx: CGContext, _ path: CGPath,
                        x0: CGFloat, y0: CGFloat, x1: CGFloat, y1: CGFloat) {
     let cs = CGColorSpaceCreateDeviceRGB()
-    let c0 = CGColor(red: 251/255, green: 251/255, blue: 252/255, alpha: 1)
-    let c1 = CGColor(red: 231/255, green: 233/255, blue: 236/255, alpha: 1)
+    let c0 = CGColor(red: 167/255, green: 170/255, blue: 176/255, alpha: 1)
+    let c1 = CGColor(red: 119/255, green: 122/255, blue: 129/255, alpha: 1)
     guard let g = CGGradient(colorsSpace: cs, colors: [c0,c1] as CFArray, locations: [0,1]) else { return }
     ctx.saveGState()
     ctx.addPath(path); ctx.clip()
     ctx.drawLinearGradient(g, start: CGPoint(x: x0, y: y0),
                               end:   CGPoint(x: x1, y: y1),
                               options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-    ctx.restoreGState()
-}
-
-// Left hand: ball, waves (bobs vertically)
-private func drawHandL(_ ctx: CGContext, hw: CGFloat, hh: CGFloat, p: GreetPose) {
-    let k = CGFloat(p.handL); guard k > 0.01 else { return }
-    let hb = hh * 2
-    let r  = hb * 0.15 * k
-    let rx = gLerpF(-hw * 0.35, -hw - hb * 0.22, k)
-    let ry0 = gLerpF(hh * 0.85, hh * 0.62, k)
-    var ry = Double(ry0)
-    if p.wave >= 0 {
-        let w = p.wave
-        // Ramp in 0.08 s after pop1; ramp out over tuck0→tuck1
-        let rampIn  = gClamp(w / 0.08, 0, 1)
-        let waveEnd = GT.tuck0 - GT.pop1   // = 1.00
-        let rampOut = 1 - gClamp((w - waveEnd) / (GT.tuck1 - GT.tuck0), 0, 1)
-        let ramp    = rampIn * rampOut
-        ry += sin(w * 2 * .pi * 5.0) * Double(hb) * 0.14 * ramp
-    }
-    ctx.saveGState()
-    ctx.translateBy(x: rx, y: CGFloat(ry))
-    let circ = CGPath(ellipseIn: CGRect(x: -r, y: -r, width: r*2, height: r*2), transform: nil)
-    whiteFill(ctx, circ, x0: r, y0: -r, x1: -r, y1: r)
-    ctx.addEllipse(in: CGRect(x: -r, y: -r, width: r*2, height: r*2))
-    ctx.setStrokeColor(CGColor(red: 0, green: 0, blue: 0, alpha: 0.08))
-    ctx.setLineWidth(0.8); ctx.strokePath()
-    ctx.restoreGState()
-}
-
-// Right hand: capsule, quasi-static with breathing rotation ±0.04 rad at 2.5 Hz
-private func drawHandR(_ ctx: CGContext, hw: CGFloat, hh: CGFloat, p: GreetPose) {
-    let k = CGFloat(p.handR); guard k > 0.01 else { return }
-    let hb = hh * 2, L = hb * 0.40 * k, T2 = hb * 0.22 * k
-    let rx0 = gLerpF(hw * 0.35, hw + hb * 0.20, k)
-    let ry0 = gLerpF(hh * 0.85, hh * 0.20, k)
-    // Breathing rotation ±0.04 rad at 2.5 Hz, only while wave is active; no displacement
-    let ang: CGFloat = p.wave >= 0
-        ? -0.61 + CGFloat(sin(p.wave * 2 * .pi * 2.5)) * 0.04
-        : -0.61
-    ctx.saveGState()
-    ctx.translateBy(x: rx0, y: ry0)
-    ctx.rotate(by: ang)
-    let cap = CGMutablePath()
-    gRR(ctx, -L/2, -T2/2, L, T2, T2/2)
-    cap.addPath(ctx.path!)
-    ctx.beginPath()
-    whiteFill(ctx, cap, x0: L/2, y0: -T2/2, x1: -L/2, y1: T2/2)
-    gRR(ctx, -L/2, -T2/2, L, T2, T2/2)
-    ctx.setStrokeColor(CGColor(red: 0, green: 0, blue: 0, alpha: 0.08))
-    ctx.setLineWidth(0.8); ctx.strokePath()
     ctx.restoreGState()
 }
 
@@ -444,52 +284,63 @@ private func drawKito(_ ctx: CGContext, p: GreetPose) {
     ctx.rotate(by: CGFloat(p.tilt))
     ctx.scaleBy(x: CGFloat(p.sx), y: CGFloat(p.sy))
 
-    drawHandL(ctx, hw: hw, hh: hh, p: p)
-    drawHandR(ctx, hw: hw, hh: hh, p: p)
-
     let mpath = kitoPath(hw: hw, hh: hh)
     whiteFill(ctx, mpath, x0: hw*0.6, y0: -hh, x1: -hw*0.6, y1: hh)
-
-    if p.tint > 0 {
-        let cs = CGColorSpaceCreateDeviceRGB()
-        let c0 = CGColor(red: 127/255, green: 180/255, blue: 234/255, alpha: CGFloat(p.tint))
-        let c1 = CGColor(red: 127/255, green: 180/255, blue: 234/255, alpha: 0)
-        if let g = CGGradient(colorsSpace: cs, colors: [c0,c1] as CFArray, locations: [0,1]) {
-            ctx.saveGState()
-            ctx.addPath(mpath); ctx.clip()
-            ctx.drawLinearGradient(g, start: CGPoint(x: 0, y: hh),
-                                      end:   CGPoint(x: 0, y: -hh*0.1), options: [])
-            ctx.restoreGState()
-        }
-    }
+    ctx.addPath(mpath); ctx.setStrokeColor(gHex("#343B45")); ctx.setLineWidth(max(1.5, hh * 0.045)); ctx.strokePath()
 
     ctx.saveGState()
     ctx.addPath(mpath); ctx.clip()
-    ctx.setFillColor(gHex("#16171A"))
-    ctx.setStrokeColor(gHex("#16171A"))
-    let er = CGFloat(p.hb*0.06)
-    let sp = CGFloat(p.hb*0.19)
-    let lx = CGFloat(p.lookX)*hw*0.42
-    let ly = CGFloat(p.lookY)*hh*0.28 + hh*0.12 + CGFloat(p.eyeRoll)*hh*1.25
+    let shoulder = CGMutablePath()
+    shoulder.move(to: CGPoint(x: -hw * 0.78, y: hh * 0.98))
+    shoulder.addCurve(to: CGPoint(x: -hw * 0.28, y: hh * 0.43), control1: CGPoint(x: -hw * 0.74, y: hh * 0.62), control2: CGPoint(x: -hw * 0.5, y: hh * 0.43))
+    shoulder.addLine(to: CGPoint(x: hw * 0.28, y: hh * 0.43))
+    shoulder.addCurve(to: CGPoint(x: hw * 0.78, y: hh * 0.98), control1: CGPoint(x: hw * 0.5, y: hh * 0.43), control2: CGPoint(x: hw * 0.74, y: hh * 0.62))
+    shoulder.closeSubpath()
+    ctx.addPath(shoulder); ctx.setFillColor(gHex("#646970")); ctx.fillPath()
+    ctx.setStrokeColor(gHex("#E8B9A0")); ctx.setLineWidth(max(1, hh * 0.035)); ctx.setLineCap(.round)
+    for side: CGFloat in [-1, 1] { ctx.beginPath(); ctx.move(to: CGPoint(x: side * hh * 0.31, y: hh * 0.45)); ctx.addLine(to: CGPoint(x: side * hh * 0.29, y: hh * 0.61)); ctx.strokePath() }
+    ctx.restoreGState()
+
+    let rim = CGPath(ellipseIn: CGRect(x: -hw * 0.78, y: -hh * 0.84, width: hw * 1.56, height: hh * 1.44), transform: nil)
+    // Draw the raised hood as a filled ellipse and a fine alloy edge.
+    ctx.addEllipse(in: CGRect(x: -hw * 0.78, y: -hh * 0.84, width: hw * 1.56, height: hh * 1.44)); ctx.setFillColor(gHex("#646970")); ctx.fillPath()
+    ctx.addPath(rim); ctx.setStrokeColor(gHex("#A7AAB0")); ctx.setLineWidth(max(1, hh * 0.035)); ctx.strokePath()
+    let visorRect = CGRect(x: -hw * 0.59, y: -hh * 0.35, width: hw * 1.18, height: hh * 0.55)
+    let visor = CGPath(roundedRect: visorRect, cornerWidth: hh * 0.23, cornerHeight: hh * 0.23, transform: nil)
+    ctx.addPath(visor); ctx.setFillColor(gHex("#111216")); ctx.fillPath()
+    ctx.addPath(visor); ctx.setStrokeColor(gHex("#C2CDD3", alpha: 0.62)); ctx.setLineWidth(max(0.8, hh * 0.027)); ctx.strokePath()
+    ctx.addEllipse(in: CGRect(x: -hw * 0.45, y: -hh * 0.30, width: hw * 0.3, height: hh * 0.07)); ctx.setFillColor(gHex("#FFFFFF", alpha: 0.09)); ctx.fillPath()
+
+    ctx.saveGState()
+    ctx.addPath(visor); ctx.clip()
+    let lens = gHex("#FF8A80")
+    let core = gHex("#FFE3DF")
+    let er = CGFloat(p.hb * 0.075)
+    let sp = CGFloat(p.hb * 0.17)
+    let lx = CGFloat(p.lookX) * hw * 0.42
+    let ly = CGFloat(p.lookY) * hh * 0.28 + hh * 0.12 + CGFloat(p.eyeRoll) * hh * 1.25
     for sd: CGFloat in [-1, 1] {
-        ctx.saveGState()
-        ctx.translateBy(x: sd*sp+lx, y: ly)
-        if p.eye == .happy {
-            ctx.setLineWidth(er*0.95); ctx.setLineCap(.round)
-            ctx.beginPath()
-            ctx.addArc(center: CGPoint(x: 0, y: er*0.6), radius: er*1.25,
-                       startAngle: .pi*1.15, endAngle: .pi*1.85, clockwise: false)
-            ctx.strokePath()
-        } else if p.eye == .content {
-            ctx.setLineWidth(er*0.95); ctx.setLineCap(.round)
-            ctx.beginPath()
-            ctx.addArc(center: CGPoint(x: 0, y: -er*0.5), radius: er*1.25,
-                       startAngle: .pi*0.15, endAngle: .pi*0.85, clockwise: false)
-            ctx.strokePath()
+        ctx.saveGState(); ctx.translateBy(x: sd * sp + lx, y: ly)
+        if p.eye == .happy || p.eye == .content {
+            ctx.setStrokeColor(lens); ctx.setLineWidth(er * 0.62); ctx.setLineCap(.round)
+            ctx.beginPath(); ctx.addArc(center: CGPoint(x: 0, y: er * 0.15), radius: er * 0.76, startAngle: .pi * 1.13, endAngle: .pi * 1.87, clockwise: false); ctx.strokePath()
+            ctx.setStrokeColor(core); ctx.setLineWidth(er * 0.2)
+            ctx.beginPath(); ctx.addArc(center: CGPoint(x: 0, y: er * 0.15), radius: er * 0.76, startAngle: .pi * 1.3, endAngle: .pi * 1.7, clockwise: false); ctx.strokePath()
+        } else if p.eye == .closed {
+            ctx.setStrokeColor(lens); ctx.setLineWidth(er * 0.45); ctx.setLineCap(.round)
+            ctx.beginPath(); ctx.move(to: CGPoint(x: -er * 0.7, y: 0)); ctx.addQuadCurve(to: CGPoint(x: er * 0.7, y: 0), control: CGPoint(x: 0, y: er * 0.18)); ctx.strokePath()
+        } else if p.eye == .wink && sd > 0 {
+            ctx.setStrokeColor(lens); ctx.setLineWidth(er * 0.45); ctx.setLineCap(.round)
+            ctx.beginPath(); ctx.move(to: CGPoint(x: -er * 0.7, y: er * 0.12)); ctx.addQuadCurve(to: CGPoint(x: er * 0.7, y: er * 0.12), control: CGPoint(x: 0, y: -er * 0.45)); ctx.strokePath()
         } else {
-            ctx.scaleBy(x: 1, y: max(0.12, CGFloat(p.open)))
-            ctx.addEllipse(in: CGRect(x: -er, y: -er, width: er*2, height: er*2))
-            ctx.fillPath()
+            let ew = p.eye == .wide ? er * 1.2 : er
+            let eh = p.eye == .wide ? er * 1.42 : er * 1.2
+            let eyeH = eh * max(0.22, CGFloat(p.open))
+            let capsule = CGPath(roundedRect: CGRect(x: -ew * 0.5, y: -eyeH * 0.5, width: ew, height: eyeH), cornerWidth: ew * 0.5, cornerHeight: ew * 0.5, transform: nil)
+            ctx.addPath(capsule); ctx.setStrokeColor(lens.copy(alpha: 0.3) ?? lens); ctx.setLineWidth(er * 0.55); ctx.strokePath()
+            ctx.addPath(capsule); ctx.setFillColor(lens); ctx.fillPath()
+            let highlight = CGPath(roundedRect: CGRect(x: -ew * 0.18, y: -eyeH * 0.26, width: ew * 0.36, height: eyeH * 0.52), cornerWidth: ew * 0.18, cornerHeight: ew * 0.18, transform: nil)
+            ctx.addPath(highlight); ctx.setFillColor(core); ctx.fillPath()
         }
         ctx.restoreGState()
     }

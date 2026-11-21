@@ -13,23 +13,23 @@ PALETTES={
  'Orange':('#45332A','#C39B7D','#FF796B'), 'Dark':('#17212B','#697785','#FF7569'),
 }
 def icon(size:int,palette:str='default',menubar:bool=False)->Image.Image:
-    bg,shell,eye=PALETTES.get(palette,PALETTES['default'])
+    bg,_,eye=PALETTES.get(palette,PALETTES['default'])
+    shell='#92959C'
     s=max(2,size*SCALE); im=Image.new('RGBA',(s,s),(0,0,0,0)); d=ImageDraw.Draw(im)
     q=lambda n:int(n*s/256)
     if not menubar:
         d.rounded_rectangle((q(3),q(3),q(253),q(253)),radius=q(57),fill=bg)
-    # Compact shield silhouette with an asymmetric crest and jaw: a hard edged slate robot.
-    pts=[(128,28),(166,38),(199,60),(218,91),(225,126),(217,162),(196,190),(166,208),(128,219),(91,212),(63,197),(43,170),(32,139),(35,105),(49,76),(74,53),(101,38)]
-    d.polygon([(q(x),q(y)) for x,y in pts],fill=shell)
-    d.line([(q(x),q(y)) for x,y in pts+[pts[0]]],fill='#C4CDD2',width=max(1,q(5)),joint='curve')
-    # Lower shell bevel gives Kito a faceted silhouette without changing animation geometry.
-    d.polygon([(q(45),q(154)),(q(83),q(178)),(q(128),q(185)),(q(174),q(177)),(q(210),q(153)),(q(196),q(190)),(q(166),q(208)),(q(128),q(219)),(q(91),q(212)),(q(63),q(197))],fill='#535D69')
-    d.rounded_rectangle((q(43),q(91),q(213),q(165)),radius=q(31),fill='#1B2229',outline='#A6B0B8',width=max(1,q(4)))
-    # Two coral lenses and their tiny warm highlights.
+    # Smooth hood, inset visor, twin pill lenses and the peach neck seams from
+    # legacy/electron/mascot/jicho-mascot.css and its shipped icon.
+    d.rounded_rectangle((q(31),q(25),q(225),q(225)),radius=q(62),fill=shell,outline='#A7AAB0',width=max(1,q(4)))
+    d.rounded_rectangle((q(44),q(143),q(212),q(221)),radius=q(36),fill='#646970')
+    d.line((q(91),q(158),q(88),q(184)),fill='#E8B9A0',width=max(1,q(5)))
+    d.line((q(165),q(158),q(168),q(184)),fill='#E8B9A0',width=max(1,q(5)))
+    d.rounded_rectangle((q(38),q(67),q(218),q(151)),radius=q(36),fill='#0B0C0F',outline='#C2CDD3',width=max(1,q(4)))
+    d.ellipse((q(58),q(73),q(92),q(81)),fill=(255,255,255,24))
     for cx in (91,165):
-        d.ellipse((q(cx-17),q(111),q(cx+17),q(145)),fill=eye)
-        d.ellipse((q(cx-7),q(115),q(cx-1),q(121)),fill='#FFE0C8')
-    d.rounded_rectangle((q(105),q(181),q(151),q(188)),radius=q(4),fill='#242B33')
+        d.rounded_rectangle((q(cx-15),q(83),q(cx+15),q(139)),radius=q(15),fill=eye)
+        d.rounded_rectangle((q(cx-5),q(89),q(cx+1),q(108)),radius=q(3),fill='#FFE3DF')
     out=im.resize((size,size),Image.Resampling.LANCZOS)
     return out
 

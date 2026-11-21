@@ -97,8 +97,6 @@ fun drawOutfitFront(ctx: Ctx2D, outfit: Outfit, h: Head, st: OutfitState) {
 
 // ── Wardrobe icons ────────────────────────────────────────────────────────────
 
-private const val INK = "rgb(26,20,18)"
-
 /** A little Kito wearing [outfit], centred in a [size] x [size] icon (the PC's iconKito). */
 fun drawIconKito(ctx: Ctx2D, size: Double, outfit: Outfit) {
     val r = 10.0
@@ -110,27 +108,40 @@ fun drawIconKito(ctx: Ctx2D, size: Double, outfit: Outfit) {
     ctx.translate(cx, cy)
     drawOutfitBehind(ctx, outfit, h, st)
     val body = bodyOutline(h.rx, h.ry)
-    val (top, bottom) = if (outfit == Outfit.PUMPKIN) PUMPKIN_BODY else ("rgb(237,237,239)" to "rgb(196,197,202)")
+    val (top, bottom) = "#A7AAB0" to "#777A81"
     ctx.fillStyle = ctx.lin(h.rx * 0.7, -h.ry * 0.85, -h.rx * 0.8, h.ry * 0.9, listOf(0.0 to top, 1.0 to bottom))
     ctx.fill(body)
-    ctx.fillStyle = ctx.rad(0.0, 0.0, r * 0.15, r * 1.25, listOf(0.0 to "rgba(0,0,0,0)", 0.6 to "rgba(0,0,0,0)", 1.0 to "rgba(0,0,0,0.2)"))
+    ctx.save(); ctx.clip(body)
+    val bust = Path2D().apply {
+        moveTo(-r * .84, r * .97); bezierCurveTo(-r * .82, r * .64, -r * .58, r * .45, -r * .28, r * .43)
+        lineTo(r * .28, r * .43); bezierCurveTo(r * .58, r * .45, r * .82, r * .64, r * .84, r * .97); closePath()
+    }
+    ctx.fillStyle("#646970"); ctx.fill(bust)
+    ctx.strokeStyle("#E8B9A0"); ctx.lineWidth = .7
+    for (side in listOf(-1.0, 1.0)) { ctx.beginPath(); ctx.moveTo(side * r * .31, r * .45); ctx.lineTo(side * r * .29, r * .61); ctx.stroke() }
+    ctx.restore()
+    val rim = Path2D().apply { ellipse(0.0, -r * .12, r * .83, r * .73, 0.0, 0.0, PI * 2) }
+    ctx.fillStyle = ctx.lin(0.0, -r * .84, 0.0, r * .58, listOf(0.0 to "#737881", 1.0 to "#555A62")); ctx.fill(rim)
+    ctx.strokeStyle("#A7AAB0"); ctx.lineWidth = .7; ctx.stroke(rim)
+    ctx.roundRect(-r * .62, -r * .36, r * 1.24, r * .58, r * .24)
+    ctx.fillStyle = ctx.lin(-r * .4, -r * .36, r * .42, r * .24, listOf(0.0 to "#23252B", 1.0 to "#0B0C0F")); ctx.fill()
+    ctx.strokeStyle("rgba(194,205,211,.62)"); ctx.lineWidth = .55; ctx.stroke()
+    ctx.fillStyle = ctx.rad(0.0, 0.0, r * 0.15, r * 1.25, listOf(0.0 to "rgba(0,0,0,0)", 0.6 to "rgba(0,0,0,0)", 1.0 to "rgba(0,0,0,0.13)"))
     ctx.fill(body)
-    ctx.fillStyle = ctx.rad(h.rx * 0.34, -h.ry * 0.46, 0.0, r * 0.42, listOf(0.0 to "rgba(255,255,255,0.55)", 1.0 to "rgba(255,255,255,0)"))
-    ctx.fill(body)
-    ctx.save()
-    ctx.clip(body)
-    ctx.fillStyle(INK)
     for (e in eyeFrames(h)) {
         if (!e.visible) continue
         ctx.save()
         ctx.translate(e.x, e.y)
         ctx.scale(e.fx, e.fy)
-        val hh = max(e.h, e.w * 0.3)
+        val hh = max(e.h, e.w * 0.42)
+        ctx.fillStyle("#FF8A80")
         ctx.roundRect(-e.w / 2, -hh / 2, e.w, hh, min(e.w / 2, hh / 2))
+        ctx.fill()
+        ctx.fillStyle("#FFE3DF")
+        ctx.roundRect(-e.w * .19, -hh * .29, e.w * .38, hh * .58, e.w * .19)
         ctx.fill()
         ctx.restore()
     }
-    ctx.restore()
     drawOutfitFront(ctx, outfit, h, st)
     ctx.restore()
 }

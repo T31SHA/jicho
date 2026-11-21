@@ -40,8 +40,8 @@ class KitoEngineTest {
     }
 
     @Test fun bodyIsASuperellipseOfExponent2_7() {
-        val rx = 1.14
-        val ry = 0.88
+        val rx = 1.06
+        val ry = 1.0
         for (p in KitoGeometry.bodyPoints(rx, ry, 1.0, 0.0)) {
             val v = abs(p.x / rx).pow(2.7) + abs(p.y / ry).pow(2.7)
             assertEquals(1.0, v, 1e-6)
@@ -52,7 +52,7 @@ class KitoEngineTest {
     }
 
     @Test fun fullMorphGivesTheMailboxOutline() {
-        val pts = KitoGeometry.bodyPoints(1.14, 0.88, 1.0, 1.0)
+        val pts = KitoGeometry.bodyPoints(1.06, 1.0, 1.0, 1.0)
         assertEquals(KitoGeometry.BODY_SEGMENTS + 1, pts.size)
         // The box is 1.0 wide and 0.94 tall (tw, th in engine.ts).
         assertTrue(pts.all { abs(it.x) <= 1.0 + 1e-6 && abs(it.y) <= 0.94 + 1e-6 })
@@ -78,7 +78,7 @@ class KitoEngineTest {
         val e = engine(clock)
         e.setState(BotState.APPROVAL)
         assertEquals(EyeShape.WIDE, e.cfg.eye)
-        assertEquals(0.78, e.tint, 1e-9)
+        assertEquals(0.0, e.tint, 1e-9)
         e.run(clock, 600)
         assertEquals(1.0, e.badgeS, 0.01)
         assertEquals(org.jichobot.android.kito.BadgeKind.BANG, e.badge?.kind)
@@ -98,7 +98,7 @@ class KitoEngineTest {
         val e = engine(clock)
         e.triggerEmote(BotEmote.LOVE, 1.8)
         assertEquals(EyeShape.HEART, e.eyeOverride)
-        assertEquals(4, e.particles.count { it.type == ParticleType.HEART })
+        assertEquals(2, e.particles.count { it.type == ParticleType.HEART })
         e.run(clock, 2000)
         assertNull("override expires", e.eyeOverride)
     }
@@ -137,15 +137,17 @@ class KitoEngineTest {
         assertFalse(dizzy)
     }
 
-    @Test fun greetWavesThenLowersItsHands() {
+    @Test fun greetSalutesWithTheVisorAndKeepsItsHandsStill() {
         val clock = Clock()
         val sounds = mutableListOf<String>()
         val e = engine(clock, sounds)
         e.greet()
         e.run(clock, 800)
-        assertTrue(e.hands > 0.9)
+        assertEquals(0.0, e.hands, 0.0)
+        assertEquals(EyeShape.WINK, e.eyeOverride)
         assertTrue(sounds.contains("greet"))
-        e.run(clock, 1600)
+        e.run(clock, 900)
+        assertEquals(0.0, e.waveUntil, 0.0)
         assertEquals(0.0, e.hands, 0.01)
     }
 

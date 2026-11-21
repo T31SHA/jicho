@@ -7,8 +7,8 @@ struct KitoStill: View {
     var state: BotState = .idle
     /// Overrides the state's eyes (e.g. .closed for a sleeping agent).
     var eye: EyeShape? = nil
-    /// Body color; white by default, like the mockups.
-    var bodyHex: String = "#FFFFFF"
+    /// Slate hood shell used by the owner's original mascot.
+    var bodyHex: String = "#92959C"
     var showBadge: Bool = true
     /// Where he looks and how his eyes are, for a still that isn't always the same.
     var pose: KitoPose = .neutral
@@ -20,6 +20,8 @@ struct KitoStill: View {
             engine.bodyColor = cgColorFromHex(bodyHex)
             engine.state = state
             engine.cfg = BotStates[state]!
+            engine.col = cgColorToTuple(engine.cfg.color)
+            engine.colT = engine.col
             engine.yaw = pose.yaw
             engine.pitch = pose.pitch
             engine.tilt = pose.tilt

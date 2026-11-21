@@ -6,10 +6,10 @@ import CoreGraphics
 private let kEXP: CGFloat = 2.7
 private let kVIEW_TILT: CGFloat = -0.30
 private let kACC_PITCH: CGFloat = 0.4
-private let kEYE_W: CGFloat = 0.25
-private let kEYE_H: CGFloat = 0.27
-private let kEYE_SP: CGFloat = 0.37
-private let kEYE_P: CGFloat = -0.12
+private let kEYE_W: CGFloat = 0.18
+private let kEYE_H: CGFloat = 0.34
+private let kEYE_SP: CGFloat = 0.30
+private let kEYE_P: CGFloat = -0.05
 
 // MARK: - KitoH  (head geometry + physics)
 
@@ -23,8 +23,8 @@ struct KitoH {
     init(R: CGFloat, yaw: CGFloat = 0, pitch: CGFloat = 0,
          physDx: CGFloat = 0, physDy: CGFloat = 0, roll: CGFloat = 0) {
         self.R = R
-        self.rx = R * 1.14
-        self.ry = R * 0.88
+        self.rx = R * 1.06
+        self.ry = R * 1.0
         self.yaw = yaw
         self.pitch = pitch
         self.view = kVIEW_TILT
@@ -69,7 +69,7 @@ func mEyeFrames(_ H: KitoH) -> [EyeFrame] {
 /// Backward-compat shim (used by existing callers that haven't been updated yet).
 func kitoEyePositions(yaw: CGFloat, pitch: CGFloat, rx: CGFloat, ry: CGFloat)
     -> [(ex: CGFloat, ey: CGFloat, fx: CGFloat, fy: CGFloat)] {
-    let H = KitoH(R: rx / 1.14, yaw: yaw, pitch: pitch)
+    let H = KitoH(R: rx / 1.06, yaw: yaw, pitch: pitch)
     return mEyeFrames(H).filter { $0.visible }.map { (ex: $0.x, ey: $0.y, fx: $0.fx, fy: $0.fy) }
 }
 
@@ -1310,7 +1310,7 @@ private func drawScarfFront(ctx: inout GraphicsContext, H: KitoH) {
 // MARK: - Pumpkin
 
 private func drawPumpkinFront(ctx: inout GraphicsContext, H: KitoH, bodyPath: Path, simplified: Bool = false) {
-    // ribs only — body recolor is done in BotEngine.drawBody(pumpkinColors:)
+    // Pumpkin outfit panels sit over the hood; the base shell keeps its slate palette.
     if !simplified {
         var g = ctx
         g.clip(to: bodyPath)

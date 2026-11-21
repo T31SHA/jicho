@@ -178,8 +178,6 @@ internal fun scarf(ctx: Ctx2D, h: Head) {
 
 // ── Pumpkin (the body colours come from the engine) ───────────────────────────
 
-val PUMPKIN_BODY: Pair<String, String> = "#FFA94D" to "#E8590C"
-
 internal fun pumpkin(ctx: Ctx2D, h: Head, body: Path2D, simple: Boolean) {
     if (!simple) {
         ctx.save()

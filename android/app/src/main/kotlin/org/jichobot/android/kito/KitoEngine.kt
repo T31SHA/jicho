@@ -12,11 +12,9 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Kito's animation state machine: a port of windows/src/kito/engine.ts (itself a port of
- * BotEngine.swift). Same constants, tweens, easings and particles. Drawing lives in
+ * Kito's animation state machine. It shares the state timings, easings and particles
+ * with windows/src/kito/engine.ts and JichoBot/Sources/JichoBotKit/BotEngine.swift. Drawing lives in
  * KitoPainter; this class has no Android dependency so it runs in plain JVM unit tests.
- *
- * Not ported yet: outfits (wardrobe), which the author's assets cover but are a later phase.
  */
 fun interface SoundSink { fun play(name: String) }
 
@@ -87,6 +85,8 @@ class KitoEngine(
 
     var state: BotState = BotState.IDLE
         private set
+    private var stateSince = now()
+    val stateAge: Double get() = now() - stateSince
     var cfg: BotStateCfg = KitoConst.STATES.getValue(BotState.IDLE)
         private set
 
@@ -115,6 +115,7 @@ class KitoEngine(
     private var nextBlink = now() + 1.5 + random.nextDouble() * 2
     var waveUntil = 0.0
     var waveStart = 0.0
+    private var greetUntil = 0.0
     private var greetToken = 0
     private var lastAmbient = 0.0
     private var slapTimes = ArrayList<Double>()
@@ -155,6 +156,7 @@ class KitoEngine(
         if (state == next && !force) return
         val prev = state
         state = next
+        stateSince = now()
         cfg = KitoConst.STATES.getValue(next)
         colT = cfg.color
         if (Prop.TINT !in locks) tint = cfg.tint
@@ -162,18 +164,32 @@ class KitoEngine(
         setBadge(cfg.badge)
 
         when (next) {
-            BotState.FINISHED -> {
-                doRoll(950.0, 1)
-                after(500.0) { emit(ParticleType.SPARK, 5) }
+            BotState.WORKING -> anim(Prop.ES, keys(Triple(0.88, 130.0, Ease.out), Triple(1.14, 170.0, Ease.inOut), Triple(0.96, 120.0, Ease.out), Triple(1.0, 210.0, Ease.inOut)))
+            BotState.THINKING -> anim(Prop.YAW, keys(Triple(-0.18, 220.0, Ease.out), Triple(0.11, 310.0, Ease.inOut), Triple(-0.04, 170.0, Ease.out), Triple(0.0, 200.0, Ease.inOut)))
+            BotState.SEARCHING -> anim(Prop.TILT, keys(Triple(0.11, 190.0, Ease.out), Triple(-0.09, 300.0, Ease.inOut), Triple(0.035, 170.0, Ease.out), Triple(0.0, 210.0, Ease.inOut)))
+            BotState.APPROVAL -> {
+                anim(Prop.ES, keys(Triple(1.04, 90.0, Ease.out), Triple(1.3, 110.0, Ease.back), Triple(0.88, 100.0, Ease.inOut), Triple(1.22, 90.0, Ease.out), Triple(1.0, 240.0, Ease.inOut)))
+                anim(Prop.OY, keys(Triple(-0.16, 160.0, Ease.out), Triple(0.04, 150.0, Ease.inOut), Triple(0.0, 230.0, Ease.out)))
             }
-            BotState.ERROR -> anim(Prop.OX, keys(
-                Triple(0.08, 50.0, Ease.out), Triple(-0.08, 70.0, Ease.inOut),
-                Triple(0.05, 70.0, Ease.inOut), Triple(0.0, 90.0, Ease.out),
-            ))
-            BotState.APPROVAL -> anim(Prop.OY, keys(Triple(-0.2, 150.0, Ease.out), Triple(0.0, 300.0, Ease.back)))
-            BotState.DIZZY -> doRoll(1300.0, 2)
-            BotState.QUESTION -> blink()
-            BotState.RATELIMIT -> emit(ParticleType.SWEAT, 1)
+            BotState.QUESTION -> anim(Prop.TILT, keys(Triple(0.16, 160.0, Ease.out), Triple(-0.05, 230.0, Ease.inOut), Triple(0.02, 120.0, Ease.out), Triple(0.0, 240.0, Ease.inOut)))
+            BotState.FINISHED -> {
+                anim(Prop.SY, keys(Triple(0.89, 120.0, Ease.out), Triple(1.1, 170.0, Ease.back), Triple(0.97, 100.0, Ease.inOut), Triple(1.0, 240.0, Ease.out)))
+                anim(Prop.ES, keys(Triple(0.82, 110.0, Ease.inOut), Triple(1.24, 150.0, Ease.out), Triple(1.0, 260.0, Ease.inOut)))
+                after(340.0) { emit(ParticleType.SPARK, 3) }
+            }
+            BotState.ERROR -> {
+                anim(Prop.OX, keys(Triple(-0.12, 95.0, Ease.out), Triple(0.06, 100.0, Ease.inOut), Triple(-0.02, 115.0, Ease.inOut), Triple(0.0, 230.0, Ease.out)))
+                anim(Prop.TILT, keys(Triple(0.16, 115.0, Ease.out), Triple(-0.1, 170.0, Ease.inOut), Triple(0.03, 120.0, Ease.out), Triple(0.0, 230.0, Ease.inOut)))
+            }
+            BotState.RATELIMIT -> {
+                anim(Prop.SY, keys(Triple(0.94, 130.0, Ease.out), Triple(1.08, 240.0, Ease.inOut), Triple(0.99, 180.0, Ease.out), Triple(1.0, 250.0, Ease.inOut)))
+                anim(Prop.ES, keys(Triple(1.16, 130.0, Ease.out), Triple(0.88, 180.0, Ease.inOut), Triple(1.0, 240.0, Ease.out)))
+                emit(ParticleType.SWEAT, 1)
+            }
+            BotState.DIZZY -> {
+                anim(Prop.YAW, keys(Triple(0.28, 150.0, Ease.out), Triple(-0.31, 170.0, Ease.inOut), Triple(0.18, 150.0, Ease.inOut), Triple(-0.06, 170.0, Ease.inOut), Triple(0.0, 210.0, Ease.out)))
+                anim(Prop.TILT, keys(Triple(-0.18, 150.0, Ease.out), Triple(0.13, 180.0, Ease.inOut), Triple(-0.08, 160.0, Ease.out), Triple(0.0, 240.0, Ease.inOut)))
+            }
             else -> if (prev != BotState.IDLE || next != BotState.IDLE) blink()
         }
     }
@@ -240,44 +256,35 @@ class KitoEngine(
         anim(Prop.ROLL, keys(Triple(PI * 2 * turns, durationMs, Ease.inOut))) { roll = 0.0 }
     }
 
-    /** Peek wave, the "jichobot". Timings from BotEngine.greet(). */
+    /** Eye salute: the visor nods as each lens wakes in turn. */
     fun greet() {
         val t = now()
         val tok = ++greetToken
-        waveStart = t + 0.45
-        waveUntil = t + 1.55
-        physVx += 0.2
-
-        eyeOverride = EyeShape.HAPPY
-        eyeOverrideUntil = t + 2.0
-        anim(Prop.OY, keys(Triple(-0.06, 220.0, Ease.out), Triple(0.0, 220.0, Ease.back)))
-
-        after(250.0) {
-            if (greetToken != tok) return@after
-            anim(Prop.HANDS, keys(Triple(1.0, 280.0, Ease.out)))
-            anim(Prop.SY, keys(Triple(0.95, 100.0, Ease.out), Triple(1.0, 260.0, Ease.back)))
-            anim(Prop.SX, keys(Triple(1.04, 100.0, Ease.out), Triple(1.0, 260.0, Ease.back)))
-            sound.play("greet")
-        }
-        after(550.0) { if (greetToken == tok) blink() }
-        after(1500.0) { if (greetToken == tok) blink() }
-        after(1550.0) {
-            if (greetToken != tok) return@after
-            waveUntil = 0.0
-            anim(Prop.HANDS, keys(Triple(0.0, 200.0, Ease.inOut)))
-        }
-        after(1750.0) {
-            if (greetToken != tok) return@after
-            eyeOverride = EyeShape.HAPPY
-            eyeOverrideUntil = now() + 0.3
-        }
+        waveStart = 0.0
+        waveUntil = 0.0
+        greetUntil = t + 1.45
+        hands = 0.0
+        eyeOverride = EyeShape.CLOSED
+        eyeOverrideUntil = t + 0.18
+        anim(Prop.YAW, keys(Triple(-0.19, 160.0, Ease.out), Triple(0.09, 210.0, Ease.inOut), Triple(0.0, 240.0, Ease.out)))
+        anim(Prop.TILT, keys(Triple(0.12, 140.0, Ease.out), Triple(-0.04, 210.0, Ease.inOut), Triple(0.0, 190.0, Ease.out)))
+        anim(Prop.ES, keys(Triple(0.64, 100.0, Ease.inOut), Triple(1.24, 150.0, Ease.out), Triple(0.92, 130.0, Ease.inOut), Triple(1.0, 220.0, Ease.out)))
+        after(140.0) { if (greetToken == tok) { eyeOverride = EyeShape.WIDE; eyeOverrideUntil = now() + 0.19 } }
+        after(330.0) { if (greetToken == tok) { eyeOverride = EyeShape.PILL; eyeOverrideUntil = now() + 0.28 } }
+        after(610.0) { if (greetToken == tok) { eyeOverride = EyeShape.WINK; eyeOverrideUntil = now() + 0.26 } }
+        after(80.0) { if (greetToken == tok) sound.play("greet") }
+        after(910.0) { if (greetToken == tok) { eyeOverride = EyeShape.HAPPY; eyeOverrideUntil = now() + 0.24 } }
+        after(1450.0) { if (greetToken == tok) greetUntil = 0.0 }
     }
 
     fun interruptGreet() {
-        if (hands <= 0.01 && now() >= waveUntil) return
+        if (hands <= 0.01 && now() >= waveUntil && now() >= greetUntil) return
         greetToken++
         waveUntil = 0.0
         waveStart = 0.0
+        greetUntil = 0.0
+        eyeOverride = permanentEye
+        eyeOverrideUntil = if (permanentEye != null) Double.POSITIVE_INFINITY else 0.0
         anim(Prop.HANDS, keys(Triple(0.0, 150.0, Ease.inOut)))
     }
 
@@ -300,43 +307,43 @@ class KitoEngine(
 
     fun triggerEmote(emote: BotEmote, duration: Double = 1.8) {
         val t = now()
+        val hold = max(80.0, (duration - 0.62) * 1000)
         eyeOverride = KitoConst.EMOTE_EYE.getValue(emote)
         eyeOverrideUntil = t + duration
 
         when (emote) {
             BotEmote.LOVE -> {
                 anim(Prop.BLUSH, keys(
-                    Triple(1.0, 300.0, Ease.out), Triple(1.0, (duration - 0.6) * 1000, Ease.lin), Triple(0.0, 300.0, Ease.inOut),
+                    Triple(0.7, 120.0, Ease.out), Triple(1.1, 260.0, Ease.inOut), Triple(0.4, hold, Ease.lin), Triple(0.0, 280.0, Ease.inOut),
                 ))
-                emit(ParticleType.HEART, 4)
-                anim(Prop.OY, keys(Triple(-0.1, 160.0, Ease.out), Triple(0.0, 300.0, Ease.back)))
+                emit(ParticleType.HEART, 2)
+                anim(Prop.ES, keys(Triple(0.75, 100.0, Ease.out), Triple(1.2, 140.0, Ease.back), Triple(1.0, 240.0, Ease.inOut)))
+                anim(Prop.TILT, keys(Triple(-0.12, 180.0, Ease.out), Triple(0.06, 260.0, Ease.inOut), Triple(0.0, 220.0, Ease.out)))
             }
             BotEmote.SURPRISED -> {
-                anim(Prop.OY, keys(Triple(-0.3, 140.0, Ease.out), Triple(0.0, 380.0, Ease.back)))
-                anim(Prop.ES, keys(Triple(1.25, 120.0, Ease.out), Triple(1.0, 500.0, Ease.inOut)))
+                anim(Prop.OY, keys(Triple(0.12, 90.0, Ease.out), Triple(-0.04, 150.0, Ease.inOut), Triple(0.0, 220.0, Ease.out)))
+                anim(Prop.ES, keys(Triple(0.72, 80.0, Ease.inOut), Triple(1.35, 110.0, Ease.out), Triple(0.96, 140.0, Ease.inOut), Triple(1.0, 260.0, Ease.out)))
             }
             BotEmote.PROUD -> {
-                emit(ParticleType.STAR, 5)
-                anim(Prop.TILT, keys(
-                    Triple(-0.14, 220.0, Ease.out), Triple(-0.14, (duration - 0.5) * 1000, Ease.lin), Triple(0.0, 280.0, Ease.inOut),
-                ))
-                anim(Prop.BLUSH, keys(
-                    Triple(0.7, 250.0, Ease.out), Triple(0.7, (duration - 0.5) * 1000, Ease.lin), Triple(0.0, 300.0, Ease.inOut),
-                ))
+                emit(ParticleType.STAR, 2)
+                anim(Prop.SY, keys(Triple(0.92, 120.0, Ease.out), Triple(1.09, 200.0, Ease.back), Triple(1.0, 200.0, Ease.inOut)))
+                anim(Prop.TILT, keys(Triple(0.14, 180.0, Ease.out), Triple(0.14, hold, Ease.lin), Triple(0.0, 280.0, Ease.inOut)))
             }
-            BotEmote.WINK -> anim(Prop.TILT, keys(
-                Triple(0.12, 160.0, Ease.out), Triple(0.12, (duration - 0.4) * 1000, Ease.lin), Triple(0.0, 240.0, Ease.inOut),
-            ))
+            BotEmote.WINK -> anim(Prop.YAW, keys(Triple(-0.14, 160.0, Ease.out), Triple(0.06, 230.0, Ease.inOut), Triple(0.0, 260.0, Ease.out)))
             BotEmote.YAWN -> {
-                anim(Prop.SY, keys(Triple(1.12, 500.0, Ease.inOut), Triple(1.0, 500.0, Ease.inOut)))
-                anim(Prop.SX, keys(Triple(0.94, 500.0, Ease.inOut), Triple(1.0, 500.0, Ease.inOut)))
-                after(700.0) { eyeOverride = EyeShape.CLOSED; emit(ParticleType.Z, 2) }
+                anim(Prop.SY, keys(Triple(1.1, 250.0, Ease.out), Triple(0.91, 350.0, Ease.inOut), Triple(0.96, 180.0, Ease.out), Triple(1.0, 320.0, Ease.inOut)))
+                anim(Prop.ES, keys(Triple(0.64, 240.0, Ease.inOut), Triple(0.78, 200.0, Ease.out), Triple(1.1, 180.0, Ease.out), Triple(1.0, 300.0, Ease.inOut)))
+                after(min(500.0, duration * 350.0)) { emit(ParticleType.Z, 1) }
             }
-            BotEmote.HAPPY -> anim(Prop.BLUSH, keys(Triple(0.6, 200.0, Ease.out), Triple(0.0, 600.0, Ease.inOut)))
+            BotEmote.HAPPY -> {
+                anim(Prop.OY, keys(Triple(-0.11, 110.0, Ease.out), Triple(0.03, 180.0, Ease.inOut), Triple(0.0, 210.0, Ease.out)))
+                anim(Prop.SX, keys(Triple(1.12, 140.0, Ease.out), Triple(0.95, 180.0, Ease.inOut), Triple(1.0, 220.0, Ease.out)))
+                anim(Prop.ES, keys(Triple(1.1, 100.0, Ease.out), Triple(1.0, 220.0, Ease.inOut)))
+            }
             BotEmote.ANNOYED -> {
-                eyeOverride = EyeShape.LINE
-                eyeOverrideUntil = t + 0.8
-                after(60.0) { sound.play("annoyed") }
+                anim(Prop.TILT, keys(Triple(-0.16, 100.0, Ease.out), Triple(0.12, 160.0, Ease.inOut), Triple(-0.05, 120.0, Ease.out), Triple(0.0, 250.0, Ease.inOut)))
+                anim(Prop.OX, keys(Triple(0.05, 90.0, Ease.out), Triple(-0.02, 110.0, Ease.inOut), Triple(0.0, 190.0, Ease.out)))
+                after(90.0) { sound.play("annoyed") }
             }
         }
     }
@@ -484,9 +491,10 @@ class KitoEngine(
         if (Prop.OY !in locks) oy += (bounce - oy) * kGen
 
         if (cfg.breathes && !reduceMotion) {
-            val amp = if (isMini) 0.07 else 0.035
-            tgSy = 1 + sin(t * 1.8) * amp
-            tgSx = 1 - sin(t * 1.8) * amp * 0.57
+            val amp = if (isMini) 0.07 else 0.025
+            val breath = sin(t * 1.1)
+            tgSy = 1 + breath * amp
+            tgSx = 1 - breath * amp * 0.5
         } else if (isMini && !reduceMotion) {
             tgSy = 1 + sin(t * 2.2) * 0.04
             tgSx = 1 - sin(t * 2.2) * 0.02
@@ -561,34 +569,31 @@ class KitoEngine(
         when (permanentEmote) {
             BotEmote.HAPPY -> {
                 if (Prop.OY in locks) { miniNextBehavior = n + 0.4; return }
-                anim(Prop.OY, keys(Triple(-0.3, 120.0, Ease.out), Triple(0.03, 200.0, Ease.inOut), Triple(0.0, 160.0, Ease.back)))
+                anim(Prop.OY, keys(Triple(-0.18, 100.0, Ease.out), Triple(0.04, 150.0, Ease.inOut), Triple(0.0, 220.0, Ease.back)))
                 anim(Prop.SY, keys(
-                    Triple(0.82, 80.0, Ease.out), Triple(1.18, 130.0, Ease.out),
-                    Triple(0.88, 160.0, Ease.inOut), Triple(1.0, 200.0, Ease.back),
+                    Triple(0.94, 80.0, Ease.out), Triple(1.22, 140.0, Ease.out),
+                    Triple(0.92, 150.0, Ease.inOut), Triple(1.0, 210.0, Ease.back),
                 ))
                 anim(Prop.SX, keys(
-                    Triple(1.15, 80.0, Ease.out), Triple(0.88, 130.0, Ease.out),
-                    Triple(1.06, 160.0, Ease.inOut), Triple(1.0, 200.0, Ease.back),
+                    Triple(1.2, 80.0, Ease.out), Triple(0.91, 140.0, Ease.out),
+                    Triple(1.04, 150.0, Ease.inOut), Triple(1.0, 210.0, Ease.back),
                 ))
                 miniNextBehavior = n + 2.2 + random.nextDouble() * 1.2
             }
             BotEmote.ANNOYED -> {
                 if (Prop.YAW in locks) { miniNextBehavior = n + 0.5; return }
-                anim(Prop.YAW, keys(
-                    Triple(-0.65, 50.0, Ease.out), Triple(0.65, 90.0, Ease.inOut), Triple(-0.5, 80.0, Ease.inOut),
-                    Triple(0.4, 75.0, Ease.inOut), Triple(-0.2, 70.0, Ease.inOut), Triple(0.0, 140.0, Ease.out),
-                ))
+                anim(Prop.YAW, keys(Triple(0.42, 80.0, Ease.out), Triple(-0.5, 120.0, Ease.inOut), Triple(0.32, 100.0, Ease.inOut), Triple(-0.18, 120.0, Ease.inOut), Triple(0.0, 190.0, Ease.out)))
                 miniNextBehavior = n + 3.0 + random.nextDouble() * 2.5
             }
             BotEmote.WINK -> {
                 eyeOverride = EyeShape.WINK
-                eyeOverrideUntil = n + 0.55
-                anim(Prop.TILT, keys(Triple(0.13, 100.0, Ease.out), Triple(0.13, 320.0, Ease.lin), Triple(0.0, 200.0, Ease.inOut)))
+                eyeOverrideUntil = n + 0.46
+                anim(Prop.TILT, keys(Triple(-0.17, 140.0, Ease.out), Triple(-0.17, 240.0, Ease.lin), Triple(0.0, 260.0, Ease.inOut)))
                 miniNextBehavior = n + 2.2 + random.nextDouble() * 2.0
             }
             BotEmote.LOVE -> {
                 emit(ParticleType.HEART, 2)
-                anim(Prop.TILT, keys(Triple(-0.1, 180.0, Ease.out), Triple(0.1, 340.0, Ease.inOut), Triple(0.0, 220.0, Ease.inOut)))
+                anim(Prop.TILT, keys(Triple(-0.16, 140.0, Ease.out), Triple(0.1, 300.0, Ease.inOut), Triple(0.0, 260.0, Ease.inOut)))
                 miniNextBehavior = n + 2.6 + random.nextDouble() * 1.5
             }
             else -> miniNextBehavior = n + 3.0 + random.nextDouble() * 2.0

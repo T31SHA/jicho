@@ -11,15 +11,15 @@ import kotlin.math.sin
 
 /**
  * The head's 3D helpers of windows/src/kito/outfits.ts. Body space: origin at the body centre, y down,
- * R = width x 0.3, rx = 1.14 R, ry = 0.88 R. The head is a superellipsoid, so its silhouette matches Kito's body.
+ * R = width x 0.3, rx = 1.06 R, ry = 1.0 R. The head is a superellipsoid, so its silhouette matches Kito's body.
  */
 const val EXP = 2.7
 const val VIEW_TILT = -0.3
 const val ACC_PITCH = 0.4
-const val EYE_W = 0.25
-const val EYE_H = 0.27
-const val EYE_SP = 0.37
-const val EYE_P = -0.12
+const val EYE_W = 0.18
+const val EYE_H = 0.34
+const val EYE_SP = 0.30
+const val EYE_P = -0.05
 
 /** Below this radius the small details (ribs, dots, gems) are left out. */
 const val SIMPLIFY_BELOW_R = 16.0
@@ -32,7 +32,7 @@ data class Pt2(val x: Double, val y: Double)
 data class Head(val R: Double, val rx: Double, val ry: Double, val yaw: Double, val pitch: Double, val physDx: Double, val physDy: Double)
 
 fun makeHead(R: Double, yaw: Double = 0.0, pitch: Double = 0.0, physDx: Double = 0.0, physDy: Double = 0.0) =
-    Head(R, R * 1.14, R * 0.88, yaw, pitch, physDx, physDy)
+    Head(R, R * 1.06, R * 1.0, yaw, pitch, physDx, physDy)
 
 /** Radius of the horizontal ring of the head at height y. */
 fun ringR(y: Double): Double {

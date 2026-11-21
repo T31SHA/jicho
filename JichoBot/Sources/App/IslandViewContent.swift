@@ -4848,7 +4848,7 @@ private func drawOutfitIcon(context: GraphicsContext, size: CGSize, outfit: Outf
     switch outfit {
     case .auto:
         let iconR: CGFloat = 10.0
-        let rx = iconR * 1.14, ry = iconR * 0.88
+        let rx = iconR * 1.06, ry = iconR * 1.0
         let mH = KitoH(R: iconR, yaw: 0, pitch: 0)
         let bodyPath = kitoOutfitPath(rx, ry)
         let iconCY = cy + iconR * 0.62
@@ -4859,32 +4859,9 @@ private func drawOutfitIcon(context: GraphicsContext, size: CGSize, outfit: Outf
                                    cx: cx, cy: iconCY, tilt: 0, sx: 1, sy: 1,
                                    roll: 0, morph: 0, isMini: false)
         }
-        // Body
         var ctx = context
         ctx.translateBy(x: cx, y: iconCY)
-        ctx.fill(bodyPath, with: .linearGradient(
-            Gradient(colors: [Color(red: 0.929, green: 0.929, blue: 0.937),
-                              Color(red: 0.769, green: 0.773, blue: 0.792)]),
-            startPoint: CGPoint(x: rx*0.7, y: -ry*0.85),
-            endPoint:   CGPoint(x: -rx*0.8, y: ry*0.9)
-        ))
-        ctx.fill(bodyPath, with: .radialGradient(
-            Gradient(stops: [.init(color: .clear, location: 0.6),
-                             .init(color: Color.black.opacity(0.2), location: 1)]),
-            center: .zero, startRadius: iconR*0.15, endRadius: iconR*1.25
-        ))
-        // Eyes
-        var eyeCtx = ctx; eyeCtx.clip(to: bodyPath)
-        let ink = Color(red: 0.102, green: 0.082, blue: 0.071)
-        for f in mEyeFrames(mH) {
-            guard f.visible else { continue }
-            var ec = eyeCtx; ec.translateBy(x: f.x, y: f.y); ec.scaleBy(x: f.fx, y: f.fy)
-            let hh = max(f.h, f.w*0.3)
-            var pill = Path()
-            pill.addRoundedRect(in: CGRect(x: -f.w/2, y: -hh/2, width: f.w, height: hh),
-                                cornerSize: CGSize(width: min(f.w/2,hh/2), height: min(f.w/2,hh/2)))
-            ec.fill(pill, with: .color(ink))
-        }
+        drawMascotIconBody(ctx: &ctx, bodyPath: bodyPath, H: mH, iconR: iconR)
         // Front outfit
         if seasonal != .none && seasonal != .auto {
             drawOutfitFrontStatic(context: context, outfit: seasonal, H: mH,
@@ -4918,7 +4895,7 @@ private func drawOutfitIcon(context: GraphicsContext, size: CGSize, outfit: Outf
     default:
         // Small Kito wearing the outfit
         let iconR: CGFloat = 10.0
-        let rx = iconR * 1.14, ry = iconR * 0.88
+        let rx = iconR * 1.06, ry = iconR * 1.0
         let mH = KitoH(R: iconR, yaw: 0, pitch: 0)
         let bodyPath = kitoOutfitPath(rx, ry)
         let iconCY = cy + iconR * 0.62
@@ -4928,51 +4905,9 @@ private func drawOutfitIcon(context: GraphicsContext, size: CGSize, outfit: Outf
                                cx: cx, cy: iconCY, tilt: 0, sx: 1, sy: 1,
                                roll: 0, morph: 0, isMini: false)
 
-        // Draw body
         var ctx = context
         ctx.translateBy(x: cx, y: iconCY)
-        let pumpkin = outfit == .pumpkin
-        let top = pumpkin ? Color(hex: "#FFA94D") : Color(red: 0.929, green: 0.929, blue: 0.937)
-        let bot = pumpkin ? Color(hex: "#E8590C") : Color(red: 0.769, green: 0.773, blue: 0.792)
-        ctx.fill(bodyPath, with: .linearGradient(
-            Gradient(colors: [top, bot]),
-            startPoint: CGPoint(x: rx * 0.7, y: -ry * 0.85),
-            endPoint:   CGPoint(x: -rx * 0.8, y: ry * 0.9)
-        ))
-        ctx.fill(bodyPath, with: .radialGradient(
-            Gradient(stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .clear, location: 0.6),
-                .init(color: Color.black.opacity(0.2), location: 1)
-            ]),
-            center: .zero, startRadius: iconR * 0.15, endRadius: iconR * 1.25
-        ))
-        ctx.fill(bodyPath, with: .radialGradient(
-            Gradient(stops: [
-                .init(color: Color.white.opacity(0.55), location: 0),
-                .init(color: .clear, location: 1)
-            ]),
-            center: CGPoint(x: rx * 0.34, y: -ry * 0.46),
-            startRadius: 0, endRadius: iconR * 0.42
-        ))
-
-        // Draw eyes
-        var eyeCtx = ctx
-        eyeCtx.clip(to: bodyPath)
-        let ink = Color(red: 0.102, green: 0.082, blue: 0.071)
-        for f in mEyeFrames(mH) {
-            guard f.visible else { continue }
-            var ec = eyeCtx
-            ec.translateBy(x: f.x, y: f.y)
-            ec.scaleBy(x: f.fx, y: f.fy)
-            let hh = max(f.h, f.w * 0.3)
-            var pill = Path()
-            pill.addRoundedRect(
-                in: CGRect(x: -f.w / 2, y: -hh / 2, width: f.w, height: hh),
-                cornerSize: CGSize(width: min(f.w / 2, hh / 2), height: min(f.w / 2, hh / 2))
-            )
-            ec.fill(pill, with: .color(ink))
-        }
+        drawMascotIconBody(ctx: &ctx, bodyPath: bodyPath, H: mH, iconR: iconR)
 
         // Draw outfit front
         drawOutfitFrontStatic(context: context, outfit: outfit, H: mH,
@@ -4980,6 +4915,36 @@ private func drawOutfitIcon(context: GraphicsContext, size: CGSize, outfit: Outf
                               roll: 0, morph: 0, isMini: false)
     }
 }
+
+private func drawMascotIconBody(ctx: inout GraphicsContext, bodyPath: Path, H: KitoH, iconR: CGFloat) {
+    let rx = H.rx, ry = H.ry
+    ctx.fill(bodyPath, with: .linearGradient(Gradient(colors: [Color(hex: "#A7AAB0"), Color(hex: "#777A81")]), startPoint: CGPoint(x: rx * 0.7, y: -ry * 0.85), endPoint: CGPoint(x: -rx * 0.8, y: ry * 0.9)))
+    ctx.stroke(bodyPath, with: .color(Color(hex: "#343B45")), lineWidth: iconR * 0.045)
+    var bodyCtx = ctx; bodyCtx.clip(to: bodyPath)
+    var shoulder = Path(); shoulder.move(to: CGPoint(x: -iconR * 0.84, y: iconR * 0.97))
+    shoulder.addCurve(to: CGPoint(x: -iconR * 0.28, y: iconR * 0.43), control1: CGPoint(x: -iconR * 0.82, y: iconR * 0.64), control2: CGPoint(x: -iconR * 0.58, y: iconR * 0.45))
+    shoulder.addLine(to: CGPoint(x: iconR * 0.28, y: iconR * 0.43))
+    shoulder.addCurve(to: CGPoint(x: iconR * 0.84, y: iconR * 0.97), control1: CGPoint(x: iconR * 0.58, y: iconR * 0.45), control2: CGPoint(x: iconR * 0.82, y: iconR * 0.64)); shoulder.closeSubpath()
+    bodyCtx.fill(shoulder, with: .linearGradient(Gradient(colors: [Color(hex: "#858990"), Color(hex: "#646970")]), startPoint: CGPoint(x: 0, y: iconR * 0.4), endPoint: CGPoint(x: 0, y: iconR)))
+    for side: CGFloat in [-1, 1] { var seam = Path(); seam.move(to: CGPoint(x: side * iconR * 0.31, y: iconR * 0.45)); seam.addLine(to: CGPoint(x: side * iconR * 0.29, y: iconR * 0.61)); bodyCtx.stroke(seam, with: .color(Color(hex: "#E8B9A0")), style: StrokeStyle(lineWidth: 0.7, lineCap: .round)) }
+    let rim = Path(ellipseIn: CGRect(x: -iconR * 0.83, y: -iconR * 0.85, width: iconR * 1.66, height: iconR * 1.46))
+    ctx.fill(rim, with: .linearGradient(Gradient(colors: [Color(hex: "#737881"), Color(hex: "#555A62")]), startPoint: CGPoint(x: 0, y: -iconR * 0.84), endPoint: CGPoint(x: 0, y: iconR * 0.58)))
+    ctx.stroke(rim, with: .color(Color(hex: "#A7AAB0")), lineWidth: iconR * 0.035)
+    let visor = Path(roundedRect: CGRect(x: -iconR * 0.62, y: -iconR * 0.36, width: iconR * 1.24, height: iconR * 0.58), cornerRadius: iconR * 0.24)
+    ctx.fill(visor, with: .linearGradient(Gradient(colors: [Color(hex: "#23252B"), Color(hex: "#0B0C0F")]), startPoint: CGPoint(x: -iconR * 0.4, y: -iconR * 0.36), endPoint: CGPoint(x: iconR * 0.42, y: iconR * 0.24)))
+    ctx.stroke(visor, with: .color(Color(hex: "#C2CDD3").opacity(0.62)), lineWidth: iconR * 0.027)
+    var eyeCtx = ctx; eyeCtx.clip(to: visor)
+    for f in mEyeFrames(H) where f.visible {
+        var ec = eyeCtx; ec.translateBy(x: f.x, y: f.y); ec.scaleBy(x: f.fx, y: f.fy)
+        let hh = max(f.h, f.w * 0.42)
+        let pill = Path(roundedRect: CGRect(x: -f.w / 2, y: -hh / 2, width: f.w, height: hh), cornerRadius: min(f.w / 2, hh / 2))
+        var glow = ec; glow.opacity = 0.22; glow.stroke(pill, with: .color(Color(hex: "#FF8A80")), lineWidth: f.w * 0.6)
+        ec.fill(pill, with: .color(Color(hex: "#FF8A80")))
+        let core = Path(roundedRect: CGRect(x: -f.w * 0.19, y: -hh * 0.29, width: f.w * 0.38, height: hh * 0.58), cornerRadius: f.w * 0.19)
+        ec.fill(core, with: .color(Color(hex: "#FFE3DF")))
+    }
+}
+
 // MARK: - Card background
 
 struct CardBackground<Content: View>: View {

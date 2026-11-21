@@ -969,6 +969,7 @@ export class BotEngine {
 
   private drawEyeShape(x: CanvasRenderingContext2D, shape: EyeShape, w: number, h: number, sd: number, ink: string) {
     const t = now();
+    const stateAge = t - this.stateSince;
     const core = "#FFE3DF";
     const bloom = 0.82 + this.blush * 0.45 + (this.state === "idle" ? 0.08 * (0.5 + 0.5 * Math.sin(t * 1.7)) : 0);
     const capsule = (width: number, height: number, coreX = 0) => {

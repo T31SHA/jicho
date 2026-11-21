@@ -1568,13 +1568,13 @@ final class BotEngine: ObservableObject {
             var p = Path(); var a: CGFloat = 0
             while a < 1.62 * .pi { let angle = a + now * 1.7; let radius = w * 0.46 * a / (1.62 * .pi); let pt = CGPoint(x: cos(angle) * radius, y: sin(angle) * radius); if a == 0 { p.move(to: pt) } else { p.addLine(to: pt) }; a += 0.12 }
             ctx.stroke(p, with: .color(ink), style: StrokeStyle(lineWidth: w * 0.14, lineCap: .round))
-            let angle = now * 2.2 + sd * .pi; var c = Path(); c.addEllipse(in: CGRect(x: cos(angle) * w * .42 - w * .12, y: sin(angle) * w * .42 - w * .12, width: w * .24, height: w * .24)); ctx.fill(c, with: .color(core))
+            let angle = now * 2.2 + sd * .pi; var c = Path(); c.addEllipse(in: CGRect(x: cos(angle) * w * 0.42 - w * 0.12, y: sin(angle) * w * 0.42 - w * 0.12, width: w * 0.24, height: w * 0.24)); ctx.fill(c, with: .color(core))
         case .heart:
             let heart = heartShape(size: w * 1.08); ctx.fill(heart, with: .color(Color(hex: "#FF6B88")))
-            var shine = Path(); shine.addEllipse(in: CGRect(x: -w * .23, y: -w * .29, width: w * .22, height: w * .22)); ctx.fill(shine, with: .color(core))
+            var shine = Path(); shine.addEllipse(in: CGRect(x: -w * 0.23, y: -w * 0.29, width: w * 0.22, height: w * 0.22)); ctx.fill(shine, with: .color(core))
         case .star:
             ctx.rotate(by: .radians(now * 0.65 * sd)); let star = starShape(outer: w * 0.88, inner: w * 0.48); ctx.fill(star, with: .color(ink))
-            var c = Path(); c.addEllipse(in: CGRect(x: -w * .13, y: -w * .13, width: w * .26, height: w * .26)); ctx.fill(c, with: .color(core))
+            var c = Path(); c.addEllipse(in: CGRect(x: -w * 0.13, y: -w * 0.13, width: w * 0.26, height: w * 0.26)); ctx.fill(c, with: .color(core))
         case .tired:
             drawLensCapsule(ctx: &ctx, w: w, h: h * 0.55, open: open, ink: ink)
             let lid = Path(roundedRect: CGRect(x: -w * 0.62, y: -h * 0.52 + min(1, CGFloat(stateAge / 0.42)) * h * 0.22, width: w * 1.24, height: h * 0.48), cornerRadius: w * 0.2)
@@ -1585,7 +1585,7 @@ final class BotEngine: ObservableObject {
         case .cup:
             let hh = max(h * open, w * 0.42); let cr = min(w / 2, hh / 2)
             var p = Path(); p.move(to: CGPoint(x: -w / 2, y: -hh / 2)); p.addLine(to: CGPoint(x: w / 2, y: -hh / 2)); p.addLine(to: CGPoint(x: w / 2, y: hh / 2 - cr)); p.addQuadCurve(to: CGPoint(x: w / 2 - cr, y: hh / 2), control: CGPoint(x: w / 2, y: hh / 2)); p.addLine(to: CGPoint(x: -w / 2 + cr, y: hh / 2)); p.addQuadCurve(to: CGPoint(x: -w / 2, y: hh / 2 - cr), control: CGPoint(x: -w / 2, y: hh / 2)); p.closeSubpath()
-            ctx.fill(p, with: .color(ink)); let c = Path(roundedRect: CGRect(x: -w * .14, y: hh * .06, width: w * .28, height: hh * .43), cornerRadius: w * .13); ctx.fill(c, with: .color(core))
+            ctx.fill(p, with: .color(ink)); let c = Path(roundedRect: CGRect(x: -w * 0.14, y: hh * 0.06, width: w * 0.28, height: hh * 0.43), cornerRadius: w * 0.13); ctx.fill(c, with: .color(core))
         }
     }
 

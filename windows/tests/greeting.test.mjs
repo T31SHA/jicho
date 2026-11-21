@@ -1,6 +1,6 @@
 // The launch greeting (src/kito/greeting.ts): Kito must never be cut off by
-// the island while it grows, while he bounces and waves, or while it shrinks
-// back to the compact island.
+// the island while he wakes, salutes with his eyes, nods, or shrinks back to
+// the compact island.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -54,14 +54,18 @@ test("Kito stays inside the island when the greeting is cut short", () => {
   for (let tc = 0.3; tc < GREETING_END + 0.4; tc += 0.1) run(tc);
 });
 
-test("he slides to the side to wave, then comes back to the middle", () => {
-  const atWave = greetingPose(2.0);
-  assert.ok(atWave.x < 290, `waving at x=${atWave.x}`);
-  assert.ok(atWave.handL > 0.9 && atWave.handR > 0.9, "both hands out");
-  assert.ok(atWave.wave >= 0, "waving");
-  const back = greetingPose(3.6);
-  assert.equal(back.x, 320);
-  assert.equal(back.handL, 0);
+test("he salutes with a wink and nods without moving sideways or waving", () => {
+  const salute = greetingPose(1.5);
+  assert.equal(salute.eye, "wink");
+  assert.equal(salute.lookX, 0.3);
+  assert.equal(salute.x, 320);
+  assert.equal("handL" in salute || "handR" in salute || "wave" in salute, false);
+  const nod = greetingPose(2.5);
+  assert.ok(nod.tilt > 0.04, `nodding with visor tilt ${nod.tilt}`);
+  assert.equal(nod.x, 320);
+  const settle = greetingPose(3.6);
+  assert.equal(settle.x, 320);
+  assert.equal(settle.eye, "pill");
 });
 
 test("he lands where the compact island's Kito sits", () => {

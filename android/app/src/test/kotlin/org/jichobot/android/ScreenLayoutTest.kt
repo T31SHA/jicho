@@ -26,11 +26,8 @@ class ScreenLayoutTest {
 
     @Test fun theNoticeNamesTheOriginalAuthorAndHisRepository() {
         val notices = File("src/main/assets/licenses/NOTICES.txt").readText()
-        assertTrue(notices.contains("Coucou"))
-        assertTrue(notices.contains("Louis Raillé"))
-        assertTrue(notices.contains("https://github.com/Louis-CFM/coucou"))
+        assertTrue(notices.contains("Coucou and its source code are Copyright (c) 2026 Louis Raillé (https://github.com/Louis-CFM/coucou) and are released under the MIT License"))
         assertTrue(notices.contains("Rhytam Biswas"))
-        assertTrue(notices.contains("released under the MIT License"))
     }
 
     @Test fun theHeroNeverShowsTheRawStatusText() {

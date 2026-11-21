@@ -340,7 +340,7 @@ object KitoPainter {
             }
             EyeShape.WINK -> if (sd < 0) {
                 val hh = max(h * e.open, w * 0.42)
-                roundRect(c, -w / 2, -hh / 2, w, hh, min(w / 2, hh / 2), fill)
+                roundRect(c, -w / 2, -hh / 2, w, hh, min(w / 2, hh / 2), fillPaint(ink))
             } else {
                 arcStroke(c, 0.0, h * 0.18, w * 0.82, PI * 1.12, PI * 1.88, strokePaint(ink, (w * 0.5).toFloat()))
             }

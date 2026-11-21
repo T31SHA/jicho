@@ -34,10 +34,13 @@ class LicencesTest {
     @Test fun theNoticesNameWhoOwnsWhatAndTheArtworkIsNotMit() {
         val n = asset("NOTICES.txt")
         assertTrue(n.contains("JichoBot for Android"))
-        assertTrue(n.contains("https://github.com/T31SHA/jicho"))
+        assertTrue(n.contains("Coucou"))
+        assertTrue(n.contains("Louis Raillé"))
+        assertTrue(n.contains("https://github.com/Louis-CFM/coucou"))
+        assertTrue(n.contains("Rhytam Biswas"))
         assertTrue(n.contains("released under the MIT License"))
         assertTrue(n.contains("not covered by the MIT License"))
-        assertTrue(n.contains("original generated assets"))
+        assertTrue(n.contains("widget preview vectors"))
         assertTrue(n.contains("ZXing Core 3.5.3") && n.contains("Apache License, Version 2.0"))
         assertTrue(n.contains("Android Open Source Project") && n.contains("JetBrains"))
     }

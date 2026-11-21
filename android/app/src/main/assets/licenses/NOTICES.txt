@@ -1,14 +1,14 @@
 JICHOBOT FOR ANDROID: LICENCES AND NOTICES
 
-JichoBot for Android includes contributions by Rhytam Biswas. It is free, has no ads and no analytics.
+JichoBot for Android includes contributions by Rhytam Biswas, released under the MIT License. It is free, has no ads and no analytics.
 
 1. JichoBot source code
 
-The upstream source code is Copyright (c) 2026 Louis Raillé (https://github.com/T31SHA/jicho) and is released under the MIT License. The full text is below ("MIT License").
+The upstream project Coucou and its source code are Copyright (c) 2026 Louis Raillé (https://github.com/Louis-CFM/coucou) and are released under the MIT License. The full text is below ("MIT License").
 
 2. Original JichoBot assets
 
-Original upstream character and media assets are Copyright (c) 2026 Louis Raillé. All rights reserved. Those assets are not included in JichoBot and are not covered by the MIT License. The artwork and audio shipped with this Android app are original generated assets.
+Original Coucou character and media assets are Copyright (c) 2026 Louis Raillé. All rights reserved. Those assets are not included in JichoBot and are not covered by the MIT License. Kito's new eye-robot drawings, application icons, widget preview vectors, and synthesized sound effects are JichoBot artwork and are not copied from the Coucou character or media assets.
 
 3. ZXing
 

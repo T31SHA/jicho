@@ -25,11 +25,12 @@ class ScreenLayoutTest {
     }
 
     @Test fun theNoticeNamesTheOriginalAuthorAndHisRepository() {
-        val xml = File("src/main/res/values/strings.xml").readText()
-        assertTrue(xml.contains("JichoBot for Android."))
-        assertTrue(xml.contains("github.com/T31SHA/jicho"))
-        assertTrue(xml.contains("Kito is JichoBot"))
-        assertTrue(xml.contains("""name="licences_title">Licences</string>"""))
+        val notices = File("src/main/assets/licenses/NOTICES.txt").readText()
+        assertTrue(notices.contains("Coucou"))
+        assertTrue(notices.contains("Louis Raillé"))
+        assertTrue(notices.contains("https://github.com/Louis-CFM/coucou"))
+        assertTrue(notices.contains("Rhytam Biswas"))
+        assertTrue(notices.contains("released under the MIT License"))
     }
 
     @Test fun theHeroNeverShowsTheRawStatusText() {

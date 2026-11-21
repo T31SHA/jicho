@@ -1,6 +1,7 @@
-JichoBot is derived from Coucou by Louis Raillé.
+JichoBot is derived from Coucou by Louis Raillé. The upstream source code is Copyright (c) 2026 Louis Raillé and released under the MIT License.
 Upstream source: https://github.com/Louis-CFM/coucou (main)
 Upstream commit: fe643c8d33d2ad4ad9e52c6c7958e24f61557119
 
-The upstream MIT license and all copyright notices are retained. Android's
-separate LICENSE is retained. JichoBot-specific names and media are original.
+Android contributions by Rhytam Biswas are released under the MIT License. The
+upstream MIT license and all copyright notices are retained. Android's separate
+LICENSE is retained. JichoBot-specific names, drawings, and media are original.

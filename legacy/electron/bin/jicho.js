@@ -1,0 +1,540 @@
+#!/usr/bin/env node
+'use strict';
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const readline = require('readline');
+const crypto = require('crypto');
+const { CredentialManager } = require('./hook-support/credentials');
+
+const URL = 'http://127.0.0.1:47821';
+const MARKER_HEADER = 'X-Jicho-Installer';
+const MARKER_VALUE = 'jicho';
+const HOOK_COMMAND = 'node "$HOME/.jicho/hooks/hook.js"';
+const CURSOR_HOOK_COMMAND = 'node "$HOME/.jicho/hooks/cursor-hook.js"';
+const CURSOR_EVENTS = [
+  'sessionStart', 'sessionEnd', 'postToolUse', 'postToolUseFailure',
+  'afterShellExecution', 'afterMCPExecution', 'afterFileEdit', 'subagentStop', 'stop'
+];
+const CODEX_EVENTS = [
+  'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
+  'PostToolUseFailure', 'PermissionRequest', 'Stop', 'SubagentStart', 'SubagentStop', 'Interrupt'
+];
+const EVENTS = [
+  'SessionStart', 'PermissionRequest', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure',
+  'Stop', 'StopFailure', 'Notification', 'SubagentStart', 'SubagentStop', 'SessionEnd'
+];
+
+function settingsPath(home = os.homedir(), env = process.env) {
+  const configuredDirectory = env.CLAUDE_CONFIG_DIR;
+  if (!configuredDirectory) return path.join(home, '.claude', 'settings.json');
+  const expandedDirectory = configuredDirectory === '~'
+    ? home
+    : configuredDirectory.startsWith('~/') || configuredDirectory.startsWith('~\\')
+      ? path.join(home, configuredDirectory.slice(2))
+      : configuredDirectory;
+  return path.join(expandedDirectory, 'settings.json');
+}
+
+function projectSettingsPath(cwd = process.cwd(), scope = 'project-local') {
+  if (scope !== 'project-local' && scope !== 'project-shared') throw new Error('Unknown Claude project settings scope: ' + scope);
+  return path.join(cwd, '.claude', scope === 'project-shared' ? 'settings.json' : 'settings.local.json');
+}
+
+function selectSettingsTarget(args = [], options = {}) {
+  const flags = args.filter((arg) => ['--user', '--project-local', '--project-shared'].includes(arg));
+  const unknown = args.filter((arg) => arg.startsWith('--') && !flags.includes(arg));
+  if (unknown.length) throw new Error('Unknown option: ' + unknown[0]);
+  const unexpected = args.find((arg) => !arg.startsWith('--'));
+  if (unexpected) throw new Error('Unexpected argument: ' + unexpected);
+  if (flags.length > 1) throw new Error('Choose only one Claude settings scope.');
+  const flag = flags[0] || '--user';
+  const scope = flag === '--user' ? 'user' : flag.slice(2);
+  const file = scope === 'user'
+    ? settingsPath(options.home || os.homedir(), options.env || process.env)
+    : projectSettingsPath(options.cwd || process.cwd(), scope);
+  return { scope, file };
+}
+
+function makeHook(event) {
+  const hook = {
+    type: 'command',
+    command: HOOK_COMMAND,
+    timeout: 120
+  };
+  if (event !== 'PermissionRequest') hook.async = true;
+  return hook;
+}
+
+function isJichoHook(hook) {
+  return Boolean(hook && (
+    (hook.type === 'command' && hook.command === HOOK_COMMAND) ||
+    (hook.type === 'http' && hook.headers && hook.headers[MARKER_HEADER] === MARKER_VALUE)
+  ));
+}
+
+function mergeHooks(settings) {
+  const next = JSON.parse(JSON.stringify(settings || {}));
+  if (!next.hooks) next.hooks = {};
+  if (typeof next.hooks !== 'object' || Array.isArray(next.hooks)) throw new Error('The hooks setting must be a JSON object.');
+  let added = 0;
+  for (const event of EVENTS) {
+    if (next.hooks[event] === undefined) next.hooks[event] = [];
+    if (!Array.isArray(next.hooks[event])) throw new Error('The hooks.' + event + ' setting must be an array.');
+    const existing = next.hooks[event].flatMap((group) => group && Array.isArray(group.hooks) ? group.hooks : []).filter(isJichoHook);
+    const current = existing.length === 1 && JSON.stringify(existing[0]) === JSON.stringify(makeHook(event));
+    if (!current) {
+      if (existing.length) {
+        next.hooks[event] = next.hooks[event].flatMap((group) => {
+          if (!group || !Array.isArray(group.hooks)) return [group];
+          const kept = group.hooks.filter((hook) => !isJichoHook(hook));
+          if (kept.length) return [{ ...group, hooks: kept }];
+          return group.hooks.some(isJichoHook) ? [] : [group];
+        });
+      }
+      next.hooks[event].push({ hooks: [makeHook(event)] });
+      added += 1;
+    }
+  }
+  return { settings: next, added };
+}
+
+function hookSupportDirectory(home = os.homedir()) {
+  return path.join(home, '.jicho', 'hooks');
+}
+
+function installHookSupport(home = os.homedir()) {
+  const target = hookSupportDirectory(home);
+  fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+  for (const name of ['hook.js', 'cursor-hook.js', 'codex-hook.js', 'credentials.js', 'protocol.js']) {
+    const source = path.join(__dirname, 'hook-support', name);
+    const installed = path.join(target, name);
+    atomicWrite(installed, fs.readFileSync(source, 'utf8'));
+    if (process.platform !== 'win32') fs.chmodSync(installed, 0o700);
+  }
+  return target;
+}
+
+function cursorSettingsPath(home = os.homedir()) { return path.join(home, '.cursor', 'hooks.json'); }
+function codexSettingsPath(home = os.homedir()) { return path.join(home, '.codex', 'hooks.json'); }
+
+function isJichoCursorHook(hook) {
+  return Boolean(hook && hook.command === CURSOR_HOOK_COMMAND);
+}
+
+function mergeCursorHooks(settings) {
+  const next = JSON.parse(JSON.stringify(settings || {}));
+  if (next.version !== undefined && next.version !== 1) throw new Error('Cursor hooks.json uses an unsupported version.');
+  next.version = 1;
+  if (next.hooks === undefined) next.hooks = {};
+  if (!next.hooks || typeof next.hooks !== 'object' || Array.isArray(next.hooks)) throw new Error('Cursor hooks must be an object.');
+  let added = 0;
+  for (const event of CURSOR_EVENTS) {
+    if (next.hooks[event] === undefined) next.hooks[event] = [];
+    if (!Array.isArray(next.hooks[event])) throw new Error('Cursor hooks.' + event + ' must be an array.');
+    const matching = next.hooks[event].filter((hook) => isJichoCursorHook(hook));
+    const desired = { command: CURSOR_HOOK_COMMAND, timeout: 10 };
+    if (matching.length === 1 && matching[0].command === desired.command && matching[0].timeout === desired.timeout) continue;
+    next.hooks[event] = next.hooks[event].filter((hook) => !isJichoCursorHook(hook));
+    next.hooks[event].push(desired);
+    added += 1;
+  }
+  return { settings: next, added };
+}
+
+function removeCursorHooks(settings) {
+  const next = JSON.parse(JSON.stringify(settings || {}));
+  let removed = 0;
+  if (!next.hooks || typeof next.hooks !== 'object' || Array.isArray(next.hooks)) return { settings: next, removed };
+  for (const [event, hooks] of Object.entries(next.hooks)) {
+    if (!Array.isArray(hooks)) continue;
+    const kept = hooks.filter((hook) => {
+      if (isJichoCursorHook(hook)) { removed += 1; return false; }
+      return true;
+    });
+    if (kept.length) next.hooks[event] = kept;
+    else delete next.hooks[event];
+  }
+  if (!Object.keys(next.hooks).length) delete next.hooks;
+  return { settings: next, removed };
+}
+
+async function changeCursorSettings(action, file = cursorSettingsPath(), options = {}) {
+  const { settings, original } = readSettings(file);
+  const result = action === 'install' ? mergeCursorHooks(settings) : removeCursorHooks(settings);
+  const changedCount = action === 'install' ? result.added : result.removed;
+  if (!changedCount) {
+    console.log(action === 'install' ? 'Cursor observation hooks are already installed.' : 'No Jicho Cursor hooks found. No changes made.');
+    if (action === 'install') {
+      const credential = new CredentialManager(options.credentialOptions).ensureCredential();
+      installHookSupport(options.home || os.homedir());
+      console.log('Hook credential: active in ' + credential.storage + (credential.created ? ' (new installation credential)' : ''));
+    }
+    return false;
+  }
+  const before = original ? JSON.stringify(JSON.parse(original), null, 2) : '{}';
+  const after = JSON.stringify(result.settings, null, 2);
+  console.log('Cursor hooks are observation-only. Jicho does not install Cursor permission hooks.');
+  console.log(makeDiff(before, after, path.basename(file)));
+  if (!(await askToProceed())) { console.log('Cancelled. No changes made.'); return false; }
+  let credential;
+  if (action === 'install') {
+    credential = new CredentialManager(options.credentialOptions).ensureCredential();
+    installHookSupport(options.home || os.homedir());
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const backupPath = backup(file);
+  atomicWrite(file, after + '\n');
+  console.log('Updated ' + file + (backupPath ? '\nBackup: ' + backupPath : ''));
+  if (credential) console.log('Hook credential: active in ' + credential.storage + (credential.created ? ' (new installation credential)' : ''));
+  return true;
+}
+
+function isJichoCodexHook(hook) {
+  return Boolean(hook && hook.type === 'command' && hook.command === 'node "$HOME/.jicho/hooks/codex-hook.js"');
+}
+
+function makeCodexHook(event) {
+  const hook = { type: 'command', command: 'node "$HOME/.jicho/hooks/codex-hook.js"', timeout: event === 'PermissionRequest' ? 120 : 10 };
+  if (event !== 'PermissionRequest' && event !== 'SessionEnd') hook.async = true;
+  return hook;
+}
+
+function codexGroupsWithoutJicho(groups) {
+  return groups.flatMap((group) => {
+    if (!group || !Array.isArray(group.hooks)) return [group];
+    const hooks = group.hooks.filter((hook) => !isJichoCodexHook(hook));
+    if (hooks.length) return [{ ...group, hooks }];
+    return group.hooks.some(isJichoCodexHook) ? [] : [group];
+  });
+}
+
+function mergeCodexHooks(settings) {
+  const next = JSON.parse(JSON.stringify(settings || {}));
+  if (!next.hooks) next.hooks = {};
+  if (!next.hooks || typeof next.hooks !== 'object' || Array.isArray(next.hooks)) throw new Error('Codex hooks must be an object.');
+  let added = 0;
+  for (const event of CODEX_EVENTS) {
+    if (next.hooks[event] === undefined) next.hooks[event] = [];
+    if (!Array.isArray(next.hooks[event])) throw new Error('Codex hooks.' + event + ' must be an array.');
+    const existing = next.hooks[event].flatMap((group) => group && Array.isArray(group.hooks) ? group.hooks : []).filter(isJichoCodexHook);
+    const desiredHook = makeCodexHook(event);
+    const desiredGroup = event === 'PermissionRequest'
+      ? { matcher: '^(Bash|apply_patch)$', hooks: [desiredHook] }
+      : { hooks: [desiredHook] };
+    const current = existing.length === 1 && JSON.stringify(existing[0]) === JSON.stringify(desiredHook) &&
+      next.hooks[event].some((group) => group && JSON.stringify(group) === JSON.stringify(desiredGroup));
+    if (current) continue;
+    next.hooks[event] = codexGroupsWithoutJicho(next.hooks[event]);
+    next.hooks[event].push(desiredGroup);
+    added += 1;
+  }
+  return { settings: next, added };
+}
+
+function removeCodexHooks(settings) {
+  const next = JSON.parse(JSON.stringify(settings || {}));
+  let removed = 0;
+  if (!next.hooks || typeof next.hooks !== 'object' || Array.isArray(next.hooks)) return { settings: next, removed };
+  for (const [event, groups] of Object.entries(next.hooks)) {
+    if (!Array.isArray(groups)) continue;
+    for (const group of groups) if (group && Array.isArray(group.hooks)) removed += group.hooks.filter(isJichoCodexHook).length;
+    next.hooks[event] = codexGroupsWithoutJicho(groups);
+    if (!next.hooks[event].length) delete next.hooks[event];
+  }
+  if (!Object.keys(next.hooks).length) delete next.hooks;
+  return { settings: next, removed };
+}
+
+async function changeCodexSettings(action, file = codexSettingsPath(), options = {}) {
+  const { settings, original } = readSettings(file);
+  const result = action === 'install' ? mergeCodexHooks(settings) : removeCodexHooks(settings);
+  const changedCount = action === 'install' ? result.added : result.removed;
+  if (!changedCount) {
+    console.log(action === 'install' ? 'Codex hooks are already installed.' : 'No Jicho Codex hooks found. No changes made.');
+    if (action === 'install') {
+      const credential = new CredentialManager(options.credentialOptions).ensureCredential();
+      installHookSupport(options.home || os.homedir());
+      console.log('Hook credential: active in ' + credential.storage + (credential.created ? ' (new installation credential)' : ''));
+    }
+    return false;
+  }
+  const before = original ? JSON.stringify(JSON.parse(original), null, 2) : '{}';
+  const after = JSON.stringify(result.settings, null, 2);
+  console.log('Codex approval hooks are limited to Bash and apply_patch. Codex may ask you to review and trust these hook definitions.');
+  console.log(makeDiff(before, after, path.basename(file)));
+  if (!(await askToProceed())) { console.log('Cancelled. No changes made.'); return false; }
+  let credential;
+  if (action === 'install') {
+    credential = new CredentialManager(options.credentialOptions).ensureCredential();
+    installHookSupport(options.home || os.homedir());
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const backupPath = backup(file);
+  atomicWrite(file, after + '\n');
+  console.log('Updated ' + file + (backupPath ? '\nBackup: ' + backupPath : ''));
+  if (credential) console.log('Hook credential: active in ' + credential.storage + (credential.created ? ' (new installation credential)' : ''));
+  return true;
+}
+
+function removeHooks(settings) {
+  const next = JSON.parse(JSON.stringify(settings || {}));
+  let removed = 0;
+  if (!next.hooks || typeof next.hooks !== 'object' || Array.isArray(next.hooks)) return { settings: next, removed };
+  for (const [event, groups] of Object.entries(next.hooks)) {
+    if (!Array.isArray(groups)) continue;
+    const keptGroups = [];
+    for (const group of groups) {
+      if (!group || !Array.isArray(group.hooks)) { keptGroups.push(group); continue; }
+      const keptHooks = group.hooks.filter((hook) => {
+        if (isJichoHook(hook)) { removed += 1; return false; }
+        return true;
+      });
+      if (keptHooks.length) keptGroups.push({ ...group, hooks: keptHooks });
+      else if (!group.hooks.some(isJichoHook)) keptGroups.push(group);
+    }
+    if (keptGroups.length) next.hooks[event] = keptGroups;
+    else delete next.hooks[event];
+  }
+  if (Object.keys(next.hooks).length === 0) delete next.hooks;
+  return { settings: next, removed };
+}
+
+function makeDiff(before, after, fileLabel = 'settings.json') {
+  const a = before.split('\n');
+  const b = after.split('\n');
+  let prefix = 0;
+  while (prefix < a.length && prefix < b.length && a[prefix] === b[prefix]) prefix += 1;
+  let suffix = 0;
+  while (suffix < a.length - prefix && suffix < b.length - prefix && a[a.length - 1 - suffix] === b[b.length - 1 - suffix]) suffix += 1;
+  const changedBefore = a.slice(prefix, a.length - suffix);
+  const changedAfter = b.slice(prefix, b.length - suffix);
+  const contextBefore = a.slice(Math.max(0, prefix - 2), prefix).map((line) => ' ' + line);
+  const contextAfter = a.slice(a.length - suffix, Math.min(a.length, a.length - suffix + 2)).map((line) => ' ' + line);
+  return [
+    '--- ' + fileLabel,
+    '+++ ' + fileLabel + ' (Jicho change)',
+    '@@ -' + (prefix + 1) + ',' + changedBefore.length + ' +' + (prefix + 1) + ',' + changedAfter.length + ' @@',
+    ...contextBefore,
+    ...changedBefore.map((line) => '-' + line),
+    ...changedAfter.map((line) => '+' + line),
+    ...contextAfter
+  ].join('\n');
+}
+
+function readSettings(file) {
+  if (!fs.existsSync(file)) return { settings: {}, original: '' };
+  const original = fs.readFileSync(file, 'utf8');
+  try {
+    const settings = JSON.parse(original);
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('settings root must be a JSON object');
+    return { settings, original };
+  }
+  catch (error) { throw new Error('Could not parse ' + file + ': ' + error.message); }
+}
+
+function askToProceed() {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    let answered = false;
+    const finish = (answer) => {
+      if (answered) return;
+      answered = true;
+      rl.close();
+      resolve(/^y(?:es)?$/i.test((answer || '').trim()));
+    };
+    rl.question('Apply this change? [y/N] ', finish);
+    rl.on('close', () => { if (!answered) { answered = true; resolve(false); } });
+  });
+}
+
+function backup(file) {
+  if (!fs.existsSync(file)) return null;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = file + '.jicho-backup-' + stamp;
+  fs.copyFileSync(file, backupPath, fs.constants.COPYFILE_EXCL);
+  return backupPath;
+}
+
+function atomicWrite(file, contents) {
+  let target = file;
+  let linkInfo;
+  try { linkInfo = fs.lstatSync(file); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (linkInfo && linkInfo.isSymbolicLink()) target = fs.realpathSync(file);
+
+  let mode = 0o600;
+  try { mode = fs.statSync(target).mode & 0o777; }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+
+  const directory = path.dirname(target);
+  const temporary = path.join(directory, '.' + path.basename(target) + '.jicho-' + process.pid + '-' + crypto.randomBytes(8).toString('hex'));
+  let descriptor = null;
+  let created = false;
+  try {
+    descriptor = fs.openSync(temporary, 'wx', mode);
+    created = true;
+    fs.writeFileSync(descriptor, contents, 'utf8');
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = null;
+    fs.renameSync(temporary, target);
+  } catch (error) {
+    if (descriptor !== null) {
+      try { fs.closeSync(descriptor); }
+      catch (closeError) { error.message += '; also failed to close temporary settings file: ' + closeError.message; }
+    }
+    if (created) {
+      try { fs.unlinkSync(temporary); }
+      catch (cleanupError) {
+        if (cleanupError.code !== 'ENOENT') error.message += '; also failed to remove temporary settings file: ' + cleanupError.message;
+      }
+    }
+    throw error;
+  }
+}
+
+async function changeSettings(action, file = settingsPath(), scope = 'user', options = {}) {
+  const { settings, original } = readSettings(file);
+  const result = action === 'install' ? mergeHooks(settings) : removeHooks(settings);
+  if (action === 'install' && result.added === 0) {
+    const credentials = new CredentialManager(options.credentialOptions);
+    const credential = credentials.ensureCredential();
+    installHookSupport(options.home || os.homedir());
+    console.log('Jicho hooks are already installed. No settings changes made.');
+    console.log('Hook credential: active in ' + credential.storage + (credential.created ? ' (new installation credential)' : ''));
+    return false;
+  }
+  if (action === 'uninstall' && result.removed === 0) {
+    console.log('No Jicho hooks found. No changes made.');
+    return false;
+  }
+  const before = original ? JSON.stringify(JSON.parse(original), null, 2) : '{}';
+  const after = JSON.stringify(result.settings, null, 2);
+  if (scope === 'project-local') {
+    console.log('Scope: this project only. Because Jicho creates this file by hand, make sure .claude/settings.local.json is ignored by Git.');
+  } else if (scope === 'project-shared') {
+    console.log('Scope: this project for everyone who uses it. Committing .claude/settings.json shares these hooks with collaborators.');
+  } else {
+    console.log('Scope: your user account across projects.');
+  }
+  console.log(makeDiff(before, after, path.basename(file)));
+  if (!(await askToProceed())) { console.log('Cancelled. No changes made.'); return false; }
+  let credential;
+  if (action === 'install') {
+    const credentials = new CredentialManager(options.credentialOptions);
+    credential = credentials.ensureCredential();
+    installHookSupport(options.home || os.homedir());
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const backupPath = backup(file);
+  atomicWrite(file, after + '\n');
+  console.log('Updated ' + file + (backupPath ? '\nBackup: ' + backupPath : ''));
+  if (credential) {
+    console.log('Hook credential: active in ' + credential.storage + (credential.created ? ' (new installation credential)' : ''));
+    if (credential.storage === 'private-file') console.log('Credential fallback file is protected by owner-only permissions; other processes running as your account can read it.');
+  }
+  return true;
+}
+
+function status(file = settingsPath(), scope = 'user') {
+  if (!fs.existsSync(file)) { console.log('Claude ' + scope + ' settings not found: ' + file); return; }
+  let settings;
+  try { settings = JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (error) { console.error('Could not parse ' + file + ': ' + error.message); process.exitCode = 1; return; }
+  const found = [];
+  for (const [event, groups] of Object.entries(settings.hooks || {})) {
+    if (Array.isArray(groups) && groups.some((group) => group && Array.isArray(group.hooks) && group.hooks.some(isJichoHook))) found.push(event);
+  }
+  if (found.length) console.log('Jicho hooks installed for: ' + found.join(', '));
+  else console.log('Jicho hooks are not installed.');
+  try {
+    const credential = new CredentialManager().status();
+    console.log('Hook credential: ' + credential.status + (credential.storage ? ' (' + credential.storage + ')' : ''));
+    if (credential.status === 'unavailable') process.exitCode = 1;
+  } catch (_) {
+    console.log('Hook credential: unavailable or unsafe');
+    process.exitCode = 1;
+  }
+}
+
+function credentialCommand(action) {
+  const manager = new CredentialManager();
+  if (action === 'status') {
+    const status = manager.status();
+    console.log('Hook credential: ' + status.status + (status.storage ? ' (' + status.storage + ')' : ''));
+    if (status.status === 'unavailable') process.exitCode = 1;
+    return;
+  }
+  if (action === 'rotate') {
+    const result = manager.rotate();
+    console.log('Rotated the Jicho hook credential in ' + result.storage + '. Restart Jicho before starting new Claude sessions.');
+    return;
+  }
+  if (action === 'revoke') {
+    console.log(manager.revoke() ? 'Revoked the Jicho hook credential. Protected hook requests will fail closed.' : 'No active Jicho hook credential to revoke.');
+    return;
+  }
+  throw new Error('Usage: jicho credential <status|rotate|revoke>');
+}
+
+async function main(args) {
+  const command = args[0];
+  if (command === 'doctor') {
+    const flags = args.slice(1);
+    if (flags.some((flag) => flag !== '--allow-file-credential') || flags.filter((flag) => flag === '--allow-file-credential').length > 1) {
+      throw new Error('Usage: jicho doctor [--allow-file-credential]');
+    }
+    return require('../src/doctor').runDoctor({ allowFileCredential: flags.includes('--allow-file-credential') });
+  }
+  if (command === 'credential') {
+    if (args.length !== 2) throw new Error('Usage: jicho credential <status|rotate|revoke>');
+    return credentialCommand(args[1]);
+  }
+  if (command === 'cursor') {
+    const action = args[1];
+    if (!['install', 'uninstall', 'status'].includes(action) || args.length > 2) throw new Error('Usage: jicho cursor <install|uninstall|status>');
+    const file = cursorSettingsPath();
+    if (action === 'status') {
+      if (!fs.existsSync(file)) { console.log('Cursor user hooks not found: ' + file); return; }
+      const current = readSettings(file).settings;
+      const count = Object.values(current.hooks || {}).flatMap((hooks) => Array.isArray(hooks) ? hooks : []).filter(isJichoCursorHook).length;
+      console.log('Jicho Cursor observation hooks: ' + count + '/' + CURSOR_EVENTS.length + (count ? ' in ' + file : ''));
+      console.log('Permission interception: unsupported');
+      return;
+    }
+    return changeCursorSettings(action, file);
+  }
+  if (command === 'codex') {
+    const action = args[1];
+    if (!['install', 'uninstall', 'status'].includes(action) || args.length > 2) throw new Error('Usage: jicho codex <install|uninstall|status>');
+    const file = codexSettingsPath();
+    if (action === 'status') {
+      if (!fs.existsSync(file)) { console.log('Codex user hooks not found: ' + file); return; }
+      const current = readSettings(file).settings;
+      const count = Object.values(current.hooks || {}).flatMap((groups) => Array.isArray(groups)
+        ? groups.flatMap((group) => group && Array.isArray(group.hooks) ? group.hooks : []) : []).filter(isJichoCodexHook).length;
+      console.log('Jicho Codex hooks: ' + count + '/' + CODEX_EVENTS.length + (count ? ' in ' + file : ''));
+      console.log('Permission interception: PermissionRequest for Bash and apply_patch only');
+      return;
+    }
+    return changeCodexSettings(action, file);
+  }
+  if (command === 'install' || command === 'uninstall' || command === 'status') {
+    const target = selectSettingsTarget(args.slice(1));
+    if (command === 'status') status(target.file, target.scope);
+    else await changeSettings(command, target.file, target.scope);
+  }
+  else {
+    console.log('Usage: jicho <install|uninstall|status> [--user|--project-local|--project-shared] | cursor|codex <install|uninstall|status> | doctor | credential <status|rotate|revoke>');
+    if (command) process.exitCode = 2;
+  }
+}
+
+if (require.main === module) main(process.argv.slice(2)).catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});
+
+module.exports = { EVENTS, URL, HOOK_COMMAND, CURSOR_HOOK_COMMAND, CURSOR_EVENTS, CODEX_EVENTS, settingsPath, projectSettingsPath, cursorSettingsPath, codexSettingsPath, selectSettingsTarget, atomicWrite, makeHook, isJichoHook, mergeHooks, removeHooks, isJichoCursorHook, mergeCursorHooks, removeCursorHooks, isJichoCodexHook, makeCodexHook, mergeCodexHooks, removeCodexHooks, makeDiff, hookSupportDirectory, installHookSupport, changeSettings, changeCursorSettings, changeCodexSettings };

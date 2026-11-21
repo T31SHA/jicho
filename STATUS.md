@@ -1,0 +1,136 @@
+# JichoBot implementation status
+
+## Current finishing work — 2026-11-21
+
+- Kito now has an eye-robot hood, visor, updated proportions and palette, new eye expressions and emotes, a staged launch greeting, and outfits anchored to the new geometry. Windows, Kotlin, and Swift renderer sources were updated; Windows tests pass. This change has not had a fresh Android or Apple native build in this environment.
+- The upstream renderer comparison used `UPSTREAM_SHA` (`fe643c8d33d2ad4ad9e52c6c7958e24f61557119`) after identifier and package normalization. It found 365 additions and 523 removals in the requested Swift files, 231 additions and 171 removals under Kotlin `kito/`, and 323 additions and 434 removals under TypeScript `windows/src/kito/`. Category counts are in the finishing report.
+- Current verification: `cargo test` passed (632 Rust library and 39 hook tests; 8 ignored); `npm test` passed (44 files); `timeout --signal=TERM 60s npm run tauri dev` launched the Linux desktop app and ran to the 60-second timeout. The initial sandboxed Rust test and Vite startup were blocked by sandbox restrictions; approved reruns passed.
+- Android `./gradlew test assembleDebug` and the documented `JICHOBOT_RUST_INTEROP=1` test could not start because this environment has no Android SDK: `$HOME/Android/Sdk`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, and `android/local.properties` are absent. The interop test did not reach its Rust server launch.
+- `python3 scripts/test-localization.py`, `python3 scripts/test-whats-new.py`, Android and Windows string checks, relay-vector check, icon check (34 assets), all eight Android preview-vector parses, and `python3 scripts/check-brand-gate.py` passed.
+- No screenshots of the 11 individual character states were captured: the in-app browser controller and local screen-capture utilities are unavailable. The existing single Linux island image is not evidence for all states.
+- No build output was staged. No push was performed.
+
+## Source baseline
+
+- Imported source commit: `fe643c8d33d2ad4ad9e52c6c7958e24f61557119` (also recorded in `UPSTREAM_SHA`).
+- Source remote is configured as `upstream`; no push was performed.
+- Product version is `0.1.0` in the desktop, phone, Android, and package manifests.
+- `NOTICE` records the derivation and source commit. Existing MIT notices and `android/LICENSE` remain.
+
+## Platform verification
+
+### macOS
+
+- **Verified by running:** localization validation for the 16-language macOS catalogs; generated icon and sound asset checks.
+- **Built but not exercised:** none.
+- **Not built:** macOS app and both Xcode schemes. `xcodebuild`, XcodeGen, and Swift are unavailable in this environment.
+
+### iPhone
+
+- **Verified by running:** phone URL and relay source checks are covered by the shared source review; localization and generated asset checks passed.
+- **Built but not exercised:** none.
+- **Not built:** iPhone app and device interop. Xcode and an iPhone are unavailable.
+
+### Windows
+
+- **Verified by running:** `npx tsc --noEmit`; focused what's-new test; Windows/Linux localization and what's-new checks; string-generation check; full `npm test` (44 test files, 44 passed, 0 failed, exit 0 in 5.3 seconds).
+- **Test-runner fix:** `tests/whatsapp.test.mjs` left the production 60-second pill-reset timer running after its last message test. The test now sends the reset event and clears that timer.
+- **Built but not exercised:** none.
+- **Not built:** Windows desktop executable and installer. No Windows host is available; CI workflow was updated for JichoBot.
+
+### Linux
+
+- **Rust build:** from `windows/`, `cargo build` exited 0 and built the `jichobot-hook` relay and `jichobot` desktop app. There were no compile errors or code fixes. Rust reported four dead-code warnings for Windows-only Spotify helpers.
+- **Rust tests:** from `windows/`, `cargo test` exited 0 (632 library tests and 39 hook-relay tests passed; 8 ignored). `cargo test phone_link` exited 0 (202 passed; 2 ignored). Two test-data/assertion fixes were needed after the rename: regenerated `android/relay/test-vectors.json` for the new relay label and changed the OpenCode test to reject the old Mac path instead of the renamed Linux relay. Both were rename-caused, not toolchain or library differences. The first sandboxed full test run was denied temporary-file and local-socket access; approved reruns passed.
+- **Node suite:** `npm test` from `windows/` exited 0: 44 test files passed, 0 failed, in 5.3 seconds. `tests/whatsapp.test.mjs` previously kept the process alive for its production 60-second pill-reset timer; the test now sends the reset event during cleanup.
+- **Desktop smoke:** `npm run tauri dev` launched the app. At the 2:03 checkpoint, PID 455283 and its 160×48 island window were still present, exceeding the 60-second run requirement; no panic appeared. Screenshot: [`docs/media/jichobot-linux-island.png`](docs/media/jichobot-linux-island.png). Startup showed the four Spotify dead-code warnings and an Ayatana appindicator deprecation warning.
+- **Live relay:** while the app was running, `printf '%s\n' '{"hook_event_name":"UserPromptSubmit","session_id":"jichobot-linux-smoke","prompt":"Linux relay smoke"}' | target/release/jichobot-hook` delivered the event; the app log recorded `hook UserPromptSubmit`. A `PermissionRequest` sent through the same relay logged `ui decide allow` and returned `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}`.
+- **Claude installer:** `cargo test hooks::tests::writing_backs_up_preserves_and_refuses_a_changed_file -- --nocapture` passed. The test used and then removed `/tmp/jichobot-hooks-552784` as HOME, wrote only `/tmp/jichobot-hooks-552784/.claude/settings.json`, preserved the existing `other-tool.exe` hook and settings, made a backup, and refused a stale edit. The real `~/.claude` was not touched. Its preview added 12 Claude events; `PermissionRequest` uses a 120-second timeout and the other entries use 10 seconds. The preview included this hunk:
+
+  ```diff
+  +     "PermissionRequest": [
+  +       {
+  +         "hooks": [
+  +           {
+  +             "type": "command",
+  +             "command": "'/tmp/jichobot-hooks-552784/.local/share/jichobot/bin/jichobot-hook' PermissionRequest",
+  +             "timeout": 120
+  +           }
+  +         ]
+  +       }
+  +     ],
+  ```
+
+- **Packages:** `npm run pack` from `windows/` exited 0 and produced `JichoBot-Linux-0.1.0-x86_64.AppImage` (116,009,464 bytes), rolling `JichoBot-Linux-x86_64.AppImage` (116,009,464 bytes), `JichoBot-Linux-0.1.0-amd64.deb` (19,311,026 bytes), and `JichoBot-Linux-0.1.0-x86_64.rpm` (19,313,047 bytes). Tauri's bundle outputs and `windows/release/` copies are ignored and uncommitted. The first sandboxed pack failed when Tauri hit `Read-only file system`; rerunning the same command with filesystem access downloaded the AppImage helpers and completed all three formats.
+
+### Android
+
+- **Previous verification before the Kito redraw:** `node scripts/gen-strings.mjs --check`; `./gradlew test assembleDebug lint --console=plain` completed successfully with JDK 17.0.21 and Android SDK 35 staged under `/tmp`.
+- **Build outputs:** debug APK `android/app/build/outputs/apk/debug/app-debug.apk` (29 MiB); unsigned minified release APK `android/app/build/outputs/apk/release/app-release-unsigned.apk` (4.6 MiB). `aapt` reports package `org.jichobot.android`, version `0.1.0`, min SDK 30, target SDK 35, compile SDK 35.
+- **Tests and lint:** debug and release each report 1,041 unit tests, 0 failures, and 31 skipped; all 15 Node development-desktop interop tests pass in each variant. Lint has 0 errors, 71 warnings, and 2 informational findings. The release log-string check and CI ads/billing/analytics guard passed.
+- **Current redraw build:** not run. `./gradlew test assembleDebug` and `JICHOBOT_RUST_INTEROP=1 ./gradlew testDebugUnitTest --tests '*RustDesktopInteropTest' --console=plain` both stop before test execution because the Android SDK is not installed in the current environment.
+- **Device check:** no device check was performed in this run. The redraw has not been visually checked on an Android phone.
+- **Build requirements read from `android/README.md`, `android/build.gradle.kts`, `android/app/build.gradle.kts`, and `.github/workflows/android.yml`:** JDK 17; compile SDK 35; Android Gradle Plugin 8.7.3 selects build-tools 35.0.0 by default; minimum SDK 30. The CI setup explicitly uses Temurin 17.
+- **2026-11-20 Android audit, item 1:** The initial check found no `java`/`javac`; JDK 17 is now installed.
+- **2026-11-20 Android audit, items 2–5:** Installed command-line SDK packages in `/tmp`, resolved the initial sandbox Gradle/network issue with an escalated Gradle run, and completed the CI build successfully. Fixed stale `com/jichobot/android` paths in 44 source-guard test files, updated outdated translation/license/widget-name assertions, and added state-colored radial glows and badges to static widget vectors. The test and lint results are recorded above. The dev-desktop mock interop suite passed; device visual inspection and physical phone-to-desktop interop remain unavailable because no device is attached.
+- **2026-11-20 Android audit, items 6–8:** Completed the renderer source audit, parity notes, findings, and Android CI workflow table in [`docs/ANDROID_RENDERER_AUDIT.md`](docs/ANDROID_RENDERER_AUDIT.md), including the successful build and device-check outcome.
+
+### Relay
+
+- **Verified by running:** `npm install` and `npm run typecheck` in `relay/`.
+- **Built but not exercised:** none.
+- **Not built:** deployed relay. `RELAY_URL` is empty and no deployment was attempted.
+
+## Commands run and results
+
+Successful checks:
+
+- `python3 scripts/rebrand.py` twice: both runs completed; second run reported no content or path changes.
+- `python3 scripts/check-brand-gate.py`: passed.
+- `python3 scripts/test-localization.py`: passed (1,101 Traditional Chinese entries and catalog consistency checks).
+- `python3 scripts/test-whats-new.py`: passed for 16 macOS and 14 Windows/Linux languages at version 0.1.0.
+- `python3 scripts/gen-icons.py` and `python3 scripts/gen-icons.py --check`: generation and 34-asset verification passed.
+- `python3 scripts/gen-sounds.py` and `python3 scripts/gen-sounds.py --check`: generation and deterministic checks for 29 sound keys passed.
+- `node android/scripts/gen-strings.mjs --check`: passed.
+- `node windows/scripts/gen-strings.mjs --check`: passed.
+- `npx tsc --noEmit` in `windows/`: passed.
+- `npm test` in `windows/`: 44 test files passed, 0 failed, exit 0 in 5.3 seconds after clearing the WhatsApp pill-reset timer in test cleanup.
+- `npm run tauri dev` in `windows/`: launched successfully; PID 455283 and the island window remained present at 2:03 with no panic. A 160×48 island capture is saved under `docs/media/`.
+- `npm run pack` in `windows/`: completed with exit 0. Produced `JichoBot-Linux-0.1.0-x86_64.AppImage` (116,009,464 bytes), `JichoBot-Linux-0.1.0-amd64.deb` (19,311,026 bytes), and `JichoBot-Linux-0.1.0-x86_64.rpm` (19,313,047 bytes), plus the rolling AppImage copy. Bundle artifacts are ignored and were not staged.
+- `printf '%s\n' '{"hook_event_name":"UserPromptSubmit","session_id":"jichobot-linux-smoke","prompt":"Linux relay smoke"}' | target/release/jichobot-hook`: the app log recorded `hook UserPromptSubmit`.
+- `printf '%s\n' '{"hook_event_name":"PermissionRequest","session_id":"jichobot-linux-approval-smoke","cwd":"/tmp","tool_name":"Bash","tool_input":{"command":"printf JichoBot approval smoke"}}' | target/release/jichobot-hook`: the app logged `ui decide allow`, then the relay returned `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}`.
+- `cargo test hooks::tests::writing_backs_up_preserves_and_refuses_a_changed_file -- --nocapture`: passed (1 test); the installer preview targeted `/tmp/jichobot-hooks-481538/.claude/settings.json`, wrote only there, and the test removed that temporary home.
+- `node --import ./tests/setup.mjs --test tests/whats-new.test.mjs` in `windows/`: passed.
+- `python3 scripts/test-jichobot-hook.py`: passed fake event, socket override, approval round trip, and non-blocking missing-app checks.
+- `python3 scripts/test-session-title.py`: passed both package variants.
+- `python3 tests/test_codex_auto_review.py`: 30 tests passed using temporary test paths.
+- `bash -n scripts/cloud-test-build.sh scripts/release.sh`: passed.
+- `npm install` in `windows/`: completed; npm reported one high-severity advisory. Dependencies were not upgraded.
+- `npm install` in `relay/`: completed; npm reported four high-severity advisories. Dependencies were not upgraded.
+- `npm run typecheck` in `relay/`: passed.
+- `git diff --check`: passed.
+- Recursive brand grep, excluding `.git`, dependency directories, and local build output: four permitted matches only — `android/LICENSE:23`, `windows/src-tauri/src/phone_link/mod.rs:1`, and `NOTICE:1-2`. The matches are required license/copyright/attribution text.
+
+Checks that did not complete:
+
+- `bash scripts/test-claude-hooks.sh`: could not run because `swiftc` is unavailable.
+- Physical Android device rendering and phone-to-desktop interop: not run because no Android device is attached.
+- Xcode builds: not run because Xcode is unavailable.
+
+## Remaining manual steps
+
+- **Windows:** run the Windows CI build and test workflow on a Windows host; inspect and exercise the packaged installer and hook relay.
+- **Android:** install the debug APK on a connected Android device and verify renderer appearance and phone-link interop against a development desktop build.
+- **macOS/iPhone:** install Xcode and XcodeGen, regenerate the project from `JichoBot/project.yml`, build both macOS schemes unsigned and build the iPhone app. Set `APPLE_TEAM_ID` only for signing; create/configure the `iCloud.org.jichobot.JichoBot` CloudKit container and matching APNs topic before a signed phone/relay release.
+- **Relay:** install/deploy using the relay's Wrangler configuration, configure required secrets in the OS/service secret store, and set `RELAY_URL` to the deployed endpoint before enabling pairing outside local development.
+- **Legal/site:** supply the legal entity, postal address, and governing jurisdiction when known. The maintainer label and contact email are now published.
+- **Release:** verify GitHub release workflows and package artifacts on their native runners; no release or deployment was performed.
+
+## Behavior and known limits
+
+- Application state names, state-machine flow, platform interfaces, hook/relay contract, and feature code were retained while identifiers and branding were changed.
+- **Kito drawing comparison:** the 2026-11-21 renderer comparison used `UPSTREAM_SHA` after normalizing renamed identifiers and package paths. All five requested drawing categories changed on all three platforms; line counts are recorded above and in the finishing report.
+- The mascot, icons, and sounds are original replacements. Promotional donation/Botan links and TestFlight references were removed; relay and signing values remain unset until configured. These are intentional branding/account changes.
+- **LICENSE-ASSETS.md:** describes the new eye-based character as based on the legacy mascot, lists the TypeScript/Kotlin/Swift renderer locations, and identifies generated icons, Android preview vectors, and synthesized sound effects.
+- The Linux desktop build and smoke run covered island startup and a hook approval round trip. Other Linux app workflows and native builds for macOS, iPhone, Windows, and Android remain unverified or unavailable as listed above.
+- `UPSTREAM_SHA` does not contain `JichoBot/JichoBot.xcodeproj/project.pbxproj`, but the current repository tracks that generated file alongside `JichoBot/project.yml`; it was added in the rebranded source import (`b6ebfbcc`). The earlier claim that the current repository had removed the generated project was incorrect. Local XcodeGen regeneration could not be tested without XcodeGen; CI runs `xcodegen` before its unsigned scheme builds.

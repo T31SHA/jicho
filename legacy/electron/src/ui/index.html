@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Jicho</title>
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="../../mascot/jicho-mascot.css">
+</head>
+<body>
+  <main id="app" class="shell">
+    <section id="idle" class="compact-island drag-handle is-active" aria-label="Jicho agent activity" aria-hidden="false">
+      <button id="expand-toggle" class="eye-button drag-exempt" aria-label="Expand Jicho island" title="Expand Jicho">
+        <span id="idle-bot" class="mascot-host" aria-hidden="true"></span>
+      </button>
+      <div class="compact-copy">
+        <div class="compact-titleline">
+          <strong id="compact-project">JICHO</strong>
+          <span id="compact-agent" class="agent-label">Waiting</span>
+        </div>
+        <span id="compact-activity">Waiting for an observed agent event</span>
+        <nav id="compact-session-indicators" class="session-indicators compact-sessions" role="tablist" aria-label="Observed agent sessions" hidden></nav>
+      </div>
+      <span id="compact-progress" class="progress-indicator" role="status" aria-label="Waiting for agent activity" title="Waiting for agent activity"></span>
+      <span id="attention-indicator" class="attention-indicator" hidden aria-label="Needs attention">!</span>
+      <button id="phone-toggle" class="compact-action drag-exempt" aria-label="Phone and island settings" title="Phone and island settings">⚙</button>
+      <span id="error" class="error" role="status"></span>
+    </section>
+    <section id="expanded" class="expanded-island" aria-label="Observed agent activity" aria-hidden="true">
+      <header class="expanded-header drag-handle">
+          <button id="expanded-toggle" class="expanded-mascot-toggle drag-exempt" aria-label="Collapse Jicho island" title="Collapse Jicho">
+            <span id="expanded-bot" class="expanded-avatar" aria-hidden="true"></span>
+          </button>
+        <div class="expanded-heading">
+          <div class="expanded-titleline">
+            <strong id="expanded-project">No agent session observed</strong>
+            <span id="expanded-agent" class="agent-label">JICHO · waiting for authenticated agent hooks</span>
+          </div>
+          <span id="expanded-activity" class="expanded-current-action">Waiting for an observed agent event</span>
+        </div>
+        <span id="expanded-progress" class="progress-indicator" role="status" aria-label="Waiting for agent activity" title="Waiting for agent activity"></span>
+        <button id="island-collapse" class="island-control drag-exempt" aria-label="Collapse island" title="Collapse">⌃</button>
+      </header>
+      <nav id="expanded-session-indicators" class="session-indicators expanded-sessions" role="tablist" aria-label="Observed agent sessions" hidden></nav>
+      <div class="activity-now">
+        <span class="eyebrow">LIVE ACTIVITY</span>
+        <strong id="activity-now">No agent session observed</strong>
+        <pre id="activity-command" hidden></pre>
+      </div>
+      <div class="activity-columns">
+        <section class="activity-section">
+          <div class="section-heading"><strong>Activity</strong><span>LIVE EVENTS</span></div>
+          <ol id="activity-steps" class="activity-steps"></ol>
+        </section>
+        <section class="activity-section file-section">
+          <div class="section-heading"><strong>Files</strong><span>OBSERVED CHANGES</span></div>
+          <ul id="modified-files" class="modified-files"></ul>
+          <p id="files-empty" class="quiet-empty">No file-writing tool event observed.</p>
+          <p id="file-counts-note" class="file-counts-note" hidden>Line counts appear only when a successful edit event provides them.</p>
+        </section>
+      </div>
+      <section id="recommendations-section" class="recommendations-section" hidden>
+        <div class="section-heading"><strong>Reminders</strong><span>BASED ON EVENTS</span></div>
+        <div id="recommendations" class="recommendations"></div>
+      </section>
+      <footer class="expanded-footer">
+        <span id="capability-note">A session appears after Jicho receives an authenticated agent hook event.</span>
+        <button id="expanded-settings" class="text-control drag-exempt">Settings</button>
+        <button id="command-centre-open" class="text-control drag-exempt">History</button>
+      </footer>
+      <span id="expanded-error" class="error" role="status"></span>
+    </section>
+    <section id="phone" class="phone-panel" hidden aria-live="polite">
+      <header class="phone-header"><strong>Phone notifications and settings</strong><button id="phone-close" class="close-button" aria-label="Close phone settings">×</button></header>
+      <div class="phone-body">
+        <img id="phone-qr" class="phone-qr" alt="QR code for generic Jicho notification subscription">
+        <div class="phone-instructions">
+          <p>Scan to subscribe to generic Jicho alerts in ntfy on Android. On iPhone, add a subscription using this topic.</p>
+          <span class="topic-warning">Anyone with this topic can read generic alert notices. No project, command, or decision data is sent.</span>
+          <code id="phone-topic"></code>
+        </div>
+      </div>
+      <label class="phone-option"><input id="phone-enabled" type="checkbox"> Enable generic phone alerts</label>
+      <p class="settings-note">Alerts contain no request details and have no Allow/Deny actions. Review and decide in Jicho on this computer. A secure phone approval app is not implemented yet.</p>
+      <div class="settings-divider"></div>
+      <strong class="settings-section-title">Island placement</strong>
+      <label class="placement-field">Display<select id="island-display"></select></label>
+      <div class="offset-fields">
+        <label class="placement-field">Horizontal offset<input id="offset-x" type="number" min="-2000" max="2000" step="1"></label>
+        <label class="placement-field">Top offset<input id="offset-y" type="number" min="-2000" max="2000" step="1"></label>
+      </div>
+      <button id="save-placement" class="phone-done placement-save">Save placement</button>
+      <p class="settings-note">Default is top-center. Adjust for a webcam or a display without a notch. Jicho never uses the camera to locate hardware.</p>
+      <div class="settings-divider"></div>
+      <label class="phone-option"><input id="allowlist-enabled" type="checkbox"> Auto-allow exact safe reads and Git status/diff/log</label>
+      <p class="settings-note">Off by default. Chaining, redirections, and flagged commands always need your review.</p>
+      <label class="phone-option"><input id="autostart-enabled" type="checkbox"> Start Jicho when I sign in</label>
+      <div id="phone-status" class="phone-status" role="status"></div>
+      <button id="phone-done" class="phone-done">Done</button>
+    </section>
+    <section id="card" class="card" hidden aria-live="polite">
+      <header class="card-header">
+        <div id="card-bot" class="avatar" aria-hidden="true"></div>
+        <div class="heading"><strong>Jicho needs you</strong><span id="folder"></span></div>
+        <span id="queue" class="queue" hidden></span>
+      </header>
+      <div class="tool-row"><span id="tool"></span><span class="request-label">wants permission</span></div>
+      <div id="risk-flags" class="risk-flags" hidden></div>
+      <pre id="command" class="command"></pre>
+      <div class="buttons">
+        <button class="deny" data-decision="deny">Deny</button>
+        <button class="allow" data-decision="allow"><span id="allow-label">Allow</span></button>
+        <button class="always" data-decision="always" hidden>Always</button>
+      </div>
+      <div id="card-error" class="card-error" role="status"></div>
+    </section>
+  </main>
+  <script src="../../mascot/jicho-mascot.js"></script>
+  <script src="./renderer.js"></script>
+</body>
+</html>

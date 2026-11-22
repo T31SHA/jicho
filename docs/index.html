@@ -22,6 +22,7 @@
       </a>
       <nav aria-label="Main navigation">
         <a class="on" href="index.html">Overview</a>
+        <a href="#downloads">Downloads</a>
         <a href="#agents">Agents</a>
         <a href="#phone">Phone</a>
         <a href="support.html">Support</a>
@@ -34,8 +35,8 @@
       <h1 id="hero-title">Keep your agents in view.</h1>
       <p class="hero-lede">JichoBot follows sessions from Claude Code, Codex, Cursor, Gemini CLI, Antigravity, and more. See what each agent is doing, answer supported questions, and review permission requests without losing your place. Kito keeps the island company.</p>
       <div class="home-actions">
-        <a class="btn" href="https://github.com/T31SHA/jicho">View JichoBot on GitHub</a>
-        <a class="btn ghost" href="https://github.com/T31SHA/jicho#build-and-development">Build from source</a>
+        <a class="btn" href="#downloads">Choose your download</a>
+        <a class="btn ghost" href="https://github.com/T31SHA/jicho">View the source</a>
       </div>
       <p class="license-line">Free and open source · MIT license · macOS, Windows, Linux, iPhone, and Android</p>
     </section>
@@ -47,6 +48,62 @@
       </a>
       <figcaption>Captured from the Linux desktop app and shown at its actual 160 × 48 pixel size.</figcaption>
     </figure>
+
+    <section class="downloads-section" id="downloads" aria-labelledby="downloads-title">
+      <div class="section-heading">
+        <p class="eyebrow">Free · open source · MIT</p>
+        <h2 id="downloads-title">Get JichoBot for your devices.</h2>
+        <p>Choose a desktop build first. Phone installs and the features that need an account are marked clearly.</p>
+      </div>
+      <div class="download-grid">
+        <article class="download-card" data-platform="mac" aria-labelledby="download-mac-title">
+          <p class="download-kicker">Desktop</p>
+          <h3 id="download-mac-title">macOS</h3>
+          <p class="download-summary">One universal app for Apple silicon and Intel · macOS 15 or later.</p>
+          <p class="download-state" role="status" aria-live="polite">Checking for a signed release…</p>
+          <div class="download-links"></div>
+          <a class="download-source" href="https://github.com/T31SHA/jicho/blob/master/scripts/release.sh">Build and signing notes <span aria-hidden="true">→</span></a>
+        </article>
+
+        <article class="download-card" data-platform="windows" aria-labelledby="download-windows-title">
+          <p class="download-kicker">Desktop</p>
+          <h3 id="download-windows-title">Windows</h3>
+          <p class="download-summary">64-bit · Windows 10 or 11. Choose the MSI or the standard setup installer.</p>
+          <p class="download-state" role="status" aria-live="polite">Checking releases…</p>
+          <div class="download-links"></div>
+          <p class="download-fineprint">The installer is not code-signed yet, so Windows may show a SmartScreen warning.</p>
+        </article>
+
+        <article class="download-card" data-platform="linux" aria-labelledby="download-linux-title">
+          <p class="download-kicker">Desktop</p>
+          <h3 id="download-linux-title">Linux</h3>
+          <p class="download-summary">64-bit packages for common distributions. AppImage, Debian/Ubuntu, and Fedora/openSUSE.</p>
+          <p class="download-state" role="status" aria-live="polite">Checking releases…</p>
+          <div class="download-links"></div>
+          <a class="download-source" href="https://github.com/T31SHA/jicho/blob/master/windows/README.md">Linux requirements and notes <span aria-hidden="true">→</span></a>
+        </article>
+
+        <article class="download-card phone-download" data-platform="android" aria-labelledby="download-android-title">
+          <p class="download-kicker">Phone companion</p>
+          <h3 id="download-android-title">Android</h3>
+          <p class="download-summary">Android 11 or later · direct APK. Pair with a desktop on the same Wi-Fi.</p>
+          <p class="download-state" role="status" aria-live="polite">Checking for a signed APK…</p>
+          <div class="download-links"></div>
+          <a class="download-source" href="android.html">Pairing and notification guide <span aria-hidden="true">→</span></a>
+        </article>
+
+        <article class="download-card phone-download" data-platform="iphone" aria-labelledby="download-iphone-title">
+          <p class="download-kicker">Phone companion</p>
+          <h3 id="download-iphone-title">iPhone</h3>
+          <p class="download-summary">The iPhone companion syncs with JichoBot for Mac using your Apple Account and private iCloud.</p>
+          <p class="download-state" role="status" aria-live="polite">No public iPhone install is available yet.</p>
+          <div class="download-links"></div>
+          <a class="download-source" href="iphone.html">iCloud setup and build notes <span aria-hidden="true">→</span></a>
+        </article>
+      </div>
+      <p class="release-note" id="release-note">Release links appear here when downloadable packages are published. <a href="https://github.com/T31SHA/jicho/releases">View all GitHub releases</a>.</p>
+      <noscript><p class="release-note">Enable JavaScript to load the current release assets, or <a href="https://github.com/T31SHA/jicho/releases">view releases on GitHub</a>.</p></noscript>
+    </section>
 
     <section class="intro-section" aria-labelledby="intro-title">
       <h2 id="intro-title">A quieter way to keep up with agent work.</h2>
@@ -133,19 +190,24 @@
 
     <section class="phone-section" id="phone" aria-labelledby="phone-title">
       <div class="section-heading">
-        <p class="eyebrow">Take the companion with you</p>
-        <h2 id="phone-title">Your work, within reach.</h2>
-        <p>Pair JichoBot with a phone to check activity and handle supported requests away from the desktop.</p>
+        <p class="eyebrow">Three steps to stay connected</p>
+        <h2 id="phone-title">Set up your phone companion.</h2>
+        <p>Install the desktop app, connect the phone, then choose how JichoBot should reach you.</p>
       </div>
+      <ol class="phone-steps" aria-label="Phone setup">
+        <li><span>01</span><div><h3>Install the desktop app</h3><p>Open JichoBot and enable the coding-agent hooks you want to follow in Settings → Agents.</p></div></li>
+        <li><span>02</span><div><h3>Connect the phone</h3><p>Android scans a pairing QR code (or opens a copied pairing link) while both devices are on the same Wi-Fi. iPhone uses the same Apple Account and iCloud as JichoBot for Mac; it does not use a QR code.</p></div></li>
+        <li><span>03</span><div><h3>Allow the alerts you want</h3><p>Android shows live status in its ongoing notification and vibrates when an approval request needs you. iPhone can notify for approvals and questions, and show a Live Activity when Apple push setup is enabled.</p></div></li>
+      </ol>
       <div class="phone-columns">
         <article>
           <h3>iPhone</h3>
-          <p>See agent activity, questions, widgets, and supported Live Activities. Local pairing is available; remote push requires Apple signing, CloudKit, APNs, and a configured relay.</p>
+          <p>Follow Mac sessions, answer supported questions, and use widgets and Live Activities. Public installation is not set up yet; building for a device requires Apple signing and the JichoBot iCloud container.</p>
           <a href="iphone.html">iPhone companion details <span aria-hidden="true">→</span></a>
         </article>
         <article>
           <h3>Android</h3>
-          <p>Pair over your local network to see status and handle supported approvals and questions. An optional relay can carry updates when your phone is away from home.</p>
+          <p>Pair with Mac, Windows, or Linux over your local network. Approval alerts can vibrate; completion and failure alerts are optional and quiet. Remote delivery needs the optional relay.</p>
           <a href="android.html">Android companion details <span aria-hidden="true">→</span></a>
         </article>
       </div>
@@ -162,11 +224,11 @@
     </section>
 
     <section class="getting-started" aria-labelledby="start-title">
-      <h2 id="start-title">Start with the source.</h2>
-      <p>JichoBot does not have a public installer release yet. The repository has platform-specific build notes, setup guides, and the full implementation.</p>
+      <h2 id="start-title">See what is published.</h2>
+      <p>The download cards above read the current public releases. Builds without an installable package stay marked unavailable; the full source and platform instructions are always open.</p>
       <div class="home-actions">
-        <a class="btn" href="https://github.com/T31SHA/jicho">Open the repository</a>
-        <a class="btn ghost" href="https://github.com/T31SHA/jicho#build-and-development">Build instructions</a>
+        <a class="btn" href="https://github.com/T31SHA/jicho/releases">All releases</a>
+        <a class="btn ghost" href="https://github.com/T31SHA/jicho#build-and-development">Build from source</a>
       </div>
     </section>
 
@@ -187,5 +249,85 @@
       <p>Maintained by Sharahbill Mohamed Abdi (T31SHA) · <a href="mailto:T31SHA@users.noreply.github.com">Contact</a></p>
     </footer>
   </main>
+  <script>
+    (() => {
+      const api = 'https://api.github.com/repos/T31SHA/jicho/releases?per_page=100';
+      const releasePage = 'https://github.com/T31SHA/jicho/releases';
+      const versionOf = (tag, prefix) => {
+        const match = tag.slice(prefix.length).match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
+        return match ? match.slice(1, 4).map(Number) : null;
+      };
+      const newest = (releases, prefix, exact = false) => releases
+        .filter((release) => !release.draft && !release.prerelease && (exact ? release.tag_name === prefix : release.tag_name.startsWith(prefix)))
+        .map((release) => ({ release, version: exact ? null : versionOf(release.tag_name, prefix) }))
+        .filter((item) => exact || item.version)
+        .sort((a, b) => {
+          if (exact) return 0;
+          for (let i = 0; i < 3; i++) if (a.version[i] !== b.version[i]) return b.version[i] - a.version[i];
+          return 0;
+        })[0]?.release ?? null;
+      const cards = {
+        mac: { prefix: 'v', files: [['JichoBot.zip', 'Download universal Mac app']] },
+        windows: { prefix: 'windows-latest', exact: true, files: [['JichoBot-Windows.msi', 'Download MSI'], ['JichoBot-Windows-setup.exe', 'Download setup']] },
+        linux: { prefix: 'linux-v', files: [['AppImage', 'AppImage'], ['.deb', 'Debian / Ubuntu .deb'], ['.rpm', 'Fedora / openSUSE .rpm']] },
+        android: { prefix: 'android-v', files: [['.apk', 'Download Android APK']] }
+      };
+      const findAsset = (release, pattern) => release.assets.find((asset) => pattern === 'AppImage'
+        ? /JichoBot-Linux-\d+\.\d+\.\d+-x86_64\.AppImage$/.test(asset.name)
+        : pattern === '.deb'
+          ? /JichoBot-Linux-\d+\.\d+\.\d+-amd64\.deb$/.test(asset.name)
+          : pattern === '.rpm'
+            ? /JichoBot-Linux-\d+\.\d+\.\d+-x86_64\.rpm$/.test(asset.name)
+            : pattern === '.apk'
+              ? /JichoBot-Android-\d+\.\d+\.\d+\.apk$/.test(asset.name)
+              : asset.name === pattern);
+      const addLink = (container, asset, label) => {
+        const url = new URL(asset.browser_download_url);
+        if (url.hostname !== 'github.com' || !url.pathname.startsWith('/T31SHA/jicho/releases/download/')) return;
+        const link = document.createElement('a');
+        link.className = 'download-link';
+        link.href = url.href;
+        link.textContent = label;
+        link.rel = 'noopener noreferrer';
+        container.append(link);
+      };
+      const setUnavailable = (card, message) => {
+        card.querySelector('.download-state').textContent = message;
+        const link = document.createElement('a');
+        link.className = 'download-source';
+        link.href = releasePage;
+        link.textContent = 'Check GitHub releases →';
+        card.querySelector('.download-links').append(link);
+      };
+      fetch(api, { headers: { Accept: 'application/vnd.github+json' } })
+        .then((response) => { if (!response.ok) throw new Error('Release lookup failed'); return response.json(); })
+        .then((releases) => {
+          for (const [platform, config] of Object.entries(cards)) {
+            const card = document.querySelector(`[data-platform="${platform}"]`);
+            const release = newest(releases, config.prefix, config.exact);
+            const links = card.querySelector('.download-links');
+            const matched = release ? config.files.map(([pattern, label]) => ({ asset: findAsset(release, pattern), label })).filter((item) => item.asset) : [];
+            if (!matched.length) {
+              const message = platform === 'mac'
+                ? 'No signed Mac release has been published yet.'
+                : platform === 'android'
+                  ? 'No signed Android install is published yet.'
+                  : 'No public installer is available yet.';
+              setUnavailable(card, message);
+              continue;
+            }
+            const version = config.exact ? 'Latest release' : `Version ${release.tag_name.slice(config.prefix.length)}`;
+            card.querySelector('.download-state').textContent = version;
+            for (const item of matched) addLink(links, item.asset, item.label);
+          }
+        })
+        .catch(() => {
+          for (const platform of Object.keys(cards)) {
+            const card = document.querySelector(`[data-platform="${platform}"]`);
+            if (card) setUnavailable(card, 'Could not load releases right now.');
+          }
+        });
+    })();
+  </script>
 </body>
 </html>

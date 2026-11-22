@@ -9,11 +9,11 @@ enum MacUpdate {
     static let owner = "T31SHA"
     static let repo = "jicho"
     static let releasesURL = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/releases?per_page=20")!
-    /// What the downloaded app must be signed as: JichoBot's bundle id, the configured Developer ID team.
+    /// The downloaded app must have JichoBot's bundle id and the installed app's signing team.
     static let bundleId = "org.jichobot.desktop"
-    static let teamId = ""
-    static var codeRequirement: String {
-        "anchor apple generic and identifier \"\(bundleId)\" and certificate leaf[subject.OU] = \"\(teamId)\""
+    static func codeRequirement(teamId: String) -> String? {
+        guard !teamId.isEmpty else { return nil }
+        return "anchor apple generic and identifier \"\(bundleId)\" and certificate leaf[subject.OU] = \"\(teamId)\""
     }
 
     struct Release: Equatable, Sendable {

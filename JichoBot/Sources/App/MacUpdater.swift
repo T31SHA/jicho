@@ -7,8 +7,8 @@ import Security
 // its own build). JichoBot looks at its own GitHub releases only once the user said yes, a few
 // times a day; nothing about the user goes with the request. The update is downloaded from
 // GitHub only, then checked before anything is replaced: the app in the zip must be JichoBot
-// (bundle id and the announced version), signed with Louis's Developer ID, and accepted by
-// Gatekeeper (notarized). Only then does it take the place of the running app, which restarts.
+// (bundle id and the announced version), signed by the same developer as this installed app, and
+// accepted by Gatekeeper (notarized). Only then does it take the place of the running app.
 
 @MainActor
 final class MacUpdater: ObservableObject {
@@ -332,11 +332,13 @@ final class MacUpdater: ObservableObject {
               MacUpdate.matches(infoPlist: info, version: version) else { throw fail("update.error.not-jichobot") }
 
         // Signed by JichoBot's developer, every architecture and nested binary intact.
+        guard let teamId = Self.currentTeamIdentifier(),
+              let codeRequirement = MacUpdate.codeRequirement(teamId: teamId) else { throw fail("update.error.signature") }
         var code: SecStaticCode?
         var requirement: SecRequirement?
         let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate | kSecCSCheckNestedCode)
         guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess, let code,
-              SecRequirementCreateWithString(MacUpdate.codeRequirement as CFString, [], &requirement) == errSecSuccess,
+              SecRequirementCreateWithString(codeRequirement as CFString, [], &requirement) == errSecSuccess,
               let requirement,
               SecStaticCodeCheckValidity(code, flags, requirement) == errSecSuccess else { throw fail("update.error.signature") }
 
@@ -345,6 +347,24 @@ final class MacUpdater: ObservableObject {
 
         removexattr(app.path, "com.apple.quarantine", 0)
         return app
+    }
+
+    /// Pin updates to the developer that signed the installed app; unsigned builds cannot update.
+    nonisolated private static func currentTeamIdentifier() -> String? {
+        var runningCode: SecCode?
+        guard SecCodeCopySelf([], &runningCode) == errSecSuccess, let runningCode else { return nil }
+        var code: SecStaticCode?
+        guard SecCodeCopyStaticCode(runningCode, [], &code) == errSecSuccess,
+              let code,
+              SecStaticCodeCheckValidity(code, [], nil) == errSecSuccess else { return nil }
+
+        var signingInformation: CFDictionary?
+        let signingFlags = SecCSFlags(rawValue: kSecCSSigningInformation)
+        guard SecCodeCopySigningInformation(code, signingFlags, &signingInformation) == errSecSuccess,
+              let signingInformation,
+              let teamId = (signingInformation as NSDictionary)[kSecCodeInfoTeamIdentifier as String] as? String,
+              !teamId.isEmpty else { return nil }
+        return teamId
     }
 
     nonisolated private static func run(_ tool: String, _ args: [String]) -> Bool {

@@ -79,9 +79,11 @@ All standard Claude Code hook events are supported. `PermissionRequest` approval
 cards work for Claude Code and for the agents listed as approval-capable below
 (Codex, GitHub Copilot CLI, Muse Code, OpenCode, and Claude Desktop); see
 `agents.rs::Agent::approvals()` and `island/agents.ts::APPROVAL_AGENTS` for the
-exact, current list. A `PermissionRequest` from any other agent (including Cursor,
-Gemini CLI, Antigravity, and Hermes today) is answered immediately with no
-decision, so the relay writes nothing and the agent re-asks in its terminal.
+exact, current list. A `PermissionRequest` from any other agent (including
+Gemini CLI and Hermes today) is answered immediately with no decision, so the
+relay writes nothing and the agent re-asks in its terminal. Antigravity and
+Cursor have no `PermissionRequest` event of their own at all — see their own
+sections below for how approving from the notch works for them instead.
 
 The pill lifecycle:
 
@@ -108,9 +110,10 @@ GitHub Copilot CLI (`agent_copilot`), Muse Code (`agent_muse`), OpenCode (`agent
 Amp (`agent_amp`) and Hermes (`agent_hermes`) in Settings → Active pills. Codex
 (`agent_codex`, GitHub build only) is there too, with real `PermissionRequest`
 approval support (Allow/Deny/Always), the same as Claude Code. Cursor
-(`agent_cursor`) can also be declared and set as the main pill, but it does not
-yet answer approval requests — that is the one named agent still missing real
-approval support, on both JichoBot and upstream Coucou.
+(`agent_cursor`) can also be declared and set as the main pill, and on Windows
+and Linux it has real approval support too (**Approve commands from the notch**,
+off by default — see its own section below), the same `PreToolUse`-as-gate
+mechanism as Antigravity. The macOS app does not have this for Cursor yet.
 
 Claude Desktop (`agent_claude-desktop`, every build) is there as well. Claude Code sessions started from the Claude desktop app's Code tab carry `CLAUDE_CODE_ENTRYPOINT=claude-desktop`; the relay tags them `jichobot_agent: claude-desktop` on its own (an explicit `--agent` still wins), so nothing extra is installed. Declare the pill to keep it after the session ends; the ↗ button opens the Claude app.
 
@@ -180,6 +183,44 @@ under `%USERPROFILE%\.gemini` or `~/.gemini`, same replies): the rules reader is
 tests), the gate `agy_approvals.rs`, and the relay `jichobot-hook` reads `ask`, or `pending`
 then `allow` / `deny` / `ask`, from the app. A command longer than the 2,000 characters the
 relay forwards gets no card.
+
+### Cursor — `cursor` (Windows, Linux)
+
+JichoBot supports Cursor out of the box via **Settings → Agents → Cursor → Install hooks**.
+The installer writes to `~/.cursor/hooks.json` (`%USERPROFILE%\.cursor\hooks.json` on
+Windows) and uses `--agent cursor`. Cursor's own hook payload field names
+(`tool_name`, `tool_input.command`, `cwd`, `conversation_id`) already match the relay's,
+so no event translation is needed; see [Cursor's hooks documentation](https://cursor.com/docs/hooks).
+
+Cursor has no `PermissionRequest` event: it runs `preToolUse` before a tool and reads
+JSON back. Its documented response schema accepts `allow`, `deny`, and `ask`; Cursor
+currently treats `ask` as a no-op on `preToolUse`, leaving its configured permission
+mode in charge. An empty `{}` is invalid and blocks the tool. See
+[Cursor's hooks documentation](https://cursor.com/docs/hooks).
+
+**Approve commands from the notch** (Settings → Agents → Cursor, off by default). Unlike
+Antigravity, Cursor has no rules file JichoBot can read reliably yet, so when the setting
+is on, *every* Shell command waits for the card — there is no "Cursor's own rules already
+cover this one" shortcut.
+
+| On the card | The hook prints |
+|---|---|
+| **Allow** | `{"permission":"allow"}` — this one command runs |
+| **Deny** | `{"permission":"deny","user_message":"Denied from JichoBot"}` |
+| **Use Cursor's permission mode** | `{"permission":"ask"}` — Cursor's configured permission mode decides |
+| No click in 110 s, JichoBot closed or command too long for a card | `{"permission":"ask"}` |
+
+The `preToolUse` hook is installed with `"matcher": "Shell"` (so only shell commands wait,
+never file edits or MCP calls) and a 120 s timeout. When the setting is off, or the user
+chooses **Use Cursor's permission mode**, JichoBot replies with the valid `ask` value rather
+than an empty object. If no answer arrives in 110 s, Cursor's configured mode decides; in
+an auto-approve mode that may run the command. The relay sends the payload tagged
+`jichobot_kind: cursor_pre_tool` and reads one line back: `ask` right away, or `pending`
+once the card is on screen followed by the click; it waits up to 110 s for the decision.
+The hook keeps Cursor's default fail-open behavior on a relay failure, so its own
+permission mode remains in charge if JichoBot is unavailable. A command longer than the
+2,000 characters the relay forwards gets no card. The gate is
+`windows/src-tauri/src/cursor_approvals.rs`; there is no macOS implementation yet.
 
 ### GitHub Copilot CLI (macOS)
 

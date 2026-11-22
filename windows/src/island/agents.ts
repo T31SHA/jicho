@@ -35,11 +35,20 @@ export const APPROVAL_AGENTS = new Set(["codex", "copilot", "muse", "claude-desk
  */
 export const AGY_CARD_KIND = "agy_pre_tool";
 
+/**
+ * Cursor has no permission request either: the same trick, tagged with this kind
+ * when Settings → Agents → Cursor → Approve commands from the notch is on
+ * (src-tauri/src/cursor_approvals.rs). Its card has Allow, Deny, and a fallback
+ * that lets Cursor's configured permission mode decide.
+ */
+export const CURSOR_CARD_KIND = "cursor_pre_tool";
+
 /** Whether the island shows a card for this agent's permission request. */
 export function takesCard(agent: string | null, kind: unknown): boolean {
   if (agent === null) return true; // Claude Code
   if (APPROVAL_AGENTS.has(agent)) return true;
-  return agent === "antigravity" && kind === AGY_CARD_KIND;
+  if (agent === "antigravity") return kind === AGY_CARD_KIND;
+  return agent === "cursor" && kind === CURSOR_CARD_KIND;
 }
 
 /** Same rule as HookServer.validateAgent on macOS. "claude" is reserved. */

@@ -1,10 +1,11 @@
 // Loaded before every test file (see the `test` script in package.json).
-// Node runs the island's TypeScript as it is; this only supplies what the
-// webview and the bundler normally would.
+// Node runs the island's TypeScript through the compiler; this supplies what
+// the webview and the bundler normally would.
 
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { internals } from "./tauri.mjs";
 
 // The sources import each other without an extension, which Vite resolves.
@@ -19,8 +20,20 @@ registerHooks({
   // Vite imports JSON (src/i18n/*.json) without `with { type: "json" }`;
   // Node would refuse it, so it is handed over as a module.
   load(url, context, nextLoad) {
-    if (url.startsWith("file:") && url.endsWith(".json") && !url.includes("/node_modules/")) {
-      const source = readFileSync(fileURLToPath(url), "utf8");
+    const path = url.startsWith("file:") ? fileURLToPath(url) : "";
+    if (path.endsWith(".ts") && !path.includes("/node_modules/")) {
+      const source = readFileSync(path, "utf8");
+      const compiled = ts.transpileModule(source, {
+        compilerOptions: {
+          module: ts.ModuleKind.ESNext,
+          target: ts.ScriptTarget.ES2022,
+        },
+        fileName: path,
+      });
+      return { format: "module", source: compiled.outputText, shortCircuit: true };
+    }
+    if (path.endsWith(".json") && !path.includes("/node_modules/")) {
+      const source = readFileSync(path, "utf8");
       return { format: "module", source: `export default ${source};`, shortCircuit: true };
     }
     return nextLoad(url, context);

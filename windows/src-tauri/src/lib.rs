@@ -10,6 +10,7 @@ mod claude_code;
 mod cli_relay;
 mod codex_plan;
 mod config_file;
+mod cursor_approvals;
 mod desktop;
 mod files;
 mod flow;
@@ -120,8 +121,10 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
         settings.phone_relay = current.phone_relay;
         settings.phone_relay_url = current.phone_relay_url.clone();
         settings.phone_chat_models = current.phone_chat_models.clone();
-        // Antigravity approvals: only their own switch changes them (agy_approvals.rs).
+        // Antigravity and Cursor approvals: only their own switch changes them
+        // (agy_approvals.rs, cursor_approvals.rs).
         settings.agy_approvals_enabled = current.agy_approvals_enabled;
+        settings.cursor_approvals_enabled = current.cursor_approvals_enabled;
         *current = settings;
         (current.clone(), screen_changed, autostart_changed, shortcuts_changed)
     };
@@ -957,6 +960,8 @@ pub fn run() {
             approval_decline,
             agy_approvals::agy_approvals_status,
             agy_approvals::agy_approvals_set_enabled,
+            cursor_approvals::cursor_approvals_status,
+            cursor_approvals::cursor_approvals_set_enabled,
             log_line,
             chat_send,
             chat_models,

@@ -7578,6 +7578,66 @@
       "tr": "Yalnızca dikte ederken, bir görüşmeyi kaydederken veya mesaj gelince görünür. Dikte tuşu yine çalışır.",
       "ko": "받아쓰기하거나 통화를 녹음하거나 메시지가 올 때만 표시됩니다. 받아쓰기 키는 그대로 작동합니다.",
       "ja": "音声入力中、通話の録音中、メッセージが届いたときだけ表示されます。音声入力キーはそのまま使えます。"
+    },
+    "Cursor uses its configured permission mode, as usual.": {
+      "zh-Hans": "Cursor 照常使用其已配置的权限模式。",
+      "hi": "Cursor हमेशा की तरह अपना कॉन्फ़िगर किया हुआ अनुमति मोड इस्तेमाल करता है।",
+      "es": "Cursor usa su modo de permisos configurado, como siempre.",
+      "ar": "يستخدم Cursor وضع الأذونات الذي تم ضبطه كالمعتاد.",
+      "fr": "Cursor utilise son mode d'autorisation configuré, comme d'habitude.",
+      "bn": "Cursor আগের মতো তার সেট করা অনুমতি মোড ব্যবহার করে।",
+      "pt-BR": "O Cursor usa o modo de permissões configurado, como de costume.",
+      "ru": "Cursor использует настроенный режим разрешений, как обычно.",
+      "id": "Cursor menggunakan mode izin yang telah dikonfigurasi, seperti biasa.",
+      "de": "Cursor verwendet wie gewohnt den eingestellten Berechtigungsmodus.",
+      "tr": "Cursor her zamanki gibi yapılandırılmış izin modunu kullanır.",
+      "ko": "Cursor는 평소처럼 설정된 권한 모드를 사용합니다.",
+      "ja": "Cursor は通常どおり設定済みの権限モードを使用します。"
+    },
+    "Before Cursor runs a shell command, the notch asks you first: Allow, Deny or Use Cursor's permission mode. If you don't answer within 2 min, Cursor's configured permission mode decides.": {
+      "zh-Hans": "Cursor 运行 shell 命令前，刘海会先询问你：允许、拒绝，或使用 Cursor 的权限模式。若你在 2 分钟内未回复，则由 Cursor 当前的权限模式决定。",
+      "hi": "Cursor के shell कमांड चलाने से पहले नॉच पूछता है: अनुमति दें, अस्वीकार करें या Cursor का अनुमति मोड इस्तेमाल करें। 2 मिनट में जवाब न मिलने पर Cursor का मौजूदा अनुमति मोड फैसला करेगा।",
+      "es": "Antes de que Cursor ejecute un comando de shell, el notch te pregunta: Permitir, Denegar o Usar el modo de permisos de Cursor. Si no respondes en 2 min, decide el modo de permisos configurado en Cursor.",
+      "ar": "قبل تشغيل Cursor لأمر shell، يسألك الشريط: السماح أو الرفض أو استخدام وضع أذونات Cursor. إذا لم ترد خلال دقيقتين، فسيقرر وضع الأذونات المحدد في Cursor.",
+      "fr": "Avant que Cursor lance une commande shell, le notch te demande : Autoriser, Refuser ou Utiliser le mode d'autorisation de Cursor. Sans réponse sous 2 min, le mode configuré dans Cursor décide.",
+      "bn": "Cursor shell কমান্ড চালানোর আগে নচ জিজ্ঞাসা করে: অনুমতি দিন, প্রত্যাখ্যান করুন, অথবা Cursor-এর অনুমতি মোড ব্যবহার করুন। ২ মিনিটে উত্তর না দিলে Cursor-এর সেট করা অনুমতি মোড সিদ্ধান্ত নেবে।",
+      "pt-BR": "Antes de o Cursor executar um comando de shell, o notch pergunta: Permitir, Negar ou Usar o modo de permissões do Cursor. Se você não responder em 2 min, o modo configurado no Cursor decide.",
+      "ru": "Перед запуском shell-команды Cursor notch спросит: Разрешить, Отклонить или Использовать режим разрешений Cursor. Если ты не ответишь за 2 мин, решение примет настроенный режим Cursor.",
+      "id": "Sebelum Cursor menjalankan perintah shell, notch bertanya: Izinkan, Tolak, atau Gunakan mode izin Cursor. Jika Anda tidak menjawab dalam 2 menit, mode izin Cursor yang dipilih akan menentukan.",
+      "de": "Bevor Cursor einen Shell-Befehl ausführt, fragt dich die Notch: Zulassen, Ablehnen oder Cursors Berechtigungsmodus verwenden. Wenn du innerhalb von 2 Min. nicht antwortest, entscheidet Cursors eingestellter Berechtigungsmodus.",
+      "tr": "Cursor bir shell komutunu çalıştırmadan önce ada sorar: İzin ver, Reddet veya Cursor'ın izin modunu kullan. 2 dakika içinde yanıt vermezsen Cursor'ın ayarlı izin modu karar verir.",
+      "ko": "Cursor가 셸 명령을 실행하기 전에 노치가 묻습니다: 허용, 거부 또는 Cursor 권한 모드 사용. 2분 안에 답하지 않으면 Cursor의 설정된 권한 모드가 결정합니다.",
+      "ja": "Cursor がシェルコマンドを実行する前にノッチが確認します：許可、拒否、または Cursor の権限モードを使用。2 分以内に応答しない場合は Cursor の設定済み権限モードが判断します。"
+    },
+    "Use Cursor's permission mode": {
+      "zh-Hans": "使用 Cursor 的权限模式",
+      "hi": "Cursor का अनुमति मोड इस्तेमाल करें",
+      "es": "Usar el modo de permisos de Cursor",
+      "ar": "استخدام وضع أذونات Cursor",
+      "fr": "Utiliser le mode d'autorisation de Cursor",
+      "bn": "Cursor-এর অনুমতি মোড ব্যবহার করুন",
+      "pt-BR": "Usar o modo de permissões do Cursor",
+      "ru": "Использовать режим разрешений Cursor",
+      "id": "Gunakan mode izin Cursor",
+      "de": "Cursors Berechtigungsmodus verwenden",
+      "tr": "Cursor'ın izin modunu kullan",
+      "ko": "Cursor 권한 모드 사용",
+      "ja": "Cursor の権限モードを使用"
+    },
+    "Click Install hooks once more, then restart Cursor: hooks installed before this didn't let it wait for your answer.": {
+      "zh-Hans": "请再点一次“安装 Hooks”，然后重启 Cursor：此前安装的 hooks 无法让它等待你的回答。",
+      "hi": "हुक इंस्टॉल करें पर एक बार और क्लिक करें, फिर Cursor रीस्टार्ट करें: इससे पहले इंस्टॉल किए गए हुक इसे आपके उत्तर की प्रतीक्षा नहीं करने देते।",
+      "es": "Haz clic otra vez en Instalar hooks y reinicia Cursor: los hooks instalados antes de esto no le dejan esperar tu respuesta.",
+      "ar": "انقر على تثبيت الخطافات مرة أخرى، ثم أعِد تشغيل Cursor: الخطافات المثبَّتة قبل هذا لا تسمح له بانتظار إجابتك.",
+      "fr": "Clique encore une fois sur Installer les hooks, puis redémarre Cursor : les hooks installés avant cela ne le laissent pas attendre ta réponse.",
+      "bn": "আবার হুক ইনস্টল করুন-এ ক্লিক করুন, তারপর Cursor রিস্টার্ট করুন: এর আগে ইনস্টল করা হুক আপনার উত্তরের জন্য অপেক্ষা করতে দেয় না।",
+      "pt-BR": "Clique em Instalar hooks mais uma vez e reinicie o Cursor: os hooks instalados antes disso não o deixam esperar sua resposta.",
+      "ru": "Нажми «Установить хуки» ещё раз и перезапусти Cursor: хуки, установленные до этого, не дают ему дождаться твоего ответа.",
+      "id": "Klik Pasang hooks sekali lagi, lalu mulai ulang Cursor: hooks yang terpasang sebelum ini tidak membiarkannya menunggu jawaban Anda.",
+      "de": "Klicke noch einmal auf Hooks installieren und starte Cursor neu: zuvor installierte Hooks lassen es nicht auf deine Antwort warten.",
+      "tr": "Hook'ları kur'a bir kez daha tıkla, ardından Cursor'u yeniden başlat: bundan önce kurulan hook'lar yanıtını beklemesine izin vermez.",
+      "ko": "후크 설치를 한 번 더 누른 뒤 Cursor를 다시 시작하세요. 이전에 설치된 후크로는 답을 기다릴 수 없습니다.",
+      "ja": "もう一度「フックをインストール」をクリックしてから Cursor を再起動してください。これより前にインストールされたフックでは返答を待てません。"
     }
   }
 }

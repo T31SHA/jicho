@@ -13,14 +13,14 @@
 //! * Every step runs under a deadline enforced by the main thread, so a pipe that
 //!   accepts the connection and then stops reading cannot wedge the session
 //!   either: we abandon the worker and exit.
-//! * Only `PermissionRequest` waits for an answer, because approving from the
-//!   island is the whole point. No answer means no decision, and the agent asks
-//!   in its terminal exactly as if JichoBot were not installed.
-//! * Antigravity's `PreToolUse` is the one exception: Antigravity has no
-//!   permission request and waits for this hook's decision instead. JichoBot
-//!   answers `ask` at once, or `pending` when the island shows the command
-//!   (Approve commands from the notch) and then the click. 3 s for the first
-//!   line, 115 s for the click; anything else prints "ask" (reply.rs).
+//! * `PermissionRequest` waits for an answer when the agent supports decisions
+//!   from the island. No answer means no decision, so the agent handles it as if
+//!   JichoBot were not installed.
+//! * Antigravity and Cursor `PreToolUse` hooks also wait: neither agent has a
+//!   separate permission-request event. The relay sends `ask` at once unless
+//!   the island shows the command (Approve commands from the notch), in which
+//!   case it sends `pending` and waits for the click. It waits 3 s for the first
+//!   line and up to 115 s for the click; anything else prints `ask` (reply.rs).
 //!
 //! Usage: `jichobot-hook [--agent <name>] [<EventName>]` (the event name is also
 //! read from the JSON; `--agent` is absent for Claude Code), or
@@ -43,11 +43,10 @@ const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
 const FIRE_AND_FORGET_BUDGET: Duration = Duration::from_secs(2);
 /// How long a permission prompt may stay on screen before the terminal takes over.
 const DECISION_BUDGET: Duration = Duration::from_secs(110);
-/// Antigravity's PreToolUse: how long JichoBot has to say `ask` or `pending`, and how
-/// long a card may then wait for a click (JichoBot gives up first, at 110 s; the hook
-/// is installed with 120 s). The Mac relay's numbers.
-const AGY_FIRST_LINE_BUDGET: Duration = Duration::from_secs(3);
-const AGY_DECISION_BUDGET: Duration = Duration::from_secs(115);
+/// Agent PreToolUse hooks: time to say `ask` or `pending`, and then wait for a click.
+/// JichoBot gives up first (at 110 s); approval hooks are installed with 120 s.
+const PRE_TOOL_FIRST_LINE_BUDGET: Duration = Duration::from_secs(3);
+const PRE_TOOL_DECISION_BUDGET: Duration = Duration::from_secs(115);
 /// What JichoBot writes once the card is up.
 const PENDING: &str = "pending";
 /// How often a waiting relay checks that the process that ran it is still there.
@@ -133,12 +132,13 @@ fn main() {
 
     // Only an agent whose decisions the island can give waits for one; any other
     // would be held for nothing, its decision being thrown away (reply.rs).
-    // Antigravity's PreToolUse always waits: briefly, or for the click once the
-    // card is up.
-    let agy = reply::waits_on_pre_tool(&args.agent, &event.name);
-    let waits_for_answer = agy || (event.name == "PermissionRequest" && reply::takes_decisions(&args.agent));
-    let (budget, extended) = match (agy, waits_for_answer) {
-        (true, _) => (AGY_FIRST_LINE_BUDGET, AGY_DECISION_BUDGET),
+    // Antigravity and Cursor PreToolUse always wait: briefly, or for a click once
+    // the card is on screen.
+    let waits_on_pre_tool = reply::waits_on_pre_tool(&args.agent, &event.name);
+    let waits_for_answer = waits_on_pre_tool
+        || (event.name == "PermissionRequest" && reply::takes_decisions(&args.agent));
+    let (budget, extended) = match (waits_on_pre_tool, waits_for_answer) {
+        (true, _) => (PRE_TOOL_FIRST_LINE_BUDGET, PRE_TOOL_DECISION_BUDGET),
         (false, true) => (DECISION_BUDGET, DECISION_BUDGET),
         (false, false) => (FIRE_AND_FORGET_BUDGET, FIRE_AND_FORGET_BUDGET),
     };
@@ -150,10 +150,10 @@ fn main() {
     let (tx, rx) = mpsc::channel::<Msg>();
     let line = event.line.clone();
     std::thread::spawn(move || {
-        // Only Antigravity's card is ever `pending`; a permission request keeps its budget.
+        // A preToolUse card sends `pending`; a PermissionRequest keeps its budget.
         let pending = tx.clone();
         let answer = talk(&line, waits_for_answer, &|| {
-            if agy {
+            if waits_on_pre_tool {
                 let _ = pending.send(Msg::Pending);
             }
         });
@@ -171,7 +171,7 @@ fn main() {
 
 /// What the worker tells the main thread.
 enum Msg {
-    /// JichoBot shows a card: wait for the click (Antigravity).
+    /// JichoBot shows a card: wait for the click (Antigravity or Cursor).
     Pending,
     /// The worker is done: JichoBot's answer, if any.
     Answer(Option<String>),
@@ -247,11 +247,17 @@ fn prepare(raw: &[u8], args: &Args, env: &dyn Fn(&str) -> Option<String>, cwd: &
 
     add_terminal_context(map, env);
 
-    // Antigravity's PreToolUse waits for JichoBot (reply.rs): tagged so the app knows
-    // this relay reads its answer. A command too long to forward whole is flagged,
-    // so the island never asks about one nobody could read in full.
+    // Antigravity's and Cursor's PreToolUse wait for JichoBot (reply.rs): tagged so
+    // the app knows this relay reads its answer, and with which. A command too long
+    // to forward whole is flagged, so the island never asks about one nobody could
+    // read in full.
     if reply::waits_on_pre_tool(&args.agent, &name) {
-        map.insert("jichobot_kind".into(), Value::String("agy_pre_tool".into()));
+        let kind = if args.agent.eq_ignore_ascii_case("cursor") {
+            "cursor_pre_tool"
+        } else {
+            "agy_pre_tool"
+        };
+        map.insert("jichobot_kind".into(), Value::String(kind.into()));
         let long = map
             .get("tool_input")
             .and_then(|i| i.get("command"))
@@ -409,7 +415,7 @@ fn cut(s: &mut String, max: usize) -> bool {
     true
 }
 
-/// Connect, send, and — for a permission request or Antigravity's PreToolUse —
+/// Connect, send, and — for a permission request or an agent's PreToolUse —
 /// wait for the island's word. `pending()` is called for each `pending` line
 /// (Antigravity's card is up), which is never the answer itself.
 fn talk(payload: &str, waits_for_answer: bool, pending: &dyn Fn()) -> Option<String> {
@@ -731,5 +737,21 @@ mod tests {
             let (v, _) = run(r#"{"tool_name":"run_command"}"#, agent, event);
             assert!(v.get("jichobot_kind").is_none(), "{agent} {event}");
         }
+    }
+
+    #[test]
+    fn cursors_pre_tool_use_is_tagged_for_the_app() {
+        let raw = r#"{"hook_event_name":"preToolUse","tool_name":"Shell","tool_input":{"command":"npm i"}}"#;
+        let (v, ev) = run(raw, "cursor", "preToolUse");
+        assert_eq!(ev.name, "PreToolUse");
+        assert_eq!(v["jichobot_kind"], "cursor_pre_tool");
+        assert_eq!(v["tool_input"]["command"], "npm i");
+        assert!(v.get("jichobot_command_cut").is_none());
+        let long = format!(
+            r#"{{"hook_event_name":"preToolUse","tool_name":"Shell","tool_input":{{"command":"{}"}}}}"#,
+            "x".repeat(MAX_FIELD_LEN + 1)
+        );
+        let (v, _) = run(&long, "cursor", "preToolUse");
+        assert_eq!(v["jichobot_command_cut"], true);
     }
 }

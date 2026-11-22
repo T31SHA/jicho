@@ -317,6 +317,11 @@ export const Bridge = {
   /** Off by default; only from the switch in Settings. */
   agyApprovalsSetEnabled: (enabled: boolean) =>
     callOrThrow<AgyApprovalsStatus>("agy_approvals_set_enabled", { enabled }),
+  /** Settings → Agents → Cursor → Approve commands from the notch, and whether its hooks can wait. */
+  cursorApprovalsStatus: () => call<CursorApprovalsStatus>("cursor_approvals_status"),
+  /** Off by default; only from the switch in Settings. */
+  cursorApprovalsSetEnabled: (enabled: boolean) =>
+    callOrThrow<CursorApprovalsStatus>("cursor_approvals_set_enabled", { enabled }),
   // ── Plan usage: the status line relay, installed apart from the hooks ──────
   /** Diff of the status line change. `install: false` previews taking the relay out. */
   statusLinePreview: (install: boolean) => callOrThrow<HookPreview>("status_line_preview", { install }),
@@ -620,6 +625,13 @@ export interface HookStatus {
 export interface AgyApprovalsStatus {
   enabled: boolean;
   /** JichoBot's PreToolUse hook can wait for a click (120 s); older hooks (10 s) must be installed again. */
+  hooksReady: boolean;
+}
+
+/** Settings → Agents → Cursor → Approve commands from the notch, as cursor_approvals.rs reports it. */
+export interface CursorApprovalsStatus {
+  enabled: boolean;
+  /** JichoBot's preToolUse hook can wait for a click (120 s); hooks installed before this feature cannot. */
   hooksReady: boolean;
 }
 

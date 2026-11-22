@@ -1778,7 +1778,7 @@ final class BotEngine: ObservableObject {
 func lerp(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (b-a) * t }
 private func clamp(_ v: CGFloat, _ lo: CGFloat, _ hi: CGFloat) -> CGFloat { max(lo, min(hi, v)) }
 
-private func cgColorToTuple(_ c: CGColor) -> (CGFloat, CGFloat, CGFloat) {
+func cgColorToTuple(_ c: CGColor) -> (CGFloat, CGFloat, CGFloat) {
     guard let comps = c.components, comps.count >= 3 else { return (1,1,1) }
     return (comps[0], comps[1], comps[2])
 }

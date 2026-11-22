@@ -105,7 +105,9 @@ enum MacUpdateTests {
         check("right id and version", MacUpdate.matches(infoPlist: ["CFBundleIdentifier": "org.jichobot.desktop", "CFBundleShortVersionString": "0.6.0"], version: "0.6.0"))
         check("another app", !MacUpdate.matches(infoPlist: ["CFBundleIdentifier": "com.evil.app", "CFBundleShortVersionString": "0.6.0"], version: "0.6.0"))
         check("another version", !MacUpdate.matches(infoPlist: ["CFBundleIdentifier": "org.jichobot.desktop", "CFBundleShortVersionString": "0.5.9"], version: "0.6.0"))
-        check("requirement names the team", MacUpdate.codeRequirement.contains("") && MacUpdate.codeRequirement.contains("anchor apple generic"))
+        let requirement = MacUpdate.codeRequirement(teamId: "ABCDE12345") ?? ""
+        check("requirement pins the JichoBot bundle and team", requirement.contains("identifier \"\(MacUpdate.bundleId)\"") && requirement.contains("certificate leaf[subject.OU] = \"ABCDE12345\""))
+        check("unsigned build has no update requirement", MacUpdate.codeRequirement(teamId: "") == nil)
 
         if failures > 0 {
             print("\n\(failures) failure(s)")

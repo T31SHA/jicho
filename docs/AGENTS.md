@@ -75,11 +75,13 @@ The Mac relay, `jichobot-hook`, uses another socket when `JICHOBOT_SOCKET` is se
 
 ## Supported events
 
-All standard Claude Code hook events are supported, **except `PermissionRequest`**:
-approval cards are not yet implemented for third-party agents (only Claude Code gets
-one). A `PermissionRequest` from an external agent is answered immediately with no
+All standard Claude Code hook events are supported. `PermissionRequest` approval
+cards work for Claude Code and for the agents listed as approval-capable below
+(Codex, GitHub Copilot CLI, Muse Code, OpenCode, and Claude Desktop); see
+`agents.rs::Agent::approvals()` and `island/agents.ts::APPROVAL_AGENTS` for the
+exact, current list. A `PermissionRequest` from any other agent (including Cursor,
+Gemini CLI, Antigravity, and Hermes today) is answered immediately with no
 decision, so the relay writes nothing and the agent re-asks in its terminal.
-Approval support for other agents will be added with Codex support.
 
 The pill lifecycle:
 
@@ -103,9 +105,12 @@ A catalog pill that is not checked in Settings behaves like any other agent: it 
 
 The GitHub build exposes Gemini CLI (`agent_gemini`), Antigravity (`agent_antigravity`),
 GitHub Copilot CLI (`agent_copilot`), Muse Code (`agent_muse`), OpenCode (`agent_opencode`),
-Amp (`agent_amp`) and Hermes (`agent_hermes`) in Settings → Active pills. Cursor (`agent_cursor`) and Codex
-(`agent_codex`, GitHub build only) are there too — their pills can be declared and set as
-the main pill; session support is coming in a future version.
+Amp (`agent_amp`) and Hermes (`agent_hermes`) in Settings → Active pills. Codex
+(`agent_codex`, GitHub build only) is there too, with real `PermissionRequest`
+approval support (Allow/Deny/Always), the same as Claude Code. Cursor
+(`agent_cursor`) can also be declared and set as the main pill, but it does not
+yet answer approval requests — that is the one named agent still missing real
+approval support, on both JichoBot and upstream Coucou.
 
 Claude Desktop (`agent_claude-desktop`, every build) is there as well. Claude Code sessions started from the Claude desktop app's Code tab carry `CLAUDE_CODE_ENTRYPOINT=claude-desktop`; the relay tags them `jichobot_agent: claude-desktop` on its own (an explicit `--agent` still wins), so nothing extra is installed. Declare the pill to keep it after the session ends; the ↗ button opens the Claude app.
 

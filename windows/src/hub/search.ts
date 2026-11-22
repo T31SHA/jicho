@@ -119,6 +119,7 @@ export const SETTINGS_ENTRIES: SettingsSearchEntry[] = [
   { id: "agents.claude-desktop", page: "agents", title: "claude-desktop.chat.title", terms: [] },
   { id: "agents.gemini", page: "agents", title: "hooks.gemini.title", terms: [] },
   { id: "agents.antigravity", page: "agents", title: "hooks.antigravity.title", terms: ["Approve commands from the notch"] },
+  { id: "agents.cursor", page: "agents", title: "hooks.cursor.title", terms: ["Approve commands from the notch"] },
   { id: "agents.codex", page: "agents", title: "hooks.codex.title", terms: [] },
   { id: "agents.copilot", page: "agents", title: "hooks.copilot.title", terms: [] },
   { id: "agents.muse", page: "agents", title: "hooks.muse.title", terms: [] },

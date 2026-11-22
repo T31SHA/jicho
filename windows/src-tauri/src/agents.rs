@@ -573,9 +573,16 @@ fn antigravity_uninstall(root: &Value) -> Result<Value, String> {
 //
 // `{"version": 1, "hooks": {"<event>": [{"command": …}]}}`, camelCase events
 // (from #231, BeyondBirthday07). The relay maps them, turns a stop with
-// `status: "error"` into StopFailure, and prints nothing back: no permission is
-// ever given on Cursor's behalf. Every session lands on the one `agent_cursor`
-// pill.
+// `status: "error"` into StopFailure. On every event but preToolUse it prints
+// nothing back: no permission is ever given on Cursor's behalf there. Every
+// session lands on the one `agent_cursor` pill.
+//
+// preToolUse can deny a call (cursor.com/docs/hooks). Cursor accepts `ask` in
+// the response schema but does not enforce it today, so the no-op reply leaves
+// Cursor's configured permission mode in charge. When Approve commands from
+// the notch is on and the island shows the command (cursor_approvals.rs), only
+// a click on Allow explicitly returns `{"permission":"allow"}`. The hook gets
+// a Shell-only matcher and a long timeout so a card can wait for a click.
 
 const CURSOR_EVENTS: &[&str] = &[
     "sessionStart",
@@ -588,7 +595,18 @@ const CURSOR_EVENTS: &[&str] = &[
 ];
 
 fn cursor_install(root: &Value, command: &str) -> Result<Value, String> {
-    let events = CURSOR_EVENTS.iter().map(|e| (e.to_string(), json!({ "command": command })));
+    let events = CURSOR_EVENTS.iter().map(|e| {
+        let group = if *e == "preToolUse" {
+            json!({
+                "command": command,
+                "matcher": "Shell",
+                "timeout": crate::cursor_approvals::HOOK_TIMEOUT,
+            })
+        } else {
+            json!({ "command": command })
+        };
+        (e.to_string(), group)
+    });
     let mut root = groups_install(root, "cursor", events)?;
     root.entry("version").or_insert(json!(1));
     Ok(Value::Object(root))
@@ -1226,6 +1244,21 @@ mod tests {
         // A version the user set is theirs.
         let after = cursor_install(&json!({ "version": 2 }), "c").unwrap();
         assert_eq!(after["version"], 2);
+    }
+
+    #[test]
+    fn cursors_pre_tool_use_only_waits_for_shell_and_has_a_click_timeout() {
+        let after = cursor_install(&json!({}), "c").unwrap();
+        let pre_tool = &after["hooks"]["preToolUse"][0];
+        assert_eq!(pre_tool["matcher"], "Shell");
+        assert_eq!(pre_tool["timeout"], crate::cursor_approvals::HOOK_TIMEOUT);
+        assert!(pre_tool.get("failClosed").is_none());
+        // Every other event keeps the plain shape: no card can wait on them.
+        for event in CURSOR_EVENTS.iter().filter(|e| **e != "preToolUse") {
+            let group = &after["hooks"][event][0];
+            assert!(group.get("matcher").is_none(), "{event}");
+            assert!(group.get("failClosed").is_none(), "{event}");
+        }
     }
 
     #[test]

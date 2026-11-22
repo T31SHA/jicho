@@ -2,7 +2,7 @@
 // going through the same steps — preview the exact diff, click to confirm, and
 // only then does agents.rs back the file up and write it.
 
-import { Bridge, type AgentHookStatus, type AgyApprovalsStatus } from "../core/bridge";
+import { Bridge, type AgentHookStatus, type AgyApprovalsStatus, type CursorApprovalsStatus } from "../core/bridge";
 import { clear, h } from "../views/dom";
 import { renderDiff, statusDot } from "./parts";
 import { t } from "../i18n/i18n";
@@ -25,6 +25,11 @@ const TEXT = {
   get agyApprovalsOn() { return t("Before Antigravity runs a shell command that none of its rules covers, the notch asks you first: Allow, Deny or Reply in terminal. Antigravity waits up to 2 min, then asks in its terminal. JichoBot can't see Antigravity's mode, so in Auto mode the notch also asks about commands Antigravity would have run on its own."); },
   get agyApprovalsOff() { return t("Antigravity asks for permission in its terminal, as usual."); },
   get agyApprovalsUpdate() { return t("Click Install hooks once more, then restart Antigravity: hooks from an older JichoBot don't let it wait for your answer."); },
+  // Cursor: same idea, its own hook (cursor_approvals.rs) — no rules of its own to defer to.
+  get cursorApprovals() { return t("Approve commands from the notch"); },
+  get cursorApprovalsOn() { return t("Before Cursor runs a shell command, the notch asks you first: Allow, Deny or Use Cursor's permission mode. If you don't answer within 2 min, Cursor's configured permission mode decides."); },
+  get cursorApprovalsOff() { return t("Cursor uses its configured permission mode, as usual."); },
+  get cursorApprovalsUpdate() { return t("Click Install hooks once more, then restart Cursor: hooks installed before this didn't let it wait for your answer."); },
   previewInstall: (name: string) => t("This is exactly what changes for {name}. Nothing else is touched.", { name }),
   get previewRemove() { return t("This removes JichoBot's entries only. Everything else stays."); },
   backup: (to: string) => (to ? t("Backup → {path}", { path: to }) : t("No existing file — nothing to back up.")),
@@ -64,6 +69,8 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
   let status = initial;
   /** Antigravity only: Approve commands from the notch. */
   let agy: AgyApprovalsStatus | null = null;
+  /** Cursor only: Approve commands from the notch. */
+  let cursor: CursorApprovalsStatus | null = null;
   const head = h("div", { class: "row" });
   const body = h("div", { style: "display:flex;flex-direction:column;gap:10px" });
   const block = h("div", { style: "display:flex;flex-direction:column;gap:8px" }, head, body);
@@ -72,6 +79,7 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
     const fresh = (await Bridge.agentHooksList())?.find((a) => a.id === status.id);
     if (fresh) status = fresh;
     if (status.id === "antigravity") agy = await Bridge.agyApprovalsStatus();
+    if (status.id === "cursor") cursor = await Bridge.cursorApprovalsStatus();
     draw();
   }
 
@@ -93,7 +101,7 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
         statusDot(status.installed),
         h("span", { style: "font-size:12.5px", text: status.name }),
       ),
-      h("span", { class: "hint", text: status.approvals || agy?.enabled ? TEXT.approvals : TEXT.displayOnly }),
+      h("span", { class: "hint", text: status.approvals || agy?.enabled || cursor?.enabled ? TEXT.approvals : TEXT.displayOnly }),
       h("span", { class: "spacer" }),
       install,
     );
@@ -106,6 +114,7 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
     }
     body.append(h("span", { class: "path", text: status.path }));
     if (status.id === "antigravity" && status.installed && agy) body.append(agyApprovalsRow(agy));
+    if (status.id === "cursor" && status.installed && cursor) body.append(cursorApprovalsRow(cursor));
   }
 
   /**
@@ -140,6 +149,44 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
       "div",
       { style: "display:flex;flex-direction:column;gap:4px" },
       h("div", { class: "row" }, h("label", {}, box, h("span", { text: ` ${TEXT.agyApprovals}` }))),
+      hint,
+      update,
+      note,
+    );
+  }
+
+  /**
+   * Cursor's commands waiting for Allow / Deny on the island: off by default, shown
+   * once the hooks are installed. Hooks installed before this feature give Cursor no
+   * time to wait for a click: they must be installed again.
+   */
+  function cursorApprovalsRow(current: CursorApprovalsStatus): HTMLElement {
+    const hint = h("div", { class: "hint" });
+    const update = h("div", { class: "notice warn", text: TEXT.cursorApprovalsUpdate });
+    const note = h("div", { class: "hint" });
+    const show = (s: CursorApprovalsStatus) => {
+      hint.textContent = s.enabled ? TEXT.cursorApprovalsOn : TEXT.cursorApprovalsOff;
+      update.style.display = s.enabled && !s.hooksReady ? "" : "none";
+    };
+    const box = h("input", { type: "checkbox" }) as HTMLInputElement;
+    box.checked = current.enabled;
+    box.addEventListener("change", () => {
+      void (async () => {
+        note.textContent = "";
+        try {
+          cursor = await Bridge.cursorApprovalsSetEnabled(box.checked);
+          show(cursor);
+        } catch (err) {
+          box.checked = !box.checked;
+          note.textContent = errorText(err);
+        }
+      })();
+    });
+    show(current);
+    return h(
+      "div",
+      { style: "display:flex;flex-direction:column;gap:4px" },
+      h("div", { class: "row" }, h("label", {}, box, h("span", { text: ` ${TEXT.cursorApprovals}` }))),
       hint,
       update,
       note,
@@ -186,6 +233,6 @@ function agentBlock(initial: AgentHookStatus): HTMLElement {
   }
 
   draw();
-  if (status.id === "antigravity") void refresh();
+  if (status.id === "antigravity" || status.id === "cursor") void refresh();
   return block;
 }

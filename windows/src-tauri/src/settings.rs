@@ -120,6 +120,11 @@ pub struct Settings {
     /// (agy_approvals.rs). Off by default; owned by the Rust side like `phone_link`, so
     /// what a webview sends back is ignored. The Mac's key is the same.
     pub agy_approvals_enabled: bool,
+    /// Settings → Agents → Cursor → Approve commands from the notch: a shell command
+    /// waits for Allow / Deny on the island; Use Cursor's permission mode and
+    /// no-answer timeouts return to Cursor's configured policy (cursor_approvals.rs).
+    /// Off by default; owned by the Rust side like `phone_link`.
+    pub cursor_approvals_enabled: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -192,6 +197,7 @@ impl Default for Settings {
             show_clock: false,
             closed_island: "kito".into(),
             agy_approvals_enabled: false,
+            cursor_approvals_enabled: false,
         }
     }
 }
@@ -494,7 +500,8 @@ mod tests {
   "phoneRelayUrl": "wss://relay.example.workers.dev",
   "showClock": true,
   "closedIsland": "music",
-  "agyApprovalsEnabled": true
+  "agyApprovalsEnabled": true,
+  "cursorApprovalsEnabled": true
 }"##;
 
     fn custom() -> Value {
@@ -1018,6 +1025,7 @@ mod tests {
                 "showClock",
                 "closedIsland",
                 "agyApprovalsEnabled",
+                "cursorApprovalsEnabled",
             ]
         );
         let _ = std::fs::remove_dir_all(&dir);

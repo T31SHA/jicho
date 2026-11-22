@@ -7,7 +7,9 @@
 // same connection, which is how approving from the island works. Antigravity's
 // `PreToolUse` (tagged `agy_pre_tool`) is the other one: it is answered `ask` at
 // once, or `pending` and then the click when its command is put on the card
-// (agy_pre_tool below, agy_approvals.rs).
+// (agy_pre_tool below, agy_approvals.rs). Cursor's `PreToolUse` (tagged
+// `cursor_pre_tool`) follows the same exchange with Cursor's `permission` reply
+// shape (cursor_pre_tool below, cursor_approvals.rs).
 //
 // Claude Code is never blocked by us. Three things guarantee it:
 //   * jichobot-hook gives the connection 300 ms and exits cleanly if we are closed;
@@ -36,6 +38,7 @@ use tokio::net::windows::named_pipe::NamedPipeServer;
 use tokio::sync::mpsc;
 
 use crate::agy_approvals;
+use crate::cursor_approvals;
 use crate::island::WINDOW_LABEL;
 use crate::log;
 use crate::session_window;
@@ -260,6 +263,13 @@ async fn handle(app: AppHandle, mut pipe: impl Relay) {
         agy_pre_tool(app, pipe, payload).await;
         return;
     }
+    // Cursor's preToolUse: same idea, its own reply shape (cursor_approvals.rs).
+    if event == "PreToolUse"
+        && payload.get("jichobot_kind").and_then(Value::as_str) == Some(cursor_approvals::KIND)
+    {
+        cursor_pre_tool(app, pipe, payload).await;
+        return;
+    }
 
     if event != "PermissionRequest" {
         // The status line relay calls in with every Claude Code update: not log-worthy.
@@ -394,6 +404,93 @@ fn agy_settled(app: &AppHandle, id: &str, why: &str) {
     app.state::<Pending>().0.lock().unwrap().remove(id);
     crate::recap::forget_request(app, id);
     let _ = app.emit_to(WINDOW_LABEL, "approval-expired", id);
+}
+
+/// Cursor is about to run a shell command and its relay waits for a line. The island
+/// always gets the event, as for any agent. Then, when Approve commands from the notch
+/// is on, the card comes up as a permission request: once the island says it is on
+/// screen the relay is told `pending` (it then waits for the click instead of a few
+/// seconds), and Allow or Deny follow. Anything else — no card, no ack, no click in
+/// time — leaves the bare word unset to the hook, which replies `permission: ask`.
+/// Cursor accepts `ask` in the preToolUse schema but currently treats it as a no-op,
+/// leaving its configured permission mode in charge.
+async fn cursor_pre_tool(app: AppHandle, mut pipe: impl Relay, payload: Value) {
+    let enabled = app
+        .state::<crate::Shared>()
+        .settings
+        .lock()
+        .unwrap()
+        .cursor_approvals_enabled;
+    let gate = cursor_approvals::gate(&payload, enabled, &crate::platform::home_dir());
+    log::line("hook PreToolUse");
+    let _ = app.emit_to(WINDOW_LABEL, "hook", payload.clone());
+    let Some(gate) = gate else {
+        reply_line(&mut pipe, "ask").await;
+        pipe.finish();
+        return;
+    };
+
+    let id = format!(
+        "{}-{}",
+        std::process::id(),
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    );
+    let (tx, mut rx) = mpsc::channel::<Reply>(4);
+    app.state::<Pending>().0.lock().unwrap().insert(id.clone(), tx);
+    crate::recap::note_request(&app, &id, &payload);
+    let mut card = payload;
+    card["hook_event_name"] = json!("PermissionRequest");
+    card["request_id"] = json!(id);
+    card["tool_input"]["command"] = json!(gate.command);
+    log::line(format!("hook Cursor command waits for the island id={id}"));
+    let _ = app.emit_to(WINDOW_LABEL, "hook", card);
+
+    // The relay hung up (Cursor stopped waiting, or the turn was cancelled): the
+    // card goes, nothing is written.
+    let first = tokio::select! {
+        r = tokio::time::timeout(ACK_TIMEOUT, rx.recv()) => r.ok().flatten(),
+        () = client_gone(&mut pipe) => {
+            agy_settled(&app, &id, "answered elsewhere");
+            return;
+        }
+    };
+    let decision = match first {
+        Some(Reply::Ack) => {
+            reply_line(&mut pipe, "pending").await;
+            tokio::select! {
+                r = tokio::time::timeout(gate.wait, rx.recv()) => match r {
+                    Ok(Some(Reply::Decision(d))) => Some(d),
+                    Ok(Some(_)) | Ok(None) => None,
+                    Err(_) => {
+                        log::line(format!("hook id={id} timed out — Cursor's permission mode decides"));
+                        None
+                    }
+                },
+                () = client_gone(&mut pipe) => {
+                    agy_settled(&app, &id, "answered elsewhere");
+                    return;
+                }
+            }
+        }
+        // A click that beats the ack is still a click.
+        Some(Reply::Decision(d)) => Some(d),
+        Some(Reply::Decline) | None => None,
+    };
+    app.state::<Pending>().0.lock().unwrap().remove(&id);
+    // Only a click on Allow or Deny is a decision; anything else sends Cursor the
+    // documented no-op `ask` response so its configured permission mode decides.
+    let word = match decision.as_deref() {
+        Some("allow") => "allow",
+        Some("deny") => "deny",
+        _ => "ask",
+    };
+    log::line(format!("hook id={id} answered {word}"));
+    if word == "ask" {
+        crate::recap::forget_request(&app, &id);
+        let _ = app.emit_to(WINDOW_LABEL, "approval-expired", &id);
+    }
+    reply_line(&mut pipe, word).await;
+    pipe.finish();
 }
 
 async fn reply_line(pipe: &mut impl Relay, word: &str) {

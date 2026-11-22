@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  AGY_CARD_KIND, APPROVAL_AGENTS, KNOWN_AGENTS, agentColor, agentName, takesCard, validateAgent,
+  AGY_CARD_KIND, APPROVAL_AGENTS, CURSOR_CARD_KIND, KNOWN_AGENTS, agentColor, agentName, takesCard, validateAgent,
 } from "../src/island/agents.ts";
 
 test("known agents carry the Mac's names and colours", () => {
@@ -44,4 +44,12 @@ test("Antigravity gets a card only for the commands JichoBot itself puts on one"
   assert.equal(takesCard("antigravity", "agy_pre_tool"), true);
   assert.equal(takesCard("antigravity", undefined), false);
   assert.equal(takesCard("gemini", "agy_pre_tool"), false);
+});
+
+test("Cursor gets an approval card only for its tagged preToolUse commands", () => {
+  assert.equal(CURSOR_CARD_KIND, "cursor_pre_tool"); // cursor_approvals::KIND in Rust
+  assert.equal(takesCard("cursor", CURSOR_CARD_KIND), true);
+  assert.equal(takesCard("cursor", undefined), false);
+  assert.equal(takesCard("cursor", "agy_pre_tool"), false);
+  assert.equal(takesCard("gemini", CURSOR_CARD_KIND), false);
 });

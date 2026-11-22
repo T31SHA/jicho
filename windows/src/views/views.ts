@@ -587,11 +587,11 @@ function buildApproval(actions: ViewActions): ViewHost {
       code.textContent = State.pendingApproval?.command || State.pendingApproval?.tool || "…";
       // Two buttons, built once per kind of card. Rebuilding them between a
       // mouse-down and a mouse-up would swallow the click. "Always" is gone until
-      // the remembered-rules list exists to back it. Antigravity waits on the card:
-      // a third button hands the command back to its own prompt in the terminal,
-      // where its "Always allow" lives (as on the Mac).
-      const agy = State.pendingApproval?.pillId === "agent_antigravity";
-      const key = agy ? "agy" : "built";
+      // the remembered-rules list exists to back it. Antigravity and Cursor wait
+      // on the card; the third button returns to the agent's own permission policy.
+      const isCursor = State.pendingApproval?.pillId === "agent_cursor";
+      const waitsOnCard = State.pendingApproval?.pillId === "agent_antigravity" || isCursor;
+      const key = waitsOnCard ? "waits" : "built";
       if (rowKey === key) return;
       rowKey = key;
       clear(row);
@@ -599,7 +599,10 @@ function buildApproval(actions: ViewActions): ViewHost {
         btn(tl("Deny"), "secondary", guarded("deny"), "N"),
         btn(tl("Allow"), "primary", guarded("allow"), "Y"),
       );
-      if (agy) row.append(btn(tl("Reply in terminal"), "secondary", inTerminal));
+      if (waitsOnCard) {
+        const fallbackLabel = isCursor ? tl("Use Cursor's permission mode") : tl("Reply in terminal");
+        row.append(btn(fallbackLabel, "secondary", inTerminal));
+      }
     },
   };
 }

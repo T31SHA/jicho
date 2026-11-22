@@ -3,8 +3,9 @@
 //!
 //! The one rule that matters: **nothing that allows anything is ever printed
 //! without a decision a human clicked.** With no decision the reply is silence,
-//! an empty `{}`, or Copilot's explicit "ask", and every agent then asks in its
-//! own terminal exactly as if JichoBot were not installed.
+//! a no-op response, or an explicit "ask" for agents that require valid JSON.
+//! Cursor's `preToolUse` hook accepts `permission: "ask"` but does not enforce
+//! it, leaving Cursor's configured permission mode to decide.
 
 use serde_json::{json, Map, Value};
 
@@ -15,12 +16,14 @@ pub fn takes_decisions(agent: &str) -> bool {
     matches!(agent, "" | "codex" | "copilot" | "muse" | "claude-desktop" | "opencode")
 }
 
-/// Antigravity's PreToolUse: Antigravity has no permission request and waits for
-/// this hook's decision instead, so the relay waits for JichoBot's line (main.rs).
-/// JichoBot only shows a card when Settings → Agents → Antigravity → Approve
-/// commands from the notch is on (src-tauri/src/agy_approvals.rs).
+/// Antigravity and Cursor have no permission-request event of their own: both
+/// wait for this hook's decision on PreToolUse instead, so the relay waits for
+/// JichoBot's line (main.rs). JichoBot only shows a card when Settings → Agents
+/// → <agent> → Approve commands from the notch is on
+/// (src-tauri/src/agy_approvals.rs, src-tauri/src/cursor_approvals.rs).
 pub fn waits_on_pre_tool(agent: &str, event: &str) -> bool {
-    agent.eq_ignore_ascii_case("antigravity") && event == "PreToolUse"
+    (agent.eq_ignore_ascii_case("antigravity") || agent.eq_ignore_ascii_case("cursor"))
+        && event == "PreToolUse"
 }
 
 /// Agents that read a JSON object on stdout after every hook and get `{}` —
@@ -34,14 +37,27 @@ fn wants_json(agent: &str) -> bool {
 /// question as it was asked.
 pub fn stdout(agent: &str, event: &str, decision: Option<&str>, question: Option<&Value>) -> Option<String> {
     if event != "PermissionRequest" {
-        // Antigravity reads "{}" on PreToolUse as a denial. "ask" keeps its own prompt
-        // (and the user's Always Allow): JichoBot never allows a tool by itself, only a
-        // click on the island's Allow does. The Mac relay's replies, key for key.
+        // "ask" (Antigravity) or Cursor's documented no-op `permission: "ask"`
+        // leaves the native permission policy in charge. Only a click on the
+        // island's Allow explicitly permits a command here. Antigravity's reply
+        // stays key for key with the Mac relay.
         if waits_on_pre_tool(agent, event) {
-            let reply = match decision.map(str::trim) {
-                Some("allow" | "always") => r#"{"decision":"allow"}"#,
-                Some("deny") => r#"{"decision":"deny","reason":"Denied from JichoBot"}"#,
-                _ => r#"{"decision":"ask"}"#,
+            let reply = if agent.eq_ignore_ascii_case("cursor") {
+                // Cursor accepts `ask` in the preToolUse schema but currently does
+                // not enforce it, leaving its configured permission mode in charge.
+                // An empty object is invalid and blocks the tool, so always return
+                // the explicit no-op value when nobody clicked Allow or Deny.
+                match decision.map(str::trim) {
+                    Some("allow" | "always") => r#"{"permission":"allow"}"#,
+                    Some("deny") => r#"{"permission":"deny","user_message":"Denied from JichoBot"}"#,
+                    _ => r#"{"permission":"ask"}"#,
+                }
+            } else {
+                match decision.map(str::trim) {
+                    Some("allow" | "always") => r#"{"decision":"allow"}"#,
+                    Some("deny") => r#"{"decision":"deny","reason":"Denied from JichoBot"}"#,
+                    _ => r#"{"decision":"ask"}"#,
+                }
             };
             return Some(reply.to_string());
         }
@@ -160,10 +176,11 @@ mod tests {
     fn allows(out: &str) -> bool {
         let v: Value = serde_json::from_str(out).expect("every reply is JSON");
         let text = v.to_string();
-        // Any decision counts as one, except "ask" (Antigravity's PreToolUse): that hands the
-        // choice back to the agent's own prompt.
+        // Any decision counts as one, except `ask` (Antigravity or Cursor): that
+        // leaves the agent's own permission policy in charge.
         let decided = v.get("decision").map_or(false, |d| d.as_str() != Some("ask"));
-        text.contains("allow") || decided || v.get("permission").is_some() || v.get("continue").is_some()
+        let permission_decided = v.get("permission").is_some_and(|p| p.as_str() != Some("ask"));
+        text.contains("allow") || decided || permission_decided || v.get("continue").is_some()
     }
 
     #[test]
@@ -243,10 +260,36 @@ mod tests {
         for event in ["PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop"] {
             assert_eq!(stdout("gemini", event, None, None).unwrap(), "{}");
         }
-        // Cursor: silence, which Cursor reads as "carry on as usual".
-        for event in ["PreToolUse", "UserPromptSubmit", "Stop"] {
+        // Cursor's other lifecycle events: silence, which Cursor reads as "carry on".
+        for event in ["UserPromptSubmit", "Stop"] {
             assert_eq!(stdout("cursor", event, None, None), None);
         }
+        // Cursor's PreToolUse is the approval gate. `ask` is a valid no-op that
+        // leaves Cursor's configured permission mode in charge; `{}` is invalid.
+        assert_eq!(
+            stdout("cursor", "PreToolUse", None, None).unwrap(),
+            r#"{"permission":"ask"}"#
+        );
+        for not_a_click in ["ask", "pending", "", "maybe", r#"{"permissionDecision":"allow"}"#] {
+            assert_eq!(
+                stdout("cursor", "PreToolUse", Some(not_a_click), None).unwrap(),
+                r#"{"permission":"ask"}"#
+            );
+        }
+        assert_eq!(
+            stdout("cursor", "PreToolUse", Some("allow"), None).unwrap(),
+            r#"{"permission":"allow"}"#
+        );
+        assert_eq!(
+            stdout("cursor", "PreToolUse", Some("always"), None).unwrap(),
+            r#"{"permission":"allow"}"#
+        );
+        assert_eq!(
+            stdout("cursor", "PreToolUse", Some("deny"), None).unwrap(),
+            r#"{"permission":"deny","user_message":"Denied from JichoBot"}"#
+        );
+        // Cursor has no permission request of its own: nothing is relayed there.
+        assert_eq!(stdout("cursor", "PermissionRequest", Some("allow"), None), None);
         // Hermes approvals are not supported: its decisions are never relayed.
         assert_eq!(stdout("hermes", "PermissionRequest", Some("allow"), None), None);
     }

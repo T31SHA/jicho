@@ -79,6 +79,38 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           Get-ChildItem release | Format-Table Name, Length
 
+      # Windows installers are unsigned, so scan the exact release files before
+      # publishing them. Disable remediation so Defender can report a detection
+      # without deleting the package from the build output.
+      - name: Scan installers with Microsoft Defender
+        shell: pwsh
+        run: |
+          $platformRoot = Join-Path $env:ProgramData 'Microsoft\Windows Defender\Platform'
+          $mpCmdRun = Get-ChildItem $platformRoot -Directory -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending |
+            ForEach-Object { Join-Path $_.FullName 'MpCmdRun.exe' } |
+            Where-Object { Test-Path $_ } |
+            Select-Object -First 1
+          if (-not $mpCmdRun) {
+            $mpCmdRun = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+          }
+          if (-not (Test-Path $mpCmdRun)) {
+            throw 'Microsoft Defender command-line scanner was not found.'
+          }
+
+          $installers = Get-ChildItem release -File | Where-Object {
+            $_.Extension -eq '.msi' -or ($_.Extension -eq '.exe' -and $_.Name -like '*-setup.exe')
+          }
+          if (-not $installers) { throw 'No Windows installer files were produced to scan.' }
+
+          foreach ($installer in $installers) {
+            Write-Host "Scanning $($installer.Name) with Microsoft Defender."
+            & $mpCmdRun -Scan -ScanType 3 -File $installer.FullName -DisableRemediation
+            if ($LASTEXITCODE -ne 0) {
+              throw "Defender detected a threat or could not scan $($installer.Name) (exit $LASTEXITCODE)."
+            }
+          }
+
       # Upload only on a manual run or when publishing a release.
       # The repo is public, so artifacts are downloadable by any signed-in GitHub
       # user; the condition keeps them off automatic tag builds while downloads

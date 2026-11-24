@@ -129,13 +129,17 @@ jobs:
           VERSION: ${{ needs.apk.outputs.version }}
         run: |
           v="$VERSION"
-          notes="JichoBot for Android $v, by Rhytam Biswas (@Rhytam23): your coding agents on your Android phone.
+          notes="JichoBot for Android $v — agent activity, questions, and approvals on your phone.
 
-          1. Download \`JichoBot-Android-$v.apk\` on your phone (Android 11 or later) and open it. Android asks once to allow installs from your browser or file manager.
-          2. On your computer, JichoBot 0.4.0 or later for Windows or Linux: Settings → Android phone, turn on Phone link, then Show pairing code.
-          3. Scan the code with the app. The phone and the computer must be on the same Wi-Fi.
+          Android 11 or later.
 
-          Check the download with \`sha256sum -c SHA256SUMS\`. Guide and troubleshooting: https://github.com/T31SHA/jicho/blob/main/android/README.md"
+          1. Download \`JichoBot-Android-$v.apk\` on your phone and open it. If asked, allow installs from your browser or file manager.
+          2. On a Windows or Linux computer, open JichoBot Settings → Android phone, turn on Phone link, then choose Show pairing code.
+          3. Scan the QR code or open the copied pairing link. Keep both devices on the same Wi-Fi.
+
+          Approval alerts can vibrate. Session completion and failure alerts are optional; the live status notification stays quiet. Remote access needs the optional relay.
+
+          To verify the APK, keep \`SHA256SUMS\` beside it and run \`sha256sum -c SHA256SUMS\`. Guide: https://t31sha.github.io/jicho/android.html"
           # --latest=false: the macOS v* releases own the Latest slot, which the site's Download for Mac button points at.
           gh release create "$GITHUB_REF_NAME" \
             "JichoBot-Android-$v.apk" \
